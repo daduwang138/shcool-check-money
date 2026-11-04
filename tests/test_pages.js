@@ -156,6 +156,103 @@ const tomb = current().days['2026-11-04'];
 ok(tomb && tomb.off === true, '清空法定工作日留下 off 墓碑', JSON.stringify(tomb));
 ok(core.effHalf(core.normalize(current()), '2026-11-04', 'am') === '', '清空后该日不再算上班');
 
+/* ================= 多选 + 批量套用 ================= */
+reset();
+seedDb();
+const bcal = makePage('calendar');
+bcal.onLoad();
+ok(bcal.data.ym === '2026-11', '批量测试固定在 2026-11', bcal.data.ym);
+
+bcal.toggleSel();
+ok(bcal.data.sel === true, '点「多选」进入选择模式');
+bcal.toggleSelKey({ currentTarget: { dataset: { key: '2026-11-05' } } });
+bcal.toggleSelKey({ currentTarget: { dataset: { key: '2026-11-06' } } });
+ok(bcal.data.selKeys.length === 2, '点日期加入选区', JSON.stringify(bcal.data.selKeys));
+ok(bcal.data.cells.filter(c => c.sel).length === 2, '选中的格子带高亮标记');
+bcal.toggleSelKey({ currentTarget: { dataset: { key: '2026-11-06' } } });
+ok(bcal.data.selKeys.length === 1, '再点一次取消选中');
+bcal.toggleSelKey({ currentTarget: { dataset: { key: '2026-11-06' } } });
+
+bcal.applySel({ currentTarget: { dataset: { st: 'inv' } } });
+const inv5 = current().days['2026-11-05'], inv6 = current().days['2026-11-06'];
+ok(inv5 && inv5.am === 'inv' && inv5.pm === 'inv', '整片套用监考（上午下午都设）', JSON.stringify(inv5));
+ok(inv6 && inv6.pm === 'inv', '选区里的第二天同样被套用');
+ok(bcal.data.sel === false && !bcal.data.selKeys.length, '套用后自动退出选择模式');
+ok(!!bcal.data.undo, '批量套用后弹出撤销条');
+bcal.doUndo();
+ok(!current().days['2026-11-05'] && !current().days['2026-11-06'], '批量套用可整体撤销');
+
+bcal.toggleSel();
+bcal.toggleSelKey({ currentTarget: { dataset: { key: '2026-11-09' } } });
+bcal.pickScope({ currentTarget: { dataset: { s: 'am' } } });
+bcal.applySel({ currentTarget: { dataset: { st: 'work' } } });
+const am9 = current().days['2026-11-09'];
+ok(am9 && am9.am === 'work' && am9.pm === '', '「只上午」只设上午', JSON.stringify(am9));
+ok(core.effHalf(core.normalize(current()), '2026-11-09', 'pm') === '', '下午仍为空，没有被顺手设成上班');
+
+bcal.tapCell({ currentTarget: { dataset: { key: '2026-11-10' } } });
+bcal.setData({ 'sheet.lessons': 4 });
+bcal.saveSheet();
+bcal.toggleSel();
+bcal.toggleSelKey({ currentTarget: { dataset: { key: '2026-11-10' } } });
+bcal.toggleClearLes();
+ok(bcal.data.clearLes === true, '「课时清零」可切换');
+bcal.applySel({ currentTarget: { dataset: { st: 'work' } } });
+const cl10 = current().days['2026-11-10'];
+ok(cl10.lessons === 0 && cl10.lset === true, '连课时清零后记成明确 0 节', JSON.stringify(cl10));
+
+bcal.toggleSel();
+bcal.selAllWorkdays();
+let wdNov = 0;
+for (let d = 1; d <= 30; d++) { if (core.isWorkday(core.dk(2026, 11, d))) { wdNov++; } }
+ok(bcal.data.selKeys.length === wdNov, '「全月工作日」选中全部法定工作日',
+  bcal.data.selKeys.length + ' vs ' + wdNov);
+ok(bcal.data.selKeys.every(k => core.isWorkday(k)), '选中的都是法定工作日');
+bcal.exitSel();
+ok(bcal.data.sel === false && !bcal.data.selKeys.length, '退出多选后清空选区');
+
+/* 批量设置：日期范围 + 星期 */
+bcal.openBulk();
+const bk0 = bcal.data.bulk;
+ok(bk0 && bk0.from === '2026-11-01' && bk0.to === '2026-11-30', '批量设置默认当月 1 号到月末',
+  bk0 && (bk0.from + ' ~ ' + bk0.to));
+ok(bk0.count === 30, '默认七天全选，影响整月 30 天', String(bk0.count));
+bcal.bulkWd({ currentTarget: { dataset: { i: 0 } } });
+bcal.bulkWd({ currentTarget: { dataset: { i: 6 } } });
+let expectWd = 0;
+for (let d = 1; d <= 30; d++) {
+  const w = core.dowOf(core.dk(2026, 11, d));
+  if (w !== 0 && w !== 6) { expectWd++; }
+}
+ok(bcal.data.bulk.count === expectWd, '去掉周末后影响天数随之减少',
+  bcal.data.bulk.count + ' vs ' + expectWd);
+bcal.setData({ 'bulk.state': 'ot' });
+bcal.applyBulk();
+const otDay = current().days['2026-11-03'];
+ok(otDay && otDay.am === 'ot' && otDay.pm === 'ot', '批量设置把工作日设为加班', JSON.stringify(otDay));
+ok(!current().days['2026-11-01'] && !current().days['2026-11-07'], '周末没有被改动');
+ok(bcal.data.bulk === null, '应用后关闭批量弹窗');
+bcal.doUndo();
+ok(!current().days['2026-11-03'], '批量设置同样能撤销');
+
+/* 批量范围自动剔除起算日之前 */
+reset();
+seedDb();
+const db2 = current();
+db2.settings.startDate = '2026-11-16';
+mem['kqzb_db_v1'] = JSON.stringify(db2);
+const bcal2 = makePage('calendar');
+bcal2.onLoad();
+bcal2.openBulk();
+const bkKeys = bcal2.bulkKeys();
+ok(bkKeys.length > 0 && bkKeys.every(k => k >= '2026-11-16'), '批量范围剔除起算日前的日期',
+  bkKeys.length + ' 天，最早 ' + bkKeys[0]);
+bcal2.setData({ 'bulk.state': 'am' });
+bcal2.applyBulk();
+const amDay = current().days['2026-11-17'];
+ok(amDay && amDay.am === 'work' && amDay.pm === '', '批量设「只上午」时只写上午');
+ok(!current().days['2026-11-13'], '起算日前的日期没有被写记录');
+
 /* 汇总页 */
 reset();
 seedDb();

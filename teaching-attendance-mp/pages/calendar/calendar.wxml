@@ -1,4 +1,4 @@
-<view class="page">
+<view class="page {{sel ? 'pad-sel' : ''}}">
   <view class="topbar">
     <view class="nav" bindtap="prevMonth" hover-class="nav-hover">‹</view>
     <picker mode="date" fields="month" value="{{ym}}" bindchange="pickMonth">
@@ -6,6 +6,7 @@
     </picker>
     <view class="nav" bindtap="nextMonth" hover-class="nav-hover">›</view>
     <view class="go-today" bindtap="goToday">今天</view>
+    <view class="sel-toggle {{sel ? 'on' : ''}}" bindtap="toggleSel">{{sel ? '退出' : '多选'}}</view>
   </view>
 
   <view class="chips">
@@ -27,7 +28,7 @@
   </view>
 
   <view class="grid">
-    <view wx:for="{{cells}}" wx:key="id" class="{{item.blank ? 'cell blank' : item.cls}}" data-key="{{item.key}}" bindtap="tapCell">
+    <view wx:for="{{cells}}" wx:key="id" class="{{item.blank ? 'cell blank' : item.cls}} {{item.sel ? 'sel' : ''}}" data-key="{{item.key}}" bindtap="tapCell">
       <block wx:if="{{!item.blank}}">
         <view class="dnum">
           <text class="dn">{{item.d}}</text>
@@ -48,13 +49,39 @@
 
   <view class="tools">
     <view class="btn primary" bindtap="fillCourse">按课程表填课时</view>
+    <view class="btn" bindtap="openBulk">批量设置</view>
+  </view>
+  <view class="tools">
     <view class="btn" bindtap="restoreDefault">恢复默认出勤</view>
     <view class="btn danger" bindtap="clearMonth">清空本月</view>
   </view>
 
   <view class="tips">
-    <text>点格子改当天状态与课时。琥珀色虚线格表示开了「默认出勤」但还没核实的日子。</text>
+    <text>点格子改当天状态与课时。顶栏「多选」可框选多天后整片套用；跨月、按星期批量改走「批量设置」。</text>
   </view>
+</view>
+
+<view class="selbar" wx:if="{{sel}}">
+  <view class="sb-head">
+    <text class="sb-cnt">已选 {{selKeys.length}} 天</text>
+    <text class="sb-link" bindtap="selAllWorkdays">全月工作日</text>
+    <text class="sb-link" bindtap="selClearAll">清空</text>
+    <text class="sb-x" bindtap="exitSel">×</text>
+  </view>
+  <view class="sb-scope">
+    <view class="sb-chip {{scope === 'both' ? 'on' : ''}}" data-s="both" bindtap="pickScope">全天</view>
+    <view class="sb-chip {{scope === 'am' ? 'on' : ''}}" data-s="am" bindtap="pickScope">只上午</view>
+    <view class="sb-chip {{scope === 'pm' ? 'on' : ''}}" data-s="pm" bindtap="pickScope">只下午</view>
+    <view class="sb-chip sb-les {{clearLes ? 'on' : ''}}" bindtap="toggleClearLes">课时清零</view>
+  </view>
+  <view class="sb-row">
+    <view class="sb-b w" data-st="work" bindtap="applySel">上班</view>
+    <view class="sb-b i" data-st="inv" bindtap="applySel">监考</view>
+    <view class="sb-b o" data-st="ot" bindtap="applySel">加班</view>
+    <view class="sb-b l" data-st="leave" bindtap="applySel">请假</view>
+    <view class="sb-b" data-st="empty" bindtap="applySel">空</view>
+  </view>
+  <text class="sb-hint">点日期增减选择；起算日前的日期会自动跳过</text>
 </view>
 
 <view class="mask" wx:if="{{sheet}}" bindtap="closeSheet" catchtouchmove="noop"></view>
@@ -102,6 +129,63 @@
   <view class="sheet-actions">
     <view class="btn ghost" bindtap="clearSheet">清空这天</view>
     <view class="btn primary" bindtap="saveSheet">完成</view>
+  </view>
+  <view class="safe"></view>
+</view>
+
+<view class="mask" wx:if="{{bulk}}" bindtap="closeBulk" catchtouchmove="noop"></view>
+
+<view class="sheet" wx:if="{{bulk}}">
+  <view class="sheet-head">
+    <view class="sheet-title-wrap">
+      <text class="sheet-title">批量设置</text>
+      <text class="sheet-sub">按日期范围 + 星期，一次套用到多天</text>
+    </view>
+    <view class="sheet-x" bindtap="closeBulk">✕</view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">日期范围</text>
+    <view class="date-row">
+      <picker class="date-box" mode="date" value="{{bulk.from}}" data-which="from" bindchange="bulkDate">{{bulk.from}}</picker>
+      <text class="date-sep">至</text>
+      <picker class="date-box" mode="date" value="{{bulk.to}}" data-which="to" bindchange="bulkDate">{{bulk.to}}</picker>
+    </view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">只在以下星期生效（可多选）</text>
+    <view class="wd-row">
+      <view wx:for="{{bulk.wdView}}" wx:key="i" class="wd {{item.on ? 'on' : ''}}"
+            data-i="{{item.i}}" bindtap="bulkWd">{{item.label}}</view>
+    </view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">设为</text>
+    <view class="st-row">
+      <view class="st s-work {{bulk.state === 'work' ? 'on' : ''}}" data-st="work" bindtap="bulkState">上班</view>
+      <view class="st s-inv {{bulk.state === 'inv' ? 'on' : ''}}" data-st="inv" bindtap="bulkState">监考</view>
+      <view class="st s-ot {{bulk.state === 'ot' ? 'on' : ''}}" data-st="ot" bindtap="bulkState">加班</view>
+      <view class="st s-leave {{bulk.state === 'leave' ? 'on' : ''}}" data-st="leave" bindtap="bulkState">请假</view>
+      <view class="st s-empty {{bulk.state === 'empty' ? 'on' : ''}}" data-st="empty" bindtap="bulkState">空</view>
+      <view class="st plain {{bulk.state === 'am' ? 'on' : ''}}" data-st="am" bindtap="bulkState">只上午</view>
+      <view class="st plain {{bulk.state === 'pm' ? 'on' : ''}}" data-st="pm" bindtap="bulkState">只下午</view>
+    </view>
+  </view>
+
+  <view class="field">
+    <view class="cl-row {{bulk.clearLes ? 'on' : ''}}" bindtap="bulkClearLes">
+      <text class="cl-t">同时把课时清零</text>
+      <view class="cl-box">{{bulk.clearLes ? '✓' : ''}}</view>
+    </view>
+  </view>
+
+  <text class="bulk-preview">将影响 {{bulk.count}} 天{{bulk.count ? '，套用后 5 秒内可撤销' : ''}}</text>
+
+  <view class="sheet-actions">
+    <view class="btn ghost" bindtap="closeBulk">取消</view>
+    <view class="btn primary" bindtap="applyBulk">应用</view>
   </view>
   <view class="safe"></view>
 </view>

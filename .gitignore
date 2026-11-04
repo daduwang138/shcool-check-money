@@ -13,3 +13,6 @@ desktop.ini
 node_modules/
 *.log
 npm-debug.log*
+
+# 测试生成的草图
+tests/out/

@@ -21,6 +21,11 @@ Page({
     opts: OPTIONS,
     sheet: null,
     undo: null,
+    sel: false,
+    selKeys: [],
+    scope: 'both',
+    clearLes: false,
+    bulk: null,
     ready: false
   },
 
@@ -50,6 +55,11 @@ Page({
     var today = core.todayKey();
     var cells = [];
     var i, d;
+
+    var selSet = {};
+    if (this.data.sel) {
+      this.data.selKeys.forEach(function (k) { selSet[k] = 1; });
+    }
 
     for (i = 0; i < lead; i++) { cells.push({ id: 'b' + i, blank: true }); }
 
@@ -82,7 +92,7 @@ Page({
         (pre ? ' pre' : '') + (rest ? ' rest' : '');
 
       cells.push({
-        id: k, key: k, blank: false, d: d, cls: cls,
+        id: k, key: k, blank: false, d: d, cls: cls, sel: !!selSet[k],
         amCls: core.sl(am).cls + (ghA ? ' ghost' : ''),
         pmCls: core.sl(pm).cls + (ghP ? ' ghost' : ''),
         lesText: lesText, lesCls: lesCls, tag: tag, tagCls: tagCls
@@ -121,24 +131,244 @@ Page({
     });
   },
 
-  prevMonth: function () { this.setData({ ym: core.addMonths(this.data.ym, -1), sheet: null }); this.render(); },
-  nextMonth: function () { this.setData({ ym: core.addMonths(this.data.ym, 1), sheet: null }); this.render(); },
-  goToday: function () { this.setData({ ym: core.todayKey().slice(0, 7) }); this.render(); },
+  prevMonth: function () { this.setData({ ym: core.addMonths(this.data.ym, -1), sheet: null, sel: false, selKeys: [], bulk: null }); this.render(); },
+  nextMonth: function () { this.setData({ ym: core.addMonths(this.data.ym, 1), sheet: null, sel: false, selKeys: [], bulk: null }); this.render(); },
+  goToday: function () { this.setData({ ym: core.todayKey().slice(0, 7), sel: false, selKeys: [] }); this.render(); },
   pickMonth: function (e) {
     var v = e.detail.value;
     if (!core.isYm(v)) { return; }
-    this.setData({ ym: v });
+    this.setData({ ym: v, sel: false, selKeys: [] });
     this.render();
   },
 
   tapCell: function (e) {
     var k = e.currentTarget.dataset.key;
     if (!k) { return; }
+    if (this.data.sel) { this.toggleSelKey(e); return; }
     if (core.preStart(this.db, k)) {
       wx.showToast({ title: '这天在入职起算日之前，不计出勤', icon: 'none' });
       return;
     }
     this.openSheet(k);
+  },
+
+  /* ---------- 多选 ---------- */
+  toggleSel: function () {
+    if (this.data.sel) { this.exitSel(); return; }
+    this.setData({ sel: true, selKeys: [], scope: 'both', clearLes: false });
+    this.paintSel();
+  },
+
+  exitSel: function () {
+    this.setData({ sel: false, selKeys: [], clearLes: false });
+    this.paintSel();
+  },
+
+  toggleSelKey: function (e) {
+    var k = e.currentTarget.dataset.key;
+    if (!k) { return; }
+    if (core.preStart(this.db, k)) {
+      wx.showToast({ title: '起算日之前的日期不参与批量修改', icon: 'none' });
+      return;
+    }
+    var keys = this.data.selKeys.slice();
+    var i = keys.indexOf(k);
+    if (i >= 0) { keys.splice(i, 1); } else { keys.push(k); }
+    keys.sort();
+    this.setData({ selKeys: keys });
+    this.paintSel();
+  },
+
+  selAllWorkdays: function () {
+    var db = this.db, ym = this.data.ym;
+    var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
+    var n = core.daysInMonth(ym), keys = [];
+    for (var d = 1; d <= n; d++) {
+      var k = core.dk(y, m, d);
+      if (core.preStart(db, k)) { continue; }
+      if (!core.isWorkday(k)) { continue; }
+      keys.push(k);
+    }
+    this.setData({ selKeys: keys });
+    this.paintSel();
+    wx.showToast({ title: '选中 ' + keys.length + ' 个法定工作日', icon: 'none' });
+  },
+
+  selClearAll: function () {
+    this.setData({ selKeys: [] });
+    this.paintSel();
+  },
+
+  pickScope: function (e) {
+    this.setData({ scope: e.currentTarget.dataset.s || 'both' });
+  },
+
+  toggleClearLes: function () {
+    this.setData({ clearLes: !this.data.clearLes });
+  },
+
+  paintSel: function () {
+    var set = {};
+    this.data.selKeys.forEach(function (k) { set[k] = 1; });
+    var on = this.data.sel;
+    var cells = this.data.cells.map(function (c) {
+      if (c.blank) { return c; }
+      var v = on && !!set[c.key];
+      if (!!c.sel === v) { return c; }
+      var o = {};
+      for (var p in c) { o[p] = c[p]; }
+      o.sel = v;
+      return o;
+    });
+    this.setData({ cells: cells });
+  },
+
+  applySel: function (e) {
+    var st = e.currentTarget.dataset.st;
+    var keys = this.data.selKeys.slice();
+    if (!keys.length) {
+      wx.showToast({ title: '先点几天再套用', icon: 'none' });
+      return;
+    }
+    this.applyToKeys(keys, st, this.data.scope, this.data.clearLes);
+  },
+
+  /* 把一组日期整体设为某状态：scope 只在「只上午/只下午」时有意义 */
+  applyToKeys: function (keys, st, scope, clearLes) {
+    var db = this.db, that = this;
+    keys = keys.filter(function (k) { return !core.preStart(db, k); });
+    if (!keys.length) {
+      wx.showToast({ title: '这些天都在起算日之前，没有可改的', icon: 'none' });
+      return false;
+    }
+    var checked = {};
+    keys.forEach(function (k) {
+      var ym = k.slice(0, 7);
+      if (core.monthP(db, ym).checked) { checked[ym] = 1; }
+    });
+    var cm = Object.keys(checked);
+
+    var run = function () {
+      var snap = {};
+      keys.forEach(function (k) {
+        var r = db.days[k];
+        snap[k] = r ? JSON.parse(JSON.stringify(r)) : null;
+        var les = clearLes ? 0 : (r ? (parseInt(r.lessons, 10) || 0) : 0);
+        var note = r ? (r.note || '') : '';
+        var am, pm;
+        if (st === 'am') { am = 'work'; pm = ''; }
+        else if (st === 'pm') { am = ''; pm = 'work'; }
+        else if (st === 'empty') { am = ''; pm = ''; }
+        else if (scope === 'am') { am = st; pm = ''; }
+        else if (scope === 'pm') { am = ''; pm = st; }
+        else { am = st; pm = st; }
+        core.setRecord(db, k, am, pm, les, note, clearLes ? true : (r ? !!r.lset : false));
+      });
+      that._undo = { msg: that.data.ym, snap: snap };
+      store.save(db);
+      that.setData({ sel: false, selKeys: [], clearLes: false, bulk: null });
+      that.render();
+      that.showUndo('已修改 ' + keys.length + ' 天');
+    };
+
+    if (cm.length) {
+      wx.showModal({
+        title: '含已核对的月份',
+        content: cm.join('、') + ' 已标记核对，仍要修改吗？',
+        confirmText: '继续改',
+        success: function (res) { if (res.confirm) { run(); } }
+      });
+      return true;
+    }
+    run();
+    return true;
+  },
+
+  /* ---------- 批量设置（日期范围 + 星期） ---------- */
+  openBulk: function () {
+    var ym = this.data.ym;
+    var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
+    var n = core.daysInMonth(ym);
+    var wd = [true, true, true, true, true, true, true];
+    var order = [1, 2, 3, 4, 5, 6, 0], WD = ['日', '一', '二', '三', '四', '五', '六'];
+    this.setData({
+      sel: false, selKeys: [],
+      bulk: {
+        from: core.dk(y, m, 1), to: core.dk(y, m, n),
+        wd: wd, state: 'work', clearLes: false, count: 0,
+        wdView: order.map(function (i) {
+          return { i: i, label: '周' + WD[i], on: true };
+        })
+      }
+    });
+    this.paintSel();
+    this.updateBulkCount();
+  },
+
+  closeBulk: function () {
+    this.setData({ bulk: null });
+  },
+
+  bulkDate: function (e) {
+    var which = e.currentTarget.dataset.which;
+    var v = e.detail.value;
+    if (!v) { return; }
+    var patch = {};
+    patch['bulk.' + which] = v;
+    this.setData(patch);
+    this.updateBulkCount();
+  },
+
+  bulkWd: function (e) {
+    var i = parseInt(e.currentTarget.dataset.i, 10);
+    var b = this.data.bulk;
+    var wd = b.wd.slice();
+    wd[i] = !wd[i];
+    if (wd.indexOf(true) < 0) {
+      wx.showToast({ title: '至少选一个星期', icon: 'none' });
+      return;
+    }
+    var view = b.wdView.map(function (x) {
+      return { i: x.i, label: x.label, on: wd[x.i] };
+    });
+    this.setData({ 'bulk.wd': wd, 'bulk.wdView': view });
+    this.updateBulkCount();
+  },
+
+  bulkState: function (e) {
+    this.setData({ 'bulk.state': e.currentTarget.dataset.st || 'work' });
+  },
+
+  bulkClearLes: function () {
+    this.setData({ 'bulk.clearLes': !this.data.bulk.clearLes });
+  },
+
+  bulkKeys: function () {
+    var b = this.data.bulk, db = this.db;
+    if (!b || !b.from || !b.to || b.to < b.from) { return []; }
+    var keys = [], t = new Date(b.from.replace(/-/g, '/'));
+    var end = new Date(b.to.replace(/-/g, '/')), guard = 0;
+    while (t <= end && guard++ < 400) {
+      var w = t.getDay();
+      if (b.wd[w]) { keys.push(core.dk(t.getFullYear(), t.getMonth() + 1, t.getDate())); }
+      t.setDate(t.getDate() + 1);
+    }
+    return keys.filter(function (k) { return !core.preStart(db, k); });
+  },
+
+  updateBulkCount: function () {
+    var ks = this.bulkKeys();
+    this.setData({ 'bulk.count': ks.length });
+  },
+
+  applyBulk: function () {
+    var ks = this.bulkKeys();
+    if (!ks.length) {
+      wx.showToast({ title: '这个范围里没有可改的日期', icon: 'none' });
+      return;
+    }
+    var b = this.data.bulk;
+    this.applyToKeys(ks, b.state, 'both', b.clearLes);
   },
 
   openSheet: function (k) {
