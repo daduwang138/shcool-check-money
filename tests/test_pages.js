@@ -163,7 +163,9 @@ const bcal = makePage('calendar');
 bcal.onLoad();
 ok(bcal.data.ym === '2026-11', '批量测试固定在 2026-11', bcal.data.ym);
 
-function idxOf(pg, key) { return pg.data.cells.findIndex(c => c.key === key); }
+function idxOf(pg, key) {
+  return pg.data.cells.findIndex(c => key === '' ? c.blank : c.key === key);
+}
 /* 模拟手指：从某格起手，横向划 dx 像素、纵向划 dy 像素 */
 function slide(pg, key, dx, dy) {
   pg.gridStart({
@@ -198,6 +200,66 @@ ok(!bcal.data.sel && !bcal.data.selKeys.length, '纵向滑动不触发选择，�
 slide(bcal, '2026-11-09', 3 * 48, 0);
 ok(bcal.data.sel === true && bcal.data.selKeys.length === 4,
   '不点按钮，横向滑动也能直接进入选择并选中', bcal.data.selKeys.join(','));
+
+/* 真机第一次 touchmove 往往只有几像素，方向判定不能一帧定生死 */
+bcal.exitSel();
+function slideSteps(pg, key, steps) {
+  var x0 = 100, y0 = 300;
+  pg.gridStart({
+    currentTarget: { dataset: { key: key, idx: String(idxOf(pg, key)) } },
+    touches: [{ clientX: x0, clientY: y0 }]
+  });
+  steps.forEach(function (s) {
+    pg.gridMove({ touches: [{ clientX: x0 + s[0], clientY: y0 + (s[1] || 0) }] });
+  });
+  pg.gridEnd({});
+}
+
+slideSteps(bcal, '2026-11-09', [[4, 0], [8, 0], [12, 0], [16, 0], [24, 0], [32, 0], [40, 0], [48, 0]]);
+ok(bcal.data.sel === true && bcal.data.selKeys.length >= 2,
+  '每步 4px 的慢速横拖也能选中', bcal.data.selKeys.join(','));
+
+bcal.exitSel();
+slideSteps(bcal, '2026-11-09', [[2, 6], [6, 4], [12, 0], [24, 0], [36, 0], [48, 0]]);
+ok(bcal.data.selKeys.length >= 2,
+  '起手抖几像素再横拖，不当作纵向丢弃', bcal.data.selKeys.join(','));
+
+bcal.exitSel();
+slideSteps(bcal, '2026-11-10', [[3, 10], [5, 20], [6, 40], [7, 60], [8, 90]]);
+ok(!bcal.data.sel, '纵向为主的手势整体放弃，不进入选择');
+
+bcal.exitSel();
+bcal.gridStart({
+  currentTarget: { dataset: { key: '2026-11-11', idx: String(idxOf(bcal, '2026-11-11')) } },
+  touches: [{ clientX: 100, clientY: 300 }]
+});
+bcal.gridMove({ touches: [{ clientX: 110, clientY: 300 }] });
+ok(!bcal.data.sel, '横向位移不足 14px 先按兵不动');
+bcal.gridEnd({});
+ok(!!bcal.data.sheet, '位移太小按点击处理，弹出当天编辑面板');
+bcal.setData({ sheet: null });
+/* 长按：起手挂定时器，抬手清掉（长按进入选择由浏览器端冒烟用例覆盖） */
+bcal.gridStart({
+  currentTarget: { dataset: { key: '2026-11-12', idx: String(idxOf(bcal, '2026-11-12')) } },
+  touches: [{ clientX: 100, clientY: 300 }]
+});
+ok(!!bcal._touch.lp, '起手挂上长按定时器');
+bcal._touch.key = '';
+bcal.gridEnd({});
+ok(!bcal._touch, '抬手清掉手势状态与长按定时器');
+
+/* 从月初的空白格起手也能进选择，只是空白格本身不选 */
+bcal.exitSel();
+ok(bcal.data.cells[0].blank === true, '月初前有空白填充格');
+slideSteps(bcal, '', [[30, 0], [60, 0], [90, 0]]);
+ok(bcal.data.sel === true, '从空白格起手横滑也能进入选择模式');
+ok(bcal.data.selKeys.every(function (k) { return !!k; }), '空白格本身不会被选中');
+bcal.exitSel();
+
+/* 恢复一份 09~12 的选区，供后面的套用用例使用 */
+slide(bcal, '2026-11-09', 3 * 48, 0);
+ok(bcal.data.selKeys.join(',') === '2026-11-09,2026-11-10,2026-11-11,2026-11-12',
+  '重新滑动重建选区', bcal.data.selKeys.join(','));
 
 bcal.applySel({ currentTarget: { dataset: { st: 'inv' } } });
 const inv9 = current().days['2026-11-09'], inv12 = current().days['2026-11-12'];

@@ -30,7 +30,8 @@
   <view class="grid {{sel ? 'no-scroll' : ''}}" bindtouchmove="gridMove">
     <view wx:for="{{cells}}" wx:key="id" class="{{item.blank ? 'cell blank' : item.cls}} {{item.sel ? 'sel' : ''}}"
           data-key="{{item.key}}" data-idx="{{index}}"
-          bindtap="tapCell" bindtouchstart="gridStart" bindtouchend="gridEnd">
+          bindtap="tapCell" bindtouchstart="gridStart" bindtouchend="gridEnd"
+          bindtouchcancel="gridEnd">
       <block wx:if="{{!item.blank}}">
         <view class="dnum">
           <text class="dn">{{item.d}}</text>
@@ -58,7 +59,7 @@
   </view>
 
   <view class="tips">
-    <text>点格子改当天状态与课时。按住日期左右滑动就能连选多天，选好点下方状态整片套用；顶栏「选择」也能进选择模式。</text>
+    <text>点格子改当天状态与课时。在日期上左右滑动、或按住一会儿，都会进入多选：划过的日期连续选中，选好点下方状态整片套用。</text>
   </view>
 </view>
 
@@ -82,7 +83,7 @@
     <view class="sb-b l" data-st="leave" bindtap="applySel">请假</view>
     <view class="sb-b" data-st="empty" bindtap="applySel">空</view>
   </view>
-  <text class="sb-hint">按住日期左右滑动可连续选择；起算日前的日期会自动跳过</text>
+  <text class="sb-hint">左右滑动或长按可连选；起算日前的日期会自动跳过</text>
 </view>
 
 <view class="mask" wx:if="{{sheet}}" bindtap="closeSheet" catchtouchmove="noop"></view>

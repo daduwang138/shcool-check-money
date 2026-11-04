@@ -42,8 +42,39 @@ Page({
     this.render();
   },
 
+  onReady: function () {
+    this.measureGrid();
+  },
+
+  /* 直接量真实格子尺寸：不同手机屏宽、字号缩放都不一样，换算位移要靠它 */
+  measureGrid: function () {
+    var that = this;
+    var tries = 0;
+    function once() {
+      try {
+        wx.createSelectorQuery().selectAll('.cell').boundingClientRect(function (rects) {
+          if (!rects || rects.length < 2 || !rects[0].width) {
+            if (tries++ < 2) { setTimeout(once, 120); }
+            return;
+          }
+          var a = rects[0], b = rects[1];
+          /* 同一行的相邻两格，left 差就是列距；万一第二颗已在下一行，退回用宽度 */
+          var colStep = (Math.abs(b.top - a.top) < 4 && b.left > a.left) ? (b.left - a.left) : a.width;
+          var rowStep = a.height;
+          var i;
+          for (i = 0; i < rects.length; i++) {
+            if (rects[i].top - a.top > 4) { rowStep = rects[i].top - a.top; break; }
+          }
+          that._m = { w: colStep, h: rowStep, cellW: a.width, cellH: a.height };
+        }).exec();
+      } catch (e) { /* 量不到就退回估算 */ }
+    }
+    once();
+  },
+
   onUnload: function () {
     if (this._undoTimer) { clearTimeout(this._undoTimer); }
+    if (this._touch && this._touch.lp) { clearTimeout(this._touch.lp); }
   },
 
   render: function () {
@@ -181,14 +212,11 @@ Page({
 
   /* 一颗格子的宽高，用来把手指位移换算成跨了几格 */
   _metrics: function () {
-    if (this._m) { return this._m; }
+    if (this._m && this._m.w > 4) { return this._m; }
     var w = 375;
     try { w = (wx.getSystemInfoSync() || {}).windowWidth || 375; } catch (e) { w = 375; }
     var r = w / 750;
-    this._m = {
-      w: (w - 48 * r - 36 * r) / 7,
-      h: 116 * r + 6 * r
-    };
+    this._m = { w: (w - 48 * r - 36 * r) / 7, h: 116 * r + 6 * r };
     return this._m;
   },
 
@@ -198,12 +226,29 @@ Page({
     this._touchAt = Date.now();
     var idx = parseInt(e.currentTarget.dataset.idx, 10);
     if (isNaN(idx)) { idx = -1; }
-    this._touch = {
+    var key = e.currentTarget.dataset.key || '';
+    var td = {
       x0: t.clientX, y0: t.clientY,
-      key: e.currentTarget.dataset.key || '',
+      key: key,
       idx0: idx, last: idx,
       moved: false, active: false, add: true
     };
+    this._touch = td;
+
+    /* 长按直接进选择模式：不想横向滑的人按住一会儿就行，之后上下滑也能选 */
+    var that = this;
+    td.lp = setTimeout(function () {
+      if (that._touch !== td || td.moved || td.idx0 < 0) { return; }
+      td.moved = true;
+      td.active = true;
+      td.add = !td.key || that.data.selKeys.indexOf(td.key) < 0;
+      if (!that.data.sel) {
+        that.setData({ sel: true, selKeys: [], scope: 'both', clearLes: false });
+        that.paintSel();
+      }
+      if (td.key && !core.preStart(that.db, td.key)) { that._slideApply([td.key]); }
+      try { wx.vibrateShort({ type: 'medium' }); } catch (err) { /* 忽略 */ }
+    }, 420);
   },
 
   gridMove: function (e) {
@@ -212,23 +257,34 @@ Page({
     if (!td || !t || td.idx0 < 0) { return; }
     var dx = t.clientX - td.x0, dy = t.clientY - td.y0;
 
+    /* 真动起来了就不算长按；几像素的抖动不算，否则长按永远触发不了 */
+    if (td.lp && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+      clearTimeout(td.lp);
+      td.lp = null;
+    }
+
     if (!td.moved) {
-      if (Math.abs(dx) < 9 && Math.abs(dy) < 9) { return; }
+      var adx = Math.abs(dx), ady = Math.abs(dy);
+      /* 手指刚起手时的几像素抖动，先不判定方向 */
+      if (adx < 10 && ady < 10) { return; }
+      /* 纵向明显占优：这是想滚页面，让出去，本轮不再处理 */
+      if (ady > adx * 1.2) {
+        this._touch = null;
+        return;
+      }
+      /* 横向占优但还没划够一格的一半，等下一帧，别急着丢弃 */
+      if (adx < 14) { return; }
       td.moved = true;
       if (!this.data.sel) {
-        /* 只认横向滑动：纵向留给页面滚动，避免误触 */
-        if (Math.abs(dx) < 18 || Math.abs(dx) < Math.abs(dy) * 1.4) {
-          this._touch = null;
-          return;
-        }
         this.setData({ sel: true, selKeys: [], scope: 'both', clearLes: false });
         this.paintSel();
+        try { wx.vibrateShort({ type: 'light' }); } catch (err) { /* 部分机型不支持，忽略 */ }
       }
-      if (!td.key) { this._touch = null; return; }
-      td.add = this.data.selKeys.indexOf(td.key) < 0;
+      /* 从月初的空白格起手也允许滑，只是空白格本身不选中 */
+      td.add = !td.key || this.data.selKeys.indexOf(td.key) < 0;
       td.active = true;
       /* 起算日之前的日期不参与，但滑过去之后的日子照样能选 */
-      if (!core.preStart(this.db, td.key)) { this._slideApply([td.key]); }
+      if (td.key && !core.preStart(this.db, td.key)) { this._slideApply([td.key]); }
     }
 
     if (!td.active) { return; }
@@ -254,6 +310,7 @@ Page({
     var td = this._touch;
     this._touch = null;
     this._touchAt = Date.now();
+    if (td && td.lp) { clearTimeout(td.lp); td.lp = null; }
     if (!td || td.moved || !td.key) { return; }
     if (this.data.sel) { this.toggleKey(td.key); return; }
     if (core.preStart(this.db, td.key)) {

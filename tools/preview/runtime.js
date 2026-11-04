@@ -333,7 +333,39 @@
     getDeviceInfo: function () { return { platform: 'windows', model: 'preview', system: 'Windows 11' }; },
     getSystemInfoSync: function () { return { platform: 'windows', windowWidth: 375, windowHeight: 674 }; },
 
+    createSelectorQuery: function () {
+      var st = { sel: '', all: false, cb: null };
+      var q = {
+        in: function () { return q; },
+        select: function (s) { st.sel = s; st.all = false; return q; },
+        selectAll: function (s) { st.sel = s; st.all = true; return q; },
+        boundingClientRect: function (cb) { st.cb = cb; return q; },
+        exec: function (done) {
+          setTimeout(function () {
+            var root = bodyEl || document;
+            var nodes = st.sel ? root.querySelectorAll(st.sel) : [];
+            var boxes = [];
+            for (var i = 0; i < nodes.length; i++) {
+              var r = nodes[i].getBoundingClientRect();
+              boxes.push({
+                id: nodes[i].id || '', dataset: datasetOf(nodes[i]),
+                left: r.left, top: r.top, right: r.right, bottom: r.bottom,
+                width: r.width, height: r.height
+              });
+            }
+            var res = st.all ? boxes : (boxes[0] || null);
+            if (st.cb) { try { st.cb(res); } catch (e) { console.error(e); } }
+            if (done) { done([res]); }
+          }, 0);
+          return q;
+        }
+      };
+      return q;
+    },
+
     showToast: function (o) { toast(o && o.title || ''); },
+    vibrateShort: function () { },
+    vibrateLong: function () { },
     showModal: function (o) {
       modal({
         title: o.title || '', content: o.content || '',
@@ -653,6 +685,13 @@
     });
   }
 
+  /* 首屏渲染完才算 ready：元素这时才有尺寸，页面可以量格子 */
+  function fireReady(page) {
+    if (!page || page.__ready) { return; }
+    page.__ready = true;
+    if (typeof page.onReady === 'function') { page.onReady(); }
+  }
+
   function pushPage(path) {
     var old = current;
     if (old && typeof old.onHide === 'function') { old.onHide(); }
@@ -663,6 +702,7 @@
     if (typeof page.onLoad === 'function') { page.onLoad({}); }
     if (typeof page.onShow === 'function') { page.onShow(); }
     doRender();
+    fireReady(page);
   }
 
   function switchTab(path) {
@@ -679,6 +719,7 @@
     if (typeof page.onLoad === 'function') { page.onLoad({}); }
     if (typeof page.onShow === 'function') { page.onShow(); }
     doRender();
+    fireReady(page);
   }
 
   function popPage() {
