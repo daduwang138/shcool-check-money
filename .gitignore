@@ -16,3 +16,6 @@ npm-debug.log*
 
 # 测试生成的草图
 tests/out/
+
+# 预览与调试的临时产物
+.tmp/
