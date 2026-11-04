@@ -145,6 +145,8 @@
   display: flex;
   flex-wrap: wrap;
   padding: 0 24rpx;
+  /* 横向手势留给选日期，纵向仍然能滚页面 */
+  touch-action: pan-y;
 }
 
 .cell {

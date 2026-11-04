@@ -1,3 +1,5 @@
+<!-- 选择模式下锁住页面滚动：页面一滚，微信就会打断手势（touchcancel），手指继续划也选不中 -->
+<page-meta page-style="{{sel ? 'overflow: hidden;' : ''}}"></page-meta>
 <view class="page {{sel ? 'pad-sel' : ''}}">
   <view class="topbar">
     <view class="nav" bindtap="prevMonth" hover-class="nav-hover">‹</view>
@@ -31,7 +33,7 @@
     <view wx:for="{{cells}}" wx:key="id" class="{{item.blank ? 'cell blank' : item.cls}} {{item.sel ? 'sel' : ''}}"
           data-key="{{item.key}}" data-idx="{{index}}"
           bindtap="tapCell" bindtouchstart="gridStart" bindtouchend="gridEnd"
-          bindtouchcancel="gridEnd">
+          bindtouchcancel="gridCancel">
       <block wx:if="{{!item.blank}}">
         <view class="dnum">
           <text class="dn">{{item.d}}</text>

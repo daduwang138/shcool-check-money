@@ -33,10 +33,10 @@ let captured = null;
 global.Page = o => { captured = o; };
 
 function setPath(obj, key, val) {
-  const parts = key.split('.');
+  const parts = key.replace(/\[(\d+)\]/g, '.').split('.');
   let o = obj;
   for (let i = 0; i < parts.length - 1; i++) {
-    if (o[parts[i]] == null) { o[parts[i]] = {}; }
+    if (o[parts[i]] == null) { o[parts[i]] = /^\d+$/.test(parts[i + 1]) ? [] : {}; }
     o = o[parts[i]];
   }
   o[parts[parts.length - 1]] = val;
@@ -50,7 +50,9 @@ function makePage(name) {
   const cfg = captured;
   const inst = Object.create(cfg);
   inst.data = JSON.parse(JSON.stringify(cfg.data || {}));
+  inst.__keys = [];
   inst.setData = function (patch, cb) {
+    inst.__keys.push(Object.keys(patch));
     Object.keys(patch).forEach(k => {
       if (k.indexOf('.') >= 0) { setPath(inst.data, k, patch[k]); }
       else { inst.data[k] = patch[k]; }
@@ -176,6 +178,7 @@ function slide(pg, key, dx, dy) {
   pg.gridEnd({});
 }
 
+bcal.__keys = [];   /* 从这里开始记 setData 的字段，只看滑动期间做了什么 */
 bcal.toggleSel();
 ok(bcal.data.sel === true, '点「选择」进入选择模式');
 
@@ -183,6 +186,10 @@ slide(bcal, '2026-11-09', 3 * 48, 0);
 ok(bcal.data.selKeys.join(',') === '2026-11-09,2026-11-10,2026-11-11,2026-11-12',
   '横滑 3 格连选 4 天', bcal.data.selKeys.join(','));
 ok(bcal.data.cells.filter(c => c.sel).length === 4, '选中的格子带高亮标记');
+ok(bcal.__keys.some(ks => ks.some(k => /^cells\[\d+\]\.sel$/.test(k))),
+  '选中只 patch 单格 sel 字段，不整表替换 cells（整表替换会让 wx:for 重建节点、掐断触摸）');
+ok(!bcal.__keys.some(ks => ks.indexOf('cells') >= 0),
+  '滑动过程中从未整表 setData cells');
 
 bcal.toggleKey('2026-11-13');
 ok(bcal.data.selKeys.length === 5, '点单格可追加');

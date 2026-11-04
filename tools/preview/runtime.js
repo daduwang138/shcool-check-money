@@ -179,6 +179,11 @@
   function renderOne(node, data) {
     var tag = node.tag;
     if (tag === 'block') { return renderNodes(node.children, data); }
+    if (tag === 'page-meta') {
+      var ps = node.attrs['page-style'];
+      return '<i class="mp-page-meta" style="display:none" data-style="'
+        + esc(ps ? interp(ps, data) : '') + '"></i>';
+    }
     if (tag === 'text') {
       return '<span' + boxAttrs(node, data, 'mp-text') + '>' + renderNodes(node.children, data) + '</span>';
     }
@@ -597,12 +602,16 @@
   var rendering = false;
   var renderQueued = false;
 
+  /* 支持 a.b[3].c 这样的路径，含数组下标 */
   function setPath(obj, path, val) {
-    var parts = path.split('.');
+    var parts = path.replace(/\[(\d+)\]/g, '.$1').split('.');
     var cur = obj;
     for (var i = 0; i < parts.length - 1; i++) {
-      if (cur[parts[i]] == null || typeof cur[parts[i]] !== 'object') { cur[parts[i]] = {}; }
-      cur = cur[parts[i]];
+      var p = parts[i];
+      if (cur[p] == null || typeof cur[p] !== 'object') {
+        cur[p] = /^\d+$/.test(parts[i + 1]) ? [] : {};
+      }
+      cur = cur[p];
     }
     cur[parts[parts.length - 1]] = val;
   }
@@ -659,12 +668,71 @@
     var ast = registry[current.__path].__ast;
     var html = renderNodes(ast.children, current.data);
     bodyEl.setAttribute('data-page', current.__path);
-    bodyEl.innerHTML = '<div class="mp-page-root">' + html + '</div>';
+
+    /* 复用节点而不是整段重写：手指按着的那一格一旦被换成新节点，
+       浏览器就停止派发后续 touchmove，滑动选择会直接失效 */
+    var box = document.createElement('div');
+    box.innerHTML = '<div class="mp-page-root">' + html + '</div>';
+    var fresh = box.firstChild;
+    var oldRoot = bodyEl.querySelector('.mp-page-root');
+    if (oldRoot && fresh) { morphNode(oldRoot, fresh); }
+    else { bodyEl.innerHTML = box.innerHTML; }
+
     bodyEl.scrollTop = scroll;
     restoreFocus(focus);
+    applyPageMeta();
     updateChrome();
     rendering = false;
     renderTick++;
+  }
+
+  /* ---- 极简 DOM 复用：标签与 data-key 一致就原地改属性、递归子节点 ---- */
+  function sameNode(a, b) {
+    if (a.tagName !== b.tagName) { return false; }
+    return (a.getAttribute('data-mp-ds-key') || '') === (b.getAttribute('data-mp-ds-key') || '')
+      && (a.getAttribute('data-mp-ds-idx') || '') === (b.getAttribute('data-mp-ds-idx') || '');
+  }
+
+  function morphNode(a, b) {
+    var attrs = b.attributes, i;
+    for (i = 0; i < attrs.length; i++) {
+      if (a.getAttribute(attrs[i].name) !== attrs[i].value) {
+        a.setAttribute(attrs[i].name, attrs[i].value);
+      }
+    }
+    var old = a.attributes;
+    for (i = old.length - 1; i >= 0; i--) {
+      if (!b.hasAttribute(old[i].name)) { a.removeAttribute(old[i].name); }
+    }
+    /* 输入框自己的输入状态优先，别被渲染值盖掉 */
+    if (a.tagName === 'INPUT') { return; }
+    morphChildren(a, b);
+  }
+
+  function morphChildren(parent, toParent) {
+    var bNodes = Array.prototype.slice.call(toParent.childNodes);
+    for (var i = 0; i < bNodes.length; i++) {
+      var nb = bNodes[i];
+      var na = parent.childNodes[i];
+      if (!na) { parent.appendChild(nb); continue; }
+      if (na.nodeType === 1 && nb.nodeType === 1 && sameNode(na, nb)) {
+        morphNode(na, nb);
+      } else if (na.nodeType === 3 && nb.nodeType === 3) {
+        if (na.nodeValue !== nb.nodeValue) { na.nodeValue = nb.nodeValue; }
+      } else {
+        parent.replaceChild(nb, na);
+      }
+    }
+    while (parent.childNodes.length > bNodes.length) {
+      parent.removeChild(parent.lastChild);
+    }
+  }
+
+  /* page-meta 的 page-style 在预览里落到手机壳的滚动容器上 */
+  function applyPageMeta() {
+    var meta = bodyEl.querySelector('.mp-page-meta');
+    var style = meta ? (meta.getAttribute('data-style') || '') : '';
+    bodyEl.style.overflowY = /overflow\s*:\s*hidden/.test(style) ? 'hidden' : 'auto';
   }
 
   function titleOf(path) {
@@ -824,7 +892,7 @@
     tabEl = document.getElementById('mp-tab');
 
     /* CSS：全局部分 */
-    var css = '';
+    var css = 'page-meta{display:none}\n';
     css += rpx(fixTags(cfg.appWxss));
 
     /* CSS：每页作用域化 */
@@ -893,7 +961,10 @@
 
     /* 鼠标模拟触摸：桌面预览里按住拖动 = 手机上的滑动选择 */
     var dragEl = null;
+    var lastPointerTouch = 0;   /* 真·触摸刚发生过就忽略模拟鼠标事件，避免一次拖动算两遍 */
+
     bodyEl.addEventListener('mousedown', function (e) {
+      if (Date.now() - lastPointerTouch < 900) { return; }
       var el = e.target.closest('[data-mp-ev-touchstart],[data-mp-cv-touchstart]');
       if (!el) { return; }
       dragEl = el;
@@ -901,14 +972,54 @@
       walkTouch(el, 'touchstart', e.clientX, e.clientY, el);
     });
     window.addEventListener('mousemove', function (e) {
+      if (Date.now() - lastPointerTouch < 900) { return; }
       if (!dragEl) { return; }
       walkTouch(dragEl, 'touchmove', e.clientX, e.clientY, dragEl);
     });
     window.addEventListener('mouseup', function (e) {
+      if (Date.now() - lastPointerTouch < 900) { return; }
       if (!dragEl) { return; }
       var el = dragEl;
       dragEl = null;
       walkTouch(el, 'touchend', e.clientX, e.clientY, el);
+    });
+
+    /* 真触摸屏 / 手机浏览器直接走原生 touch 事件 */
+    bodyEl.addEventListener('touchstart', function (e) {
+      var el = e.target.closest('[data-mp-ev-touchstart],[data-mp-cv-touchstart]');
+      if (!el) { return; }
+      lastPointerTouch = Date.now();
+      dragEl = el;
+      var t = e.touches && e.touches[0];
+      if (t) { walkTouch(el, 'touchstart', t.clientX, t.clientY, el); }
+    }, { passive: true });
+
+    window.addEventListener('touchmove', function (e) {
+      lastPointerTouch = Date.now();
+      if (!dragEl) { return; }
+      var t = e.touches && e.touches[0];
+      if (!t) { return; }
+      walkTouch(dragEl, 'touchmove', t.clientX, t.clientY, dragEl);
+      /* 正在选日期时不要顺带滚页面 */
+      var page = current;
+      if (page && page.data && page.data.sel && e.cancelable) { e.preventDefault(); }
+    }, { passive: false });
+
+    window.addEventListener('touchend', function (e) {
+      lastPointerTouch = Date.now();
+      if (!dragEl) { return; }
+      var el = dragEl;
+      dragEl = null;
+      var t = (e.changedTouches && e.changedTouches[0]) || {};
+      walkTouch(el, 'touchend', t.clientX || 0, t.clientY || 0, el);
+    });
+
+    window.addEventListener('touchcancel', function () {
+      lastPointerTouch = Date.now();
+      if (!dragEl) { return; }
+      var el = dragEl;
+      dragEl = null;
+      walkTouch(el, 'touchcancel', 0, 0, el);
     });
 
     bodyEl.addEventListener('input', function (e) {

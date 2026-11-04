@@ -267,15 +267,18 @@ Page({
       var adx = Math.abs(dx), ady = Math.abs(dy);
       /* 手指刚起手时的几像素抖动，先不判定方向 */
       if (adx < 10 && ady < 10) { return; }
-      /* 纵向明显占优：这是想滚页面，让出去，本轮不再处理 */
-      if (ady > adx * 1.2) {
-        this._touch = null;
-        return;
-      }
-      /* 横向占优但还没划够一格的一半，等下一帧，别急着丢弃 */
-      if (adx < 14) { return; }
-      td.moved = true;
-      if (!this.data.sel) {
+      if (this.data.sel) {
+        /* 已经在选择模式里：方向不限，上下划也能连选（此时页面已锁滚动） */
+        td.moved = true;
+      } else {
+        /* 纵向明显占优：这是想滚页面，让出去，本轮不再处理 */
+        if (ady > adx * 1.2) {
+          this._touch = null;
+          return;
+        }
+        /* 横向占优但还没划够一格的一半，等下一帧，别急着丢弃 */
+        if (adx < 14) { return; }
+        td.moved = true;
         this.setData({ sel: true, selKeys: [], scope: 'both', clearLes: false });
         this.paintSel();
         try { wx.vibrateShort({ type: 'light' }); } catch (err) { /* 部分机型不支持，忽略 */ }
@@ -318,6 +321,13 @@ Page({
       return;
     }
     this.openSheet(td.key);
+  },
+
+  /* 被系统打断（页面滚动、来电等）时别丢掉手势：手指还在，接着滑应该继续选 */
+  gridCancel: function () {
+    var td = this._touch;
+    if (td && td.lp) { clearTimeout(td.lp); td.lp = null; }
+    this._touchAt = Date.now();
   },
 
   /* 滑动经过的格子：起手是加选，整段就加选；起手是取消，整段就取消 */
@@ -366,22 +376,26 @@ Page({
     this.setData({ clearLes: !this.data.clearLes });
   },
 
+  /* 只改变化的那几格的 sel 字段。
+     整表替换 cells 会让 wx:for 重建节点，正在被按住的那一格一没，微信就把触摸序列掐断，
+     手指后面怎么划都收不到 touchmove —— 滑动选择就彻底失效了。 */
   paintSel: function () {
     var set = {};
     this.data.selKeys.forEach(function (k) { set[k] = 1; });
     var on = this.data.sel;
+    var cells = this.data.cells;
+    var patch = {};
     var changed = false;
-    var cells = this.data.cells.map(function (c) {
-      if (c.blank) { return c; }
+    for (var i = 0; i < cells.length; i++) {
+      var c = cells[i];
+      if (c.blank) { continue; }
       var v = on && !!set[c.key];
-      if (!!c.sel === v) { return c; }
+      if (!!c.sel === v) { continue; }
+      c.sel = v;
+      patch['cells[' + i + '].sel'] = v;
       changed = true;
-      var o = {};
-      for (var p in c) { o[p] = c[p]; }
-      o.sel = v;
-      return o;
-    });
-    if (changed) { this.setData({ cells: cells }); }
+    }
+    if (changed) { this.setData(patch); }
   },
 
   applySel: function (e) {
