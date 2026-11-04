@@ -696,10 +696,10 @@ function parseCourses(text, defEndWeek) {
     if (!weekday) { bad.push({ line: i + 1, text: raw.trim(), why: '没认出星期几' }); continue; }
     if (!lessons) { bad.push({ line: i + 1, text: raw.trim(), why: '没认出节数' }); continue; }
 
-    if (!endWeek) { endWeek = startWeek; }
-    if (endWeek < startWeek) { var t = startWeek; startWeek = endWeek; endWeek = t; }
-    if (!startWeek) { startWeek = 1; }
-    if (!endWeek) { endWeek = parseInt(defEndWeek, 10) || 16; }
+    if(!startWeek)startWeek=1;
+    /* 没写周次就用教学周默认长度，不能缩成一周 —— 否则只有第 1 周有课，后面十几周的课时全丢 */
+    if(!endWeek)endWeek=parseInt(defEndWeek,10)||16;
+    if(endWeek<startWeek){var t=startWeek;startWeek=endWeek;endWeek=t;}
 
     names.sort(function (x, y) { return y.length - x.length; });
     ok.push({
@@ -875,8 +875,8 @@ function monthP(ym){
   if(!p){p=DB.months[ym]={};}
   var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
   if(p.workdays==null)p.workdays=autoWorkdays(y,m);
-  if(!p.base)p.base=DB.settings.baseSalary;
-  if(!p.rate)p.rate=DB.settings.rate;
+  if(p.base==null)p.base=DB.settings.baseSalary;
+  if(p.rate==null)p.rate=DB.settings.rate;
   if(p.checked==null)p.checked=false;
   return p;
 }

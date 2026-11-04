@@ -196,10 +196,10 @@ function parseCourses(text, defEndWeek) {
     if (!weekday) { bad.push({ line: i + 1, text: raw.trim(), why: '没认出星期几' }); continue; }
     if (!lessons) { bad.push({ line: i + 1, text: raw.trim(), why: '没认出节数' }); continue; }
 
-    if (!endWeek) { endWeek = startWeek; }
-    if (endWeek < startWeek) { var t = startWeek; startWeek = endWeek; endWeek = t; }
     if (!startWeek) { startWeek = 1; }
+    /* 没写周次就用教学周默认长度，不能缩成一周 —— 否则只有第 1 周有课，后面十几周的课时全丢 */
     if (!endWeek) { endWeek = parseInt(defEndWeek, 10) || 16; }
+    if (endWeek < startWeek) { var t = startWeek; startWeek = endWeek; endWeek = t; }
 
     names.sort(function (x, y) { return y.length - x.length; });
     ok.push({
@@ -345,8 +345,9 @@ function monthP(db, ym) {  var p = db.months[ym];
   if (!p) { p = db.months[ym] = {}; }
   var q = ymd(ym + '-01'), y = q[0], m = q[1];
   if (p.workdays == null) p.workdays = autoWorkdays(y, m);
-  if (!p.base) p.base = db.settings.baseSalary;
-  if (!p.rate) p.rate = db.settings.rate;
+  /* 用 == null 判断：手动把某月工资改成 0 也要算「已冻结」，不能因为 0 是 falsy 又跟回设置值 */
+  if (p.base == null) p.base = db.settings.baseSalary;
+  if (p.rate == null) p.rate = db.settings.rate;
   if (p.checked == null) p.checked = false;
   return p;
 }

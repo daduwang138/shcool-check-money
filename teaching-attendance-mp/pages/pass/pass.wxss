@@ -1,0 +1,67 @@
+.page {
+  padding: 20rpx 0 40rpx;
+}
+
+.ps-field {
+  margin-top: 26rpx;
+}
+
+.ps-label {
+  display: block;
+  margin-bottom: 10rpx;
+  color: #8A8E96;
+  font-size: 22rpx;
+}
+
+.ps-in {
+  width: 100%;
+  height: 84rpx;
+  padding: 0 24rpx;
+  border: 1rpx solid #E4E1D8;
+  border-radius: 14rpx;
+  background: #FCFBF8;
+  color: #191C20;
+  font-size: 30rpx;
+  letter-spacing: 4rpx;
+}
+
+.ps-err {
+  display: block;
+  margin-top: 18rpx;
+  color: #A33A28;
+  font-size: 22rpx;
+}
+
+.ps-actions {
+  display: flex;
+  margin-top: 32rpx;
+}
+
+.ps-actions .btn {
+  flex: 1;
+}
+
+.ps-actions .btn + .btn {
+  margin-left: 16rpx;
+}
+
+.btn.off {
+  opacity: 0.6;
+}
+
+.tips {
+  margin: 4rpx 24rpx 0;
+  padding: 18rpx 22rpx;
+  border-radius: 16rpx;
+  background: #EDEAE1;
+  color: #7A7468;
+  font-size: 21rpx;
+  line-height: 1.8;
+}
+
+.muted {
+  display: block;
+  color: #666B73;
+  font-size: 24rpx;
+  line-height: 1.7;
+}

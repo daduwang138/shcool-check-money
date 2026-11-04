@@ -8,6 +8,7 @@ Page({
     monLabel: '',
     total: '0.00',
     rows: [],
+    heroSubs: [],
     halfRows: [],
     p: { workdays: '', base: '', rate: '' },
     checked: false,

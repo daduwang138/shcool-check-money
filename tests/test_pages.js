@@ -13,8 +13,8 @@ function ok(cond, name, extra) {
 const mem = {};
 let toasts = [], modals = [], nextSheetPick = 0;
 let relaunched = [];
-/* 需要输入的弹窗（口令）从这里按顺序取答案；null 表示点「取消」 */
-let modalInputs = [];
+/* 跳转与返回、导航栏标题：口令相关的页面用它 */
+let navigated = [], backCount = 0, titles = [];
 global.wx = {
   getStorageSync: k => (mem[k] === undefined ? '' : mem[k]),
   setStorageSync: (k, v) => { mem[k] = v; },
@@ -22,14 +22,6 @@ global.wx = {
   showToast: o => { toasts.push(o.title); },
   showModal: o => {
     modals.push(o.content);
-    if (o.editable) {
-      const v = modalInputs.length ? modalInputs.shift() : '';
-      if (o.success) {
-        if (v === null) { o.success({ confirm: false, cancel: true }); }
-        else { o.success({ confirm: true, cancel: false, content: v }); }
-      }
-      return;
-    }
     if (o.success) { o.success({ confirm: true, cancel: false }); }
   },
   showActionSheet: o => { if (o.success) { o.success({ tapIndex: nextSheetPick }); } },
@@ -41,7 +33,10 @@ global.wx = {
   }),
   shareFileMessage: o => { o.success && o.success(); },
   reLaunch: o => { relaunched.push(o.url); },
-  redirectTo: o => { relaunched.push(o.url); }
+  redirectTo: o => { relaunched.push(o.url); },
+  navigateTo: o => { navigated.push(o.url); },
+  navigateBack: () => { backCount++; },
+  setNavigationBarTitle: o => { titles.push(o.title); }
 };
 
 /* ---------- Page 桩 ---------- */
@@ -95,7 +90,11 @@ function current() {
   const raw = mem['kqzb_db_v1'];
   return raw ? JSON.parse(raw) : null;
 }
-function reset() { Object.keys(mem).forEach(k => delete mem[k]); toasts = []; modals = []; nextSheetPick = 0; }
+function reset() {
+  Object.keys(mem).forEach(k => delete mem[k]);
+  toasts = []; modals = []; nextSheetPick = 0;
+  navigated = []; backCount = 0; titles = [];
+}
 
 /* ================= 记账页 ================= */
 reset();
@@ -173,6 +172,27 @@ cal.saveSheet();
 const tomb = current().days['2026-11-04'];
 ok(tomb && tomb.off === true, '清空法定工作日留下 off 墓碑', JSON.stringify(tomb));
 ok(core.effHalf(core.normalize(current()), '2026-11-04', 'am') === '', '清空后该日不再算上班');
+
+/* 备注边打边存：改面板其它字段时不能被顶掉 */
+cal.tapCell({ currentTarget: { dataset: { key: '2026-11-05' } } });
+cal.onNote({ detail: { value: '教研活动' } });
+cal.pickHalf({ currentTarget: { dataset: { which: 'am', v: 'inv' } } });
+ok(cal.data.sheet.note === '教研活动', '改状态时已输入的备注还在', cal.data.sheet.note);
+cal.stepLesson({ currentTarget: { dataset: { d: '1' } } });
+ok(cal.data.sheet.note === '教研活动', '加课时后备注也还在', cal.data.sheet.note);
+cal.saveSheet();
+ok(current().days['2026-11-05'].note === '教研活动', '备注随记录一起存进库', current().days['2026-11-05'].note);
+
+/* 已核对的月份：清空要先问一句，清完把核对标记去掉 */
+modals = [];
+const cp = core.monthP(core.normalize(current()), cal.data.ym);
+cp.checked = true;
+mem['kqzb_db_v1'] = JSON.stringify(core.normalize(Object.assign(current(), { months: { [cal.data.ym]: cp } })));
+cal.db = require(path.join(ROOT, 'utils/store.js')).load();
+cal.clearMonth();
+ok(modals.some(m => /已标记核对/.test(m || '')), '已核对的月份清空前先确认', modals.join(' / '));
+ok(cal.db.months[cal.data.ym].checked === false, '清空后核对标记一并去掉');
+cal.hideUndo();   /* 收掉撤销条的 5 秒计时器，别让进程空等 */
 
 /* ================= 滑动选择 + 批量套用 ================= */
 reset();
@@ -465,6 +485,14 @@ cr.onImpText({ detail: { value: '周一 语文 3节 1-16周\n周三 数学 2节 
 cr.applyImport({ currentTarget: { dataset: { mode: 'replace' } } });
 ok(current().courses.length === 2, '替换模式只留粘贴的课程', current().courses.map(c => c.name).join(','));
 
+/* 只写了星期和节数、没写周次：默认铺满教学周，不能缩成一周 */
+cr.openImport();
+cr.onImpText({ detail: { value: '周三 数学 3节 1-16周\n周二 物理 第1-2节' } });
+cr.applyImport({ currentTarget: { dataset: { mode: 'replace' } } });
+const phy = current().courses.filter(c => c.name === '物理')[0];
+ok(phy && phy.startWeek === 1 && phy.endWeek === (current().term.defaultWeeks || 16),
+  '没写周次的课程铺满教学周', phy && (phy.startWeek + '–' + phy.endWeek));
+
 /* 导入合并 */
 reset();
 seedDb();
@@ -484,44 +512,92 @@ seedDb();
 const lock = require(path.join(ROOT, 'utils/lock.js'));
 lock.clear();
 
+/* 设口令要跑一次 PBKDF2，页面里用 setTimeout 让「处理中」先画出来；测试里改成同步 */
+const realSTLock = global.setTimeout;
+global.setTimeout = function (fn) { fn(); return 0; };
+
 const st = makePage('settings');
 st.onLoad();
 ok(st.data.lockOn === false, '默认没有口令');
 
-modalInputs = ['12', '12'];
+/* 开关只是跳转，不再用明文弹窗收口令 */
 st.toggleLock({ detail: { value: true } });
-ok(st.data.lockOn === false, '少于 4 位不接受');
+ok(navigated.join(',') === '/pages/pass/pass?mode=set', '打开开关跳到密码页', navigated.join(','));
+ok(st.data.lockOn === false, '没设成之前开关弹回关闭');
 
-modalInputs = ['abcd', 'abce'];
-st.toggleLock({ detail: { value: true } });
-ok(st.data.lockOn === false, '两次输入不一致不开启');
+let ps = makePage('pass');
+ps.onLoad({ mode: 'set' });
+ok(titles[titles.length - 1] === '设置口令', '密码页标题跟着模式变', titles.join(','));
+ps.setData({ next: '12', again: '12' });
+ps.submit();
+ok(lock.isOn() === false, '少于 4 位不接受');
+ok(/至少 4 位/.test(ps.data.err), '少于 4 位给出提示', ps.data.err);
 
-modalInputs = ['abcd', 'abcd'];
-st.toggleLock({ detail: { value: true } });
-ok(st.data.lockOn === true, '两次一致后开启口令');
+ps.setData({ next: 'abcd', again: 'abce' });
+ps.submit();
+ok(lock.isOn() === false, '两次输入不一致不开启');
+ok(/不一致/.test(ps.data.err), '不一致给出提示', ps.data.err);
+
+ps.setData({ next: 'abcd', again: 'abcd' });
+ps.submit();
+ok(lock.isOn() === true, '两次一致后开启口令');
 ok(lock.check('abcd') === true, '存校验值，能验证通过');
 ok(lock.check('abcde') === false, '错误口令验证不通过');
+ok(backCount === 1, '设完自动返回设置页', String(backCount));
 
-modalInputs = ['wrong'];
+/* 改口令：先验旧的 */
+navigated = []; backCount = 0;
+st.onShow();
+ok(st.data.lockOn === true, '回到设置页读到了新状态');
+st.changePass();
+ok(navigated.join(',') === '/pages/pass/pass?mode=change', '修改口令跳到密码页', navigated.join(','));
+
+ps = makePage('pass');
+ps.onLoad({ mode: 'change' });
+ps.setData({ cur: 'wrong', next: 'efgh', again: 'efgh' });
+ps.submit();
+ok(lock.check('abcd') === true, '旧口令不对时不改');
+ok(/当前口令不对/.test(ps.data.err), '旧口令不对有提示', ps.data.err);
+
+ps.setData({ cur: 'abcd', next: 'efgh', again: 'efgh' });
+ps.submit();
+ok(lock.check('efgh') === true && lock.check('abcd') === false, '口令已换成新的');
+
+/* 关闭口令 */
+navigated = []; backCount = 0;
+st.onShow();
 st.toggleLock({ detail: { value: false } });
-ok(st.data.lockOn === true, '口令不对关不掉');
+ok(navigated.join(',') === '/pages/pass/pass?mode=off', '关开关跳到密码页', navigated.join(','));
 
-modalInputs = ['abcd'];
-st.toggleLock({ detail: { value: false } });
-ok(st.data.lockOn === false, '口令正确才能关闭');
-ok(lock.isOn() === false, '关闭后本机不再留校验值');
+ps = makePage('pass');
+ps.onLoad({ mode: 'off' });
+ps.setData({ cur: 'nope' });
+ps.submit();
+ok(lock.isOn() === true, '口令不对关不掉');
 
-/* 锁屏页：内部用 setTimeout 让「验证中」先画出来，测试里把它改成同步 */
-modalInputs = ['abcd', 'abcd'];
-st.toggleLock({ detail: { value: true } });
+ps.setData({ cur: 'efgh' });
+ps.submit();
+ok(lock.isOn() === false, '口令正确才能关闭');
+ok(lock.isUnlocked() === true, '关闭后不再拦人');
+
+/* 没有口令时点「修改/关闭」不该留在密码页 */
+backCount = 0;
+ps = makePage('pass');
+ps.onLoad({ mode: 'off' });
+ok(backCount === 1, '没口令时关闭页直接退回', String(backCount));
+
+/* 重新开一个口令，供锁屏页用例 */
+ps = makePage('pass');
+ps.onLoad({ mode: 'set' });
+ps.setData({ next: 'abcd', again: 'abcd' });
+ps.submit();
+
+/* 锁屏页：内部同样用 setTimeout，仍是同步桩 */
 lock.lockNow();
 const lk = makePage('lock');
 lk.onLoad();
 ok(lk.data.hasPass === true, '锁屏页识别到已设口令');
 ok(lock.isUnlocked() === false, '刚冷启动是锁着的');
-
-const realSTLock = global.setTimeout;
-global.setTimeout = function (fn) { fn(); return 0; };   /* 口令页内部延迟，测试里同步执行 */
 
 lk.setData({ pass: 'wrongpass' });
 lk.submit();
@@ -545,7 +621,14 @@ lk2.setData({ pass: 'abcd' });
 lk2.submit();
 ok(lock.isUnlocked() === false, '冷却期间即使口令对也先拦住');
 
+/* 冷却倒计时是 setInterval，不收掉的话 node 要空等 30 秒才退出 */
+lk.onUnload();
+lk2.onUnload();
+
 global.setTimeout = realSTLock;
+
+/* 批量套用留下的撤销条计时器也收掉，否则 node 要多等 5 秒才退出 */
+if (typeof bcal !== 'undefined' && bcal.hideUndo) { bcal.hideUndo(); }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }

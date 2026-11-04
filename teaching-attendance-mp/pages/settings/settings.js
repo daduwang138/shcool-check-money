@@ -119,74 +119,36 @@ Page({
   },
 
   /* ---------- 口令锁 ---------- */
-  /* 小程序没有 prompt，用 showModal 的 editable（基础库 2.17+）收口令 */
-  _ask: function (title, placeholder, cb) {
-    wx.showModal({
-      title: title,
-      editable: true,
-      placeholderText: placeholder,
-      confirmText: '确定',
-      success: function (res) {
-        if (!res.confirm) { cb(null); return; }
-        if (res.content === undefined) {
-          wx.showToast({ title: '微信版本太旧，无法输入口令', icon: 'none' });
-          cb(null);
-          return;
-        }
-        cb(String(res.content || '').trim());
-      },
-      fail: function () { cb(null); }
-    });
+  /* 输入口令走独立页面（pages/pass），不用 showModal：弹窗里的 editable 是明文，
+     旁边人一眼看到、输入法还会记词；密码页能用 password 框，两次输入也能放在同一屏。 */
+  gotoCourses: function () {
+    wx.navigateTo({ url: '/pages/courses/courses' });
+  },
+
+  openPass: function (mode) {
+    wx.navigateTo({ url: '/pages/pass/pass?mode=' + mode });
+  },
+
+  /* 原生 switch 只在绑定值变化时才重绘：用户拨了一下、数据却还是原值，它会停在新位置。
+     先写一个相反值把差异造出来，下一帧再写回真实值，开关就弹回去了。 */
+  _resetSwitch: function () {
+    var that = this;
+    var real = lock.isOn();
+    this.setData({ lockOn: !real });
+    var back = function () { that.setData({ lockOn: real }); };
+    if (typeof wx.nextTick === 'function') { wx.nextTick(back); } else { setTimeout(back, 0); }
   },
 
   toggleLock: function (e) {
-    var that = this;
     var want = !!(e.detail && e.detail.value);
     if (want === this.data.lockOn) { return; }
-    if (!want) {
-      this._ask('关闭口令', '输入当前口令', function (p) {
-        if (p === null) { that.render(); return; }
-        if (!lock.check(p)) { wx.showToast({ title: '口令不对', icon: 'none' }); that.render(); return; }
-        lock.clear();
-        that.render();
-        wx.showToast({ title: '已关闭口令', icon: 'none' });
-      });
-      return;
-    }
-    this._ask('设置口令', '至少 4 位', function (p1) {
-      if (p1 === null) { that.render(); return; }
-      if (p1.length < 4) { wx.showToast({ title: '口令至少 4 位', icon: 'none' }); that.render(); return; }
-      that._ask('再输一次', '确认口令', function (p2) {
-        if (p2 === null) { that.render(); return; }
-        if (p1 !== p2) { wx.showToast({ title: '两次输入不一致', icon: 'none' }); that.render(); return; }
-        if (!lock.setPass(p1)) { wx.showToast({ title: '保存失败', icon: 'none' }); that.render(); return; }
-        that.render();
-        wx.showToast({ title: '已开启，下次打开要输口令', icon: 'none' });
-      });
-    });
+    /* 真正的状态等密码页回来由 onShow 重读，这里先把开关摆回原样 */
+    this._resetSwitch();
+    this.openPass(want ? 'set' : 'off');
   },
 
   changePass: function () {
-    var that = this;
-    this._ask('验证当前口令', '输入现在的口令', function (p0) {
-      if (p0 === null) { return; }
-      if (!lock.check(p0)) { wx.showToast({ title: '口令不对', icon: 'none' }); return; }
-      that._ask('设置新口令', '至少 4 位', function (p1) {
-        if (p1 === null) { return; }
-        if (p1.length < 4) { wx.showToast({ title: '口令至少 4 位', icon: 'none' }); return; }
-        that._ask('再输一次', '确认新口令', function (p2) {
-          if (p2 === null) { return; }
-          if (p1 !== p2) { wx.showToast({ title: '两次输入不一致', icon: 'none' }); return; }
-          lock.setPass(p1);
-          that.render();
-          wx.showToast({ title: '口令已更新', icon: 'none' });
-        });
-      });
-    });
-  },
-
-  gotoCourses: function () {
-    wx.navigateTo({ url: '/pages/courses/courses' });
+    this.openPass('change');
   },
 
   exportBackup: function () {

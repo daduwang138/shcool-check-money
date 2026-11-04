@@ -1,0 +1,36 @@
+<view class="page">
+  <view class="card">
+    <text class="card-title">{{title}}</text>
+    <text class="muted">{{hint}}</text>
+
+    <view class="ps-field" wx:if="{{mode !== 'set'}}">
+      <text class="ps-label">当前口令</text>
+      <input class="ps-in" password="{{true}}" value="{{cur}}" data-f="cur" maxlength="32"
+             placeholder="输入现在的口令" bindinput="onInput" />
+    </view>
+
+    <block wx:if="{{mode !== 'off'}}">
+      <view class="ps-field">
+        <text class="ps-label">{{mode === 'change' ? '新口令' : '口令'}}</text>
+        <input class="ps-in" password="{{true}}" value="{{next}}" data-f="next" maxlength="32"
+               placeholder="至少 4 位" bindinput="onInput" confirm-type="next" />
+      </view>
+      <view class="ps-field">
+        <text class="ps-label">再输一次</text>
+        <input class="ps-in" password="{{true}}" value="{{again}}" data-f="again" maxlength="32"
+               placeholder="确认一遍" bindinput="onInput" confirm-type="done" bindconfirm="submit" />
+      </view>
+    </block>
+
+    <text class="ps-err" wx:if="{{err}}">{{err}}</text>
+
+    <view class="ps-actions">
+      <view class="btn ghost" bindtap="back">取消</view>
+      <view class="btn primary {{busy ? 'off' : ''}}" bindtap="submit">{{busy ? '处理中…' : btn}}</view>
+    </view>
+  </view>
+
+  <view class="tips">
+    <text>口令只在本机校验，忘记无法找回，只能清空记录重来。记录本身仍是明文存在微信里，这道锁挡的是「别人拿到手机随手打开」，真正的加密靠手机自己的锁屏。</text>
+  </view>
+</view>

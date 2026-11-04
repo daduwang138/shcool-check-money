@@ -162,11 +162,17 @@ const courseSamples = [
   '高二（3）班课表\n周一 第1-2节 语文 1-16周\n周二，数学，3节，第3周\n周三 英语 2 1~16 双周\n周五 自习\n乱七八糟一行',
   '星期\t课程\t节数\t周次\n星期二\t物理\t第3-4节\t第1至16周\n星期四\t化学\t4节\t单周',
   '周一,语文,3节,1-16周,每周\n周三,数学,2节,1-8周,单周\n周三,数学,2节,9-16周,双周\n周日,补课,2节,1-16周',
-  '只有课程名没有星期\n周一 只有星期\n'
+  '只有课程名没有星期\n周一 只有星期\n',
+  /* 没写周次的一行：两版都要落成「第 1 周到教学周末」，不能缩成一周 */
+  '周三\t数学\t3节\n周五\t英语\t2节\t20-12周'
 ];
 courseSamples.forEach(function (t, i) {
   eq('parseCourses#' + i, ctx.parseCourses(t, 16), core.parseCourses(t, 16));
 });
+
+/* 默认周次单独钉一下：跨版本比对只能证明两版一样，证明不了它对 */
+eq('parseCourses 默认周次', [1, 16, 12, 20],
+  (function (r) { return [r.ok[0].startWeek, r.ok[0].endWeek, r.ok[1].startWeek, r.ok[1].endWeek]; })(core.parseCourses('周三\t数学\t3节\n周五\t英语\t2节\t20-12周', 16)));
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项；逐日核对 ' + dayChecked + ' 天');
 if (bad.length) { console.log('\n失败样例：\n' + bad.join('\n')); process.exit(1); }

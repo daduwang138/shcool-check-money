@@ -514,6 +514,14 @@ Page({
     this._note = undefined;
   },
 
+  /* 面板里备注是边打边存进 _note 的（不每次 setData，免得光标乱跳）。
+     其它字段一变就会重渲染，输入框的 value 会按 sheet.note 拉回去，
+     所以每次改面板先把已输入的备注补进 sheet.note，别让文字被顶掉。 */
+  _patchSheet: function (patch) {
+    if (this._note !== undefined) { patch['sheet.note'] = this._note; }
+    this.setData(patch);
+  },
+
   pickHalf: function (e) {
     var which = e.currentTarget.dataset.which;
     var v = e.currentTarget.dataset.v || '';
@@ -521,7 +529,7 @@ Page({
     var next = (cur === v) ? '' : v;
     var patch = {};
     patch['sheet.' + which] = next;
-    this.setData(patch);
+    this._patchSheet(patch);
   },
 
   stepLesson: function (e) {
@@ -529,7 +537,7 @@ Page({
     var v = (parseInt(this.data.sheet.lessons, 10) || 0) + d;
     if (v < 0) { v = 0; }
     if (v > 20) { v = 20; }
-    this.setData({ 'sheet.lessons': v });
+    this._patchSheet({ 'sheet.lessons': v });
   },
 
   useSchedule: function () {
@@ -538,7 +546,7 @@ Page({
       wx.showToast({ title: '课程表上这天没有课', icon: 'none' });
       return;
     }
-    this.setData({ 'sheet.lessons': exp });
+    this._patchSheet({ 'sheet.lessons': exp });
   },
 
   onNote: function (e) {
@@ -640,29 +648,45 @@ Page({
 
   clearMonth: function () {
     var that = this, db = this.db, ym = this.data.ym;
-    wx.showModal({
-      title: '清空 ' + ym,
-      content: '清空后出勤 0 天、课时 0 节、应发 ¥0，默认出勤也一并清掉。5 秒内可撤销。',
-      confirmText: '清空',
-      confirmColor: '#A33A28',
-      success: function (res) {
-        if (!res.confirm) { return; }
-        that._beginUndo();
-        var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
-        var n = core.daysInMonth(ym);
-        for (var d = 1; d <= n; d++) {
-          var k = core.dk(y, m, d);
-          if (core.defaultHalf(db, k, 'am') || core.defaultHalf(db, k, 'pm')) {
-            db.days[k] = { am: '', pm: '', lessons: 0, note: '', off: true, lset: false, upd: Date.now() };
-          } else {
-            delete db.days[k];
+    var doClear = function () {
+      wx.showModal({
+        title: '清空 ' + ym,
+        content: '清空后出勤 0 天、课时 0 节、应发 ¥0，默认出勤也一并清掉。5 秒内可撤销。',
+        confirmText: '清空',
+        confirmColor: '#A33A28',
+        success: function (res) {
+          if (!res.confirm) { return; }
+          that._beginUndo();
+          var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
+          var n = core.daysInMonth(ym);
+          for (var d = 1; d <= n; d++) {
+            var k = core.dk(y, m, d);
+            if (core.defaultHalf(db, k, 'am') || core.defaultHalf(db, k, 'pm')) {
+              db.days[k] = { am: '', pm: '', lessons: 0, note: '', off: true, lset: false, upd: Date.now() };
+            } else {
+              delete db.days[k];
+            }
           }
+          /* 清空之后不该还挂着「已核对」——电脑版也是这么处理的 */
+          core.monthP(db, ym).checked = false;
+          store.save(db);
+          that.render();
+          that.showUndo('已清空 ' + ym);
         }
-        store.save(db);
-        that.render();
-        that.showUndo('已清空 ' + ym);
-      }
-    });
+      });
+    };
+    /* 已核对是「别再手滑改」的标记，别的批量操作都会先问一句，清空更该问 */
+    if (core.monthP(db, ym).checked) {
+      wx.showModal({
+        title: '本月已标记核对',
+        content: ym + ' 已标记核对，仍然要清空吗？',
+        confirmText: '继续清空',
+        confirmColor: '#A33A28',
+        success: function (res) { if (res.confirm) { doClear(); } }
+      });
+      return;
+    }
+    doClear();
   },
 
   _beginUndo: function () {

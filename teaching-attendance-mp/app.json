@@ -4,6 +4,7 @@
     "pages/summary/summary",
     "pages/settings/settings",
     "pages/courses/courses",
+    "pages/pass/pass",
     "pages/lock/lock"
   ],
   "window": {

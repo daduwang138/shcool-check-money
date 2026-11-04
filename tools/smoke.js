@@ -128,7 +128,7 @@ const probe = `
     q('#mp-tab div[data-path="pages/settings/settings"]').click();
     await sleep(400);
     ok('设置页渲染', qa('.row').length > 6, qa('.row').length + ' 行');
-    ok('开关渲染成组件', qa('.mp-switch').length === 5, qa('.mp-switch').length + ' 个');
+    ok('开关渲染成组件', qa('.mp-switch').length >= 6, qa('.mp-switch').length + ' 个');
 
     /* 10. 课程表 */
     q('[data-mp-ev-tap="gotoCourses"]').click();

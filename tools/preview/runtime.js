@@ -411,30 +411,38 @@
       } else { fallbackCopy(t); done(); }
     },
     navigateTo: function (o) {
-      var p = String(o.url || '').replace(/^\//, '');
-      var cfg = registry[p];
-      if (!cfg) { toast('找不到页面 ' + p); return; }
-      pushPage(p);
+      var t = splitUrl(o.url);
+      var cfg = registry[t.path];
+      if (!cfg) { toast('找不到页面 ' + t.path); return; }
+      pushPage(t.path, t.query);
       if (o.success) { o.success({}); }
     },
     /* 口令锁用它把页面整个换掉，预览里等价于清栈后打开 */
     reLaunch: function (o) {
-      var p = String(o.url || '').replace(/^\//, '');
-      if (!registry[p]) { toast('找不到页面 ' + p); return; }
+      var t = splitUrl(o.url);
+      if (!registry[t.path]) { toast('找不到页面 ' + t.path); return; }
       if (current && typeof current.onHide === 'function') { current.onHide(); }
       stack = [];
-      pushPage(p);
+      pushPage(t.path, t.query);
       if (o.success) { o.success({}); }
     },
     redirectTo: function (o) {
-      var p = String(o.url || '').replace(/^\//, '');
-      if (!registry[p]) { toast('找不到页面 ' + p); return; }
+      var t = splitUrl(o.url);
+      if (!registry[t.path]) { toast('找不到页面 ' + t.path); return; }
       if (current && typeof current.onHide === 'function') { current.onHide(); }
       stack.pop();
-      pushPage(p);
+      pushPage(t.path, t.query);
       if (o.success) { o.success({}); }
     },
     navigateBack: function () { popPage(); },
+    setNavigationBarTitle: function (o) {
+      var t = (o && o.title) || '';
+      if (!t) { return; }
+      if (current) { current.__navTitle = t; }
+      var el = navEl.querySelector('.mp-nav-title');
+      if (el) { el.textContent = t; }
+      if (o && o.success) { o.success({}); }
+    },
     getFileSystemManager: function () {
       return {
         writeFile: function (o) {
@@ -787,7 +795,7 @@
 
   function updateChrome() {
     var cfg = registry[current.__path];
-    navEl.querySelector('.mp-nav-title').textContent = titleOf(current.__path);
+    navEl.querySelector('.mp-nav-title').textContent = current.__navTitle || titleOf(current.__path);
     var back = navEl.querySelector('.mp-nav-back');
     /* reLaunch 之后栈里只剩自己，没有可返回的页，别留个死箭头 */
     back.style.visibility = (cfg.__isTab || stack.length <= 1) ? 'hidden' : 'visible';
@@ -805,14 +813,31 @@
     if (typeof page.onReady === 'function') { page.onReady(); }
   }
 
-  function pushPage(path) {
+  /* '/pages/pass/pass?mode=set' → { path:'pages/pass/pass', query:{mode:'set'} }
+     真机上 wx 会把 query 解出来传给 onLoad，预览也得一样，否则带参数的页面打不开 */
+  function splitUrl(url) {
+    var s = String(url || '').replace(/^\//, '');
+    var i = s.indexOf('?');
+    if (i < 0) { return { path: s, query: {} }; }
+    var query = {};
+    s.slice(i + 1).split('&').forEach(function (kv) {
+      if (!kv) { return; }
+      var j = kv.indexOf('=');
+      var k = j < 0 ? kv : kv.slice(0, j);
+      var v = j < 0 ? '' : kv.slice(j + 1);
+      try { query[decodeURIComponent(k)] = decodeURIComponent(v); } catch (e) { query[k] = v; }
+    });
+    return { path: s.slice(0, i), query: query };
+  }
+
+  function pushPage(path, query) {
     var old = current;
     if (old && typeof old.onHide === 'function') { old.onHide(); }
     var page = makePage(path, registry[path]);
     current = page;
     stack.push(page);
     bodyEl.scrollTop = 0;
-    if (typeof page.onLoad === 'function') { page.onLoad({}); }
+    if (typeof page.onLoad === 'function') { page.onLoad(query || {}); }
     if (typeof page.onShow === 'function') { page.onShow(); }
     doRender();
     fireReady(page);
