@@ -95,6 +95,24 @@
   </view>
 
   <view class="card">
+    <text class="card-title">口令锁</text>
+    <view class="row">
+      <view class="col">
+        <text class="row-label">打开时验证口令</text>
+        <text class="sub">{{lockOn ? '已开启：冷启动和切后台超过 5 分钟都要重输' : '未开启：拿到手机的人能直接看到记录'}}</text>
+      </view>
+      <switch checked="{{lockOn}}" bindchange="toggleLock" color="#1B5E9B" />
+    </view>
+    <view class="row" wx:if="{{lockOn}}" bindtap="changePass">
+      <text class="row-label">修改口令</text>
+      <text class="arrow">›</text>
+    </view>
+    <view class="data-tips">
+      <text>口令只在本机校验，忘记无法找回。记录本身仍是明文存在微信里，这道锁挡的是随手翻看；真正的加密靠手机自己的锁屏。</text>
+    </view>
+  </view>
+
+  <view class="card">
     <text class="card-title">数据</text>
     <view class="row">
       <text class="row-label">本机记录</text>

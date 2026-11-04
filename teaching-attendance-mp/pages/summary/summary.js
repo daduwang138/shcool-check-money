@@ -1,5 +1,6 @@
 var core = require('../../utils/core.js');
 var store = require('../../utils/store.js');
+var lock = require('../../utils/lock.js');
 
 Page({
   data: {
@@ -22,6 +23,7 @@ Page({
   },
 
   onShow: function () {
+    if (!lock.guard()) { return; }
     this.db = store.load();
     this.render();
   },

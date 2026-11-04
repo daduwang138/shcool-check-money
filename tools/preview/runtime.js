@@ -206,10 +206,10 @@
     if (a.placeholder) { s += ' placeholder="' + esc(a.placeholder) + '"'; }
     if (a.maxlength) { s += ' maxlength="' + esc(a.maxlength) + '"'; }
     var t = a.type || 'text';
-    if (t === 'number') { s += ' type="number" inputmode="numeric"'; }
+    if (a.password && String(a.password) !== 'false') { s += ' type="password"'; }
+    else if (t === 'number') { s += ' type="number" inputmode="numeric"'; }
     else if (t === 'digit') { s += ' type="text" inputmode="decimal"'; }
     else { s += ' type="text"'; }
-    if (a.password) { s += ' type="password"'; }
     s += dsAttrsAndBinds(node, data);
     return s + ' />';
   }
@@ -390,9 +390,11 @@
       modal({
         title: o.title || '', content: o.content || '',
         confirmText: o.confirmText || '确定', cancelText: o.cancelText || '取消',
-        confirmColor: o.confirmColor, showCancel: o.showCancel !== false
-      }, function (ok) {
-        if (o.success) { o.success({ confirm: ok, cancel: !ok }); }
+        confirmColor: o.confirmColor, showCancel: o.showCancel !== false,
+        editable: !!o.editable, placeholderText: o.placeholderText || '',
+        password: !!o.password
+      }, function (ok, val) {
+        if (o.success) { o.success({ confirm: ok, cancel: !ok, content: val }); }
       });
     },
     showActionSheet: function (o) {
@@ -412,6 +414,23 @@
       var p = String(o.url || '').replace(/^\//, '');
       var cfg = registry[p];
       if (!cfg) { toast('找不到页面 ' + p); return; }
+      pushPage(p);
+      if (o.success) { o.success({}); }
+    },
+    /* 口令锁用它把页面整个换掉，预览里等价于清栈后打开 */
+    reLaunch: function (o) {
+      var p = String(o.url || '').replace(/^\//, '');
+      if (!registry[p]) { toast('找不到页面 ' + p); return; }
+      if (current && typeof current.onHide === 'function') { current.onHide(); }
+      stack = [];
+      pushPage(p);
+      if (o.success) { o.success({}); }
+    },
+    redirectTo: function (o) {
+      var p = String(o.url || '').replace(/^\//, '');
+      if (!registry[p]) { toast('找不到页面 ' + p); return; }
+      if (current && typeof current.onHide === 'function') { current.onHide(); }
+      stack.pop();
       pushPage(p);
       if (o.success) { o.success({}); }
     },
@@ -510,22 +529,32 @@
     wrap.innerHTML =
       '<div class="mp-modal">' +
       '<div class="mp-modal-title">' + esc(opt.title) + '</div>' +
-      '<div class="mp-modal-body">' + esc(opt.content) + '</div>' +
+      (opt.content ? '<div class="mp-modal-body">' + esc(opt.content) + '</div>' : '') +
+      (opt.editable ? '<input class="mp-modal-input" type="text" placeholder="' + esc(opt.placeholderText || '') + '">' : '') +
       '<div class="mp-modal-foot">' +
       (opt.showCancel ? '<div class="mp-modal-btn cancel">' + esc(opt.cancelText) + '</div>' : '') +
       '<div class="mp-modal-btn ok" style="color:' + esc(opt.confirmColor || '#1B5E9B') + '">' + esc(opt.confirmText) + '</div>' +
       '</div></div>';
     box.appendChild(wrap);
+    var inp = wrap.querySelector('.mp-modal-input');
+    if (inp) { setTimeout(function () { try { inp.focus(); } catch (e) { } }, 30); }
+    function done(ok) {
+      wrap.remove();
+      cb(ok, inp ? inp.value : undefined);
+    }
     wrap.addEventListener('click', function (e) {
       var b = e.target.closest('.mp-modal-btn');
       if (b) {
-        wrap.remove();
-        cb(b.classList.contains('ok'));
+        done(b.classList.contains('ok'));
       } else if (e.target === wrap) {
-        wrap.remove();
-        cb(false);
+        done(false);
       }
     });
+    if (inp) {
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); done(true); }
+      });
+    }
   }
 
   function sheetPick(items, alertText, cb) {
@@ -760,7 +789,8 @@
     var cfg = registry[current.__path];
     navEl.querySelector('.mp-nav-title').textContent = titleOf(current.__path);
     var back = navEl.querySelector('.mp-nav-back');
-    back.style.visibility = cfg.__isTab ? 'hidden' : 'visible';
+    /* reLaunch 之后栈里只剩自己，没有可返回的页，别留个死箭头 */
+    back.style.visibility = (cfg.__isTab || stack.length <= 1) ? 'hidden' : 'visible';
     var isTab = cfg.__isTab;
     tabEl.style.display = isTab ? 'flex' : 'none';
     Array.prototype.forEach.call(tabEl.children, function (c) {

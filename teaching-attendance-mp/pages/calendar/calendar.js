@@ -1,5 +1,6 @@
 var core = require('../../utils/core.js');
 var store = require('../../utils/store.js');
+var lock = require('../../utils/lock.js');
 
 var OPTIONS = [
   { k: '', label: '空', cls: 's-empty' },
@@ -37,6 +38,7 @@ Page({
   },
 
   onShow: function () {
+    if (!lock.guard()) { return; }
     if (!this.db) { this.db = store.load(); this.render(); return; }
     /* 设置页、课程表页可能改过数据，回来时重新读一次 */
     this.db = store.load();

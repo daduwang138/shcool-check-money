@@ -3,7 +3,8 @@
     "pages/calendar/calendar",
     "pages/summary/summary",
     "pages/settings/settings",
-    "pages/courses/courses"
+    "pages/courses/courses",
+    "pages/lock/lock"
   ],
   "window": {
     "navigationBarTitleText": "教学考勤记账本",

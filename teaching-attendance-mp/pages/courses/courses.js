@@ -1,5 +1,6 @@
 var core = require('../../utils/core.js');
 var store = require('../../utils/store.js');
+var lock = require('../../utils/lock.js');
 
 var WEEKDAY = ['', '一', '二', '三', '四', '五', '六', '日'];
 var PARITY = { all: '每周', odd: '单周', even: '双周' };
@@ -26,6 +27,7 @@ Page({
   },
 
   onShow: function () {
+    if (!lock.guard()) { return; }
     this.db = store.load();
     this.render();
   },

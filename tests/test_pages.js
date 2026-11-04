@@ -12,12 +12,26 @@ function ok(cond, name, extra) {
 /* ---------- wx 桩 ---------- */
 const mem = {};
 let toasts = [], modals = [], nextSheetPick = 0;
+let relaunched = [];
+/* 需要输入的弹窗（口令）从这里按顺序取答案；null 表示点「取消」 */
+let modalInputs = [];
 global.wx = {
   getStorageSync: k => (mem[k] === undefined ? '' : mem[k]),
   setStorageSync: (k, v) => { mem[k] = v; },
   removeStorageSync: k => { delete mem[k]; },
   showToast: o => { toasts.push(o.title); },
-  showModal: o => { modals.push(o.content); if (o.success) { o.success({ confirm: true, cancel: false }); } },
+  showModal: o => {
+    modals.push(o.content);
+    if (o.editable) {
+      const v = modalInputs.length ? modalInputs.shift() : '';
+      if (o.success) {
+        if (v === null) { o.success({ confirm: false, cancel: true }); }
+        else { o.success({ confirm: true, cancel: false, content: v }); }
+      }
+      return;
+    }
+    if (o.success) { o.success({ confirm: true, cancel: false }); }
+  },
   showActionSheet: o => { if (o.success) { o.success({ tapIndex: nextSheetPick }); } },
   getDeviceInfo: () => ({ platform: 'ios' }),
   env: { USER_DATA_PATH: '/tmp' },
@@ -25,7 +39,9 @@ global.wx = {
     writeFile: o => { o.success && o.success(); },
     readFileSync: () => '{}'
   }),
-  shareFileMessage: o => { o.success && o.success(); }
+  shareFileMessage: o => { o.success && o.success(); },
+  reLaunch: o => { relaunched.push(o.url); },
+  redirectTo: o => { relaunched.push(o.url); }
 };
 
 /* ---------- Page 桩 ---------- */
@@ -461,6 +477,75 @@ const incoming = core.normalize({
 const r = require(path.join(ROOT, 'utils/store.js')).mergeInto(set2.db, incoming);
 ok(r.added === 1, '合并时新增 1 天');
 ok(set2.db.settings.baseSalary === 8000, '合并保留本机工资参数', set2.db.settings.baseSalary);
+
+/* ---------- 口令锁 ---------- */
+reset();
+seedDb();
+const lock = require(path.join(ROOT, 'utils/lock.js'));
+lock.clear();
+
+const st = makePage('settings');
+st.onLoad();
+ok(st.data.lockOn === false, '默认没有口令');
+
+modalInputs = ['12', '12'];
+st.toggleLock({ detail: { value: true } });
+ok(st.data.lockOn === false, '少于 4 位不接受');
+
+modalInputs = ['abcd', 'abce'];
+st.toggleLock({ detail: { value: true } });
+ok(st.data.lockOn === false, '两次输入不一致不开启');
+
+modalInputs = ['abcd', 'abcd'];
+st.toggleLock({ detail: { value: true } });
+ok(st.data.lockOn === true, '两次一致后开启口令');
+ok(lock.check('abcd') === true, '存校验值，能验证通过');
+ok(lock.check('abcde') === false, '错误口令验证不通过');
+
+modalInputs = ['wrong'];
+st.toggleLock({ detail: { value: false } });
+ok(st.data.lockOn === true, '口令不对关不掉');
+
+modalInputs = ['abcd'];
+st.toggleLock({ detail: { value: false } });
+ok(st.data.lockOn === false, '口令正确才能关闭');
+ok(lock.isOn() === false, '关闭后本机不再留校验值');
+
+/* 锁屏页：内部用 setTimeout 让「验证中」先画出来，测试里把它改成同步 */
+modalInputs = ['abcd', 'abcd'];
+st.toggleLock({ detail: { value: true } });
+lock.lockNow();
+const lk = makePage('lock');
+lk.onLoad();
+ok(lk.data.hasPass === true, '锁屏页识别到已设口令');
+ok(lock.isUnlocked() === false, '刚冷启动是锁着的');
+
+const realSTLock = global.setTimeout;
+global.setTimeout = function (fn) { fn(); return 0; };   /* 口令页内部延迟，测试里同步执行 */
+
+lk.setData({ pass: 'wrongpass' });
+lk.submit();
+ok(lock.isUnlocked() === false, '错误口令解不开');
+ok(/口令不对/.test(lk.data.err), '错误口令给出提示', lk.data.err);
+ok(relaunched.length === 0, '没解锁不该跳页面');
+
+lk.setData({ pass: 'abcd' });
+lk.submit();
+ok(lock.isUnlocked() === true, '正确口令解开');
+ok(relaunched.join(',') === '/pages/calendar/calendar', '解锁后回到记账页', relaunched.join(','));
+
+/* 连续错 5 次进入冷却 */
+lock.lockNow();
+relaunched.length = 0;
+const lk2 = makePage('lock');
+lk2.onLoad();
+for (let i = 0; i < 5; i++) { lk2.setData({ pass: 'wrongpass' }); lk2.submit(); }
+ok(lk2._blockUntil > Date.now(), '连错 5 次进入 30 秒冷却', String(lk2._blockUntil - Date.now()));
+lk2.setData({ pass: 'abcd' });
+lk2.submit();
+ok(lock.isUnlocked() === false, '冷却期间即使口令对也先拦住');
+
+global.setTimeout = realSTLock;
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }

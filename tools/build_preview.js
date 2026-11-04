@@ -18,7 +18,8 @@ const PAGES = [
   { key: 'pages/calendar/calendar', title: '记账', isTab: true },
   { key: 'pages/summary/summary', title: '月汇总', isTab: true },
   { key: 'pages/settings/settings', title: '设置', isTab: true },
-  { key: 'pages/courses/courses', title: '课程表', isTab: false }
+  { key: 'pages/courses/courses', title: '课程表', isTab: false },
+  { key: 'pages/lock/lock', title: '口令', isTab: false }
 ];
 
 /* ---------------- 示例数据 ---------------- */
@@ -63,7 +64,8 @@ function makeSample() {
 const sources = {
   'app.js': rd('app.js'),
   'utils/core.js': rd('utils/core.js'),
-  'utils/store.js': rd('utils/store.js')
+  'utils/store.js': rd('utils/store.js'),
+  'utils/lock.js': rd('utils/lock.js')
 };
 
 const pages = {};

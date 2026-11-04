@@ -1,0 +1,21 @@
+<view class="lock" wx:if="{{hasPass}}">
+  <view class="lk-icon">🔒</view>
+  <text class="lk-title">教学考勤记账本</text>
+  <text class="lk-sub">这台手机上开了口令，输入后查看记录</text>
+
+  <view class="lk-field">
+    <input class="lk-input" type="text" password="{{true}}" value="{{pass}}" maxlength="32"
+           placeholder="口令" confirm-type="done" bindinput="onInput" bindconfirm="submit" />
+  </view>
+
+  <view class="lk-btn {{busy ? 'off' : ''}}" bindtap="submit">{{busy ? '验证中…' : '解锁'}}</view>
+
+  <text class="lk-err" wx:if="{{err}}">{{err}}</text>
+  <text class="lk-wait" wx:if="{{waitLeft > 0}}">还要等 {{waitLeft}} 秒</text>
+
+  <text class="lk-forgot" bindtap="forgot">忘记口令？</text>
+
+  <view class="lk-note">
+    <text>口令只存在本机，忘记无法找回。数据仍是明文存放，这道锁挡的是「别人拿到手机随手打开」，真正的加密靠手机自己的锁屏。</text>
+  </view>
+</view>

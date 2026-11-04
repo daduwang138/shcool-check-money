@@ -17,7 +17,7 @@
 - **课程表推算课时**：按「星期几 + 第几周 + 单双周」配置课程，一键把整月课时填进日历；新学期前八周 / 后八周不同也能配。课程表可以从 Excel / WPS 直接粘贴导入，列顺序随意。
 - **批量操作**：电脑版按住拖选；小程序版在日期上左右滑动、或按住约半秒，都会进入多选并连选（不必先点按钮），都能一次套用上班/监考/加班/请假/空，可只改上午或下午。连选默认只取工作日，周末与法定假日自动跳过，调休补班的周六日照常算；周末真要改，小节点一下补选，电脑版用「批量设置」勾周六日。误操作 5 秒内可撤销（也可点 × 立即关掉提示条）。
 - **按月导出**：导出当月考勤明细 CSV，可直接给财务；小程序端可导出 JSON 备份。
-- **数据在自己手里**：电脑版可绑定一个本地文件夹，按 `年份/前缀_年-月.json` 分月存盘，改哪个月只重写那个文件；可选口令加密（PBKDF2 + AES-GCM）。
+- **数据在自己手里**：电脑版可绑定一个本地文件夹，按 `年份/前缀_年-月.json` 分月存盘，改哪个月只重写那个文件；可选口令加密（PBKDF2 + AES-GCM）。小程序版可选口令锁（PBKDF2 派生校验值，切后台超 5 分钟自动重新上锁），锁的是「打开就要输」，数据本身仍明文存本机。
 
 ## 快速开始
 
@@ -33,10 +33,12 @@
 teaching-attendance-mp/    小程序版
   utils/core.js            纯函数内核：算出勤、算工资、法定日历、课程表
   utils/store.js           本地存储读写、导入导出
+  utils/lock.js            口令锁：纯 JS SHA-256 / HMAC / PBKDF2，无依赖
   pages/calendar           记账页（月历）
   pages/summary            汇总页
   pages/settings           设置页
-  pages/courses            课程表页
+  pages/courses            课程表页（含粘贴导入）
+  pages/lock               锁屏页（开了口令才用得到）
 tests/                     校验脚本（Node 直接跑，无需依赖）
 tools/                     预览构建与冒烟脚本（开发用，不参与小程序打包）
 preview/                   生成好的单文件预览 mp-preview.html
@@ -47,8 +49,8 @@ preview/                   生成好的单文件预览 mp-preview.html
 不需要安装任何依赖，装了 Node 就能跑：
 
 ```bash
-node tests/verify_core.js      # 把 HTML 版和 core.js 并排跑，逐字段比对（23232 项）
-node tests/test_pages.js       # 用桩模拟小程序运行时，跑页面逻辑（85 项）
+node tests/verify_core.js      # 把 HTML 版和 core.js 并排跑，逐字段比对（23237 项）
+node tests/test_pages.js       # 用桩模拟小程序运行时，跑页面逻辑（117 项）
 node tests/check_structure.js  # 小程序 wxml/wxss 结构自检：标签闭合、事件方法、样式缺失
 node tools/build_preview.js    # 生成单文件预览 preview/mp-preview.html，双击即可试交互
 ```
@@ -58,7 +60,7 @@ node tools/build_preview.js    # 生成单文件预览 preview/mp-preview.html�
 ## 待办
 
 - [ ] **2027 年放假与调休表**：等国务院办公厅公布后补进 `HOLIDAYS`（`教学考勤记账本.html` 与 `teaching-attendance-mp/utils/core.js` 两处要一起改，`verify_core.js` 会盯着）。
-- [ ] **小程序版口令加密**：电脑版有 PBKDF2 + AES-GCM，小程序还没有；手机借人或丢失时数据是明文。
+- [ ] **小程序版口令加密**：现在只有口令锁（挡「随手点开」，数据仍明文在 `wx.setStorageSync`）；要做到真加密，得先解决全库加解密与备份格式兼容。
 - [ ] **小程序转发**：页面没定义 `onShareAppMessage`，右上角「转发」不可用，发给同事不方便。
 - [ ] **多档课时单价**：`settings.rates` 结构已预留（正课/晚自习不同价），界面仍用统一单价。
 - [ ] **真机验收**：手势、滚动锁定、导出文件目前都在无头浏览器与预览里验证过，还差微信真机跑一遍。
