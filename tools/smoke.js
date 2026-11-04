@@ -149,5 +149,6 @@ const probe = `
 <\/script>`;
 
 html = html.replace('</body>', probe + '</body>');
+fs.mkdirSync(path.join(ROOT, '.tmp'), { recursive: true });
 fs.writeFileSync(path.join(ROOT, '.tmp', 'smoke.html'), html, 'utf8');
 console.log('ok');

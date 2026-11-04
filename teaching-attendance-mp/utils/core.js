@@ -341,15 +341,40 @@ function fillLessonsFromCourses(db, ym) {
   return { filled: filled, skipped: skipped, hol: hol };
 }
 
-function monthP(db, ym) {  var p = db.months[ym];
+/* 这月有没有经手过：落过任意一条日记录，或标记过已核对。
+   用来区分「真的记过」和「只是翻看了一眼」——只有前者才冻结工资参数。 */
+function monthTouched(db, ym) {
+  var m = db.months[ym];
+  if (m && m.checked) { return true; }
+  var days = db.days || {};
+  for (var k in days) {
+    if (k.slice(0, 7) === ym) { return true; }
+  }
+  return false;
+}
+
+function monthP(db, ym) {
+  var p = db.months[ym];
   if (!p) { p = db.months[ym] = {}; }
   var q = ymd(ym + '-01'), y = q[0], m = q[1];
-  if (p.workdays == null) p.workdays = autoWorkdays(y, m);
-  /* 用 == null 判断：手动把某月工资改成 0 也要算「已冻结」，不能因为 0 是 falsy 又跟回设置值 */
-  if (p.base == null) p.base = db.settings.baseSalary;
-  if (p.rate == null) p.rate = db.settings.rate;
-  if (p.checked == null) p.checked = false;
+  if (p.workdays == null) { p.workdays = autoWorkdays(y, m); }
+  if (p.checked == null) { p.checked = false; }
+  /* base/rate 是「冻结值」：只有这月真记过东西才落盘。翻看了一眼的月份不冻，
+     改设置时要跟着走，否则「不影响已记录月份」会变成「打开过就冻住」。
+     用 == null 判断：手动把某月工资改成 0 也算已冻结，不能因为 0 是 falsy 又跟回设置值。 */
+  if (p.base == null && monthTouched(db, ym)) { p.base = db.settings.baseSalary; }
+  if (p.rate == null && monthTouched(db, ym)) { p.rate = db.settings.rate; }
   return p;
+}
+
+/* 本月实际生效的基数与单价：有冻结值用冻结值，没有就跟当前设置 */
+function monthBase(db, ym) {
+  var p = db.months[ym];
+  return (p && p.base != null) ? p.base : db.settings.baseSalary;
+}
+function monthRate(db, ym) {
+  var p = db.months[ym];
+  return (p && p.rate != null) ? p.rate : db.settings.rate;
 }
 /* 三段式：①日薪×min(实际,应上) + ②日薪×超出天数 + ③课时×单价 */
 function computeMonth(db, ym) {
@@ -372,8 +397,8 @@ function computeMonth(db, ym) {
   }
   var p = monthP(db, ym);
   var workdays = p.workdays || autoWorkdays(y, m);
-  var base = db.settings.enableBase ? (p.base || 0) : 0;
-  var rate = db.settings.enableLesson ? (p.rate || 0) : 0;
+  var base = db.settings.enableBase ? (monthBase(db, ym) || 0) : 0;
+  var rate = db.settings.enableLesson ? (monthRate(db, ym) || 0) : 0;
   var dailyRate = workdays > 0 ? base / workdays : 0;
   var actual = half / 2;
   var capped = Math.min(actual, workdays);
@@ -478,6 +503,7 @@ module.exports = {
   blankDB: blankDB, normalize: normalize, peek: peek, hasContent: hasContent, dayCount: dayCount,
   defaultHalf: defaultHalf, effHalf: effHalf, isGhostHalf: isGhostHalf, isGhost: isGhost,
   setRecord: setRecord, monthP: monthP, computeMonth: computeMonth,
+  monthTouched: monthTouched, monthBase: monthBase, monthRate: monthRate,
   fillLessonsFromCourses: fillLessonsFromCourses,
   ymOf: ymOf, isYm: isYm, addMonths: addMonths, monthsBetween: monthsBetween,
   monthKeysOf: monthKeysOf, daysInMonth: daysInMonth, firstWeekdayOf: firstWeekdayOf,

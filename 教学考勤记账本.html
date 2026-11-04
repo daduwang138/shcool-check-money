@@ -870,16 +870,31 @@ function setRecord(key,am,pm,lessons,note,lset){
     DB.days[key]={am:am,pm:pm,lessons:lessons,note:note,off:false,lset:kept,upd:Date.now()};
   }
 }
+/* 这月有没有经手过：落过任意一条日记录，或标记过已核对。
+   用来区分「真的记过」和「只是翻看了一眼」——只有前者才冻结工资参数。 */
+function monthTouched(ym){
+  var m=DB.months[ym];
+  if(m&&m.checked)return true;
+  var days=DB.days||{};
+  for(var k in days){if(k.slice(0,7)===ym)return true;}
+  return false;
+}
 function monthP(ym){
   var p=DB.months[ym];
   if(!p){p=DB.months[ym]={};}
   var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
   if(p.workdays==null)p.workdays=autoWorkdays(y,m);
-  if(p.base==null)p.base=DB.settings.baseSalary;
-  if(p.rate==null)p.rate=DB.settings.rate;
   if(p.checked==null)p.checked=false;
+  /* base/rate 是「冻结值」：只有这月真记过东西才落盘。翻看了一眼的月份不冻，
+     改设置时要跟着走，否则「不影响已记录月份」会变成「打开过就冻住」。
+     用 == null 判断：手动把某月工资改成 0 也算已冻结，不能因为 0 是 falsy 又跟回设置值。 */
+  if(p.base==null&&monthTouched(ym))p.base=DB.settings.baseSalary;
+  if(p.rate==null&&monthTouched(ym))p.rate=DB.settings.rate;
   return p;
 }
+/* 本月实际生效的基数与单价：有冻结值用冻结值，没有就跟当前设置 */
+function monthBase(ym){var p=DB.months[ym];return (p&&p.base!=null)?p.base:DB.settings.baseSalary;}
+function monthRate(ym){var p=DB.months[ym];return (p&&p.rate!=null)?p.rate:DB.settings.rate;}
 function computeMonth(ym){
   var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
   var n=new Date(y,m,0).getDate();
@@ -899,8 +914,8 @@ function computeMonth(ym){
   }
   var p=monthP(ym);
   var workdays=p.workdays||autoWorkdays(y,m);
-  var base=DB.settings.enableBase?(p.base||0):0;
-  var rate=DB.settings.enableLesson?(p.rate||0):0;
+  var base=DB.settings.enableBase?(monthBase(ym)||0):0;
+  var rate=DB.settings.enableLesson?(monthRate(ym)||0):0;
   var dailyRate=workdays>0?base/workdays:0;
   var actual=half/2;
   var capped=Math.min(actual,workdays);
@@ -1929,8 +1944,8 @@ function renderSum(){
   html+='<h2>'+y+' 年 '+m+' 月 · 工资核对</h2>';
   html+='<div class="grid2"><div>';
   html+='<div class="field"><div><label>当月法定工作日</label><div class="desc">按国务院放假安排自动算，可改</div></div><input type="number" id="sumWorkdays" min="0" max="31" step="1" value="'+c.workdays+'"></div>';
-  html+='<div class="field"><div><label>基本工资</label><div class="desc">本月取值，改设置不影响已记录月份</div></div><input type="number" id="sumBase" min="0" step="0.01" value="'+(p.base||0)+'"></div>';
-  html+='<div class="field"><div><label>课时单价</label><div class="desc">每节</div></div><input type="number" id="sumRate" min="0" step="0.01" value="'+(p.rate||0)+'"></div>';
+  html+='<div class="field"><div><label>基本工资</label><div class="desc">本月取值；这月记过东西后就不再跟着设置变</div></div><input type="number" id="sumBase" min="0" step="0.01" value="'+monthBase(CUR)+'"></div>';
+  html+='<div class="field"><div><label>课时单价</label><div class="desc">每节</div></div><input type="number" id="sumRate" min="0" step="0.01" value="'+monthRate(CUR)+'"></div>';
   html+='</div><div>';
   html+='<table><tbody>';
   if(c.start&&c.start.slice(0,7)===CUR){

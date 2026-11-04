@@ -58,7 +58,11 @@ Page({
       rows: rows,
       heroSubs: rows.slice(0, 3),
       halfRows: halfRows,
-      p: { workdays: String(p.workdays), base: String(p.base || 0), rate: String(p.rate || 0) },
+      p: {
+        workdays: String(p.workdays),
+        base: String(core.monthBase(db, ym)),
+        rate: String(core.monthRate(db, ym))
+      },
       checked: c.checked,
       dayCount: c.filledDays,
       hasRecord: c.filledDays > 0

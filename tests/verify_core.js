@@ -174,6 +174,65 @@ courseSamples.forEach(function (t, i) {
 eq('parseCourses 默认周次', [1, 16, 12, 20],
   (function (r) { return [r.ok[0].startWeek, r.ok[0].endWeek, r.ok[1].startWeek, r.ok[1].endWeek]; })(core.parseCourses('周三\t数学\t3节\n周五\t英语\t2节\t20-12周', 16)));
 
+/* 7. 工资参数冻结：只有「真记过」的月份才冻住，只是翻看过的不冻 */
+{
+  const fresh = () => {
+    const h = ctx.normalize(mkLegacy());
+    const c = core.normalize(mkLegacy());
+    h.months = {}; h.days = {};
+    c.months = {}; c.days = {};
+    return { h, c };
+  };
+
+  /* 7.1 只是翻看了一眼：不落 base/rate，之后改设置要跟得上 */
+  {
+    const { h, c } = fresh();
+    ctx.DB = h;
+    const hp = ctx.monthP('2026-11');
+    const cp = core.monthP(c, '2026-11');
+    eq('冻结·只看过的月份不落参数', [hp.base, hp.rate], [cp.base, cp.rate]);
+    eq('冻结·两版都还是空', [hp.base, cp.base], [undefined, undefined]);
+    h.settings.baseSalary = 12345; c.settings.baseSalary = 12345;
+    eq('冻结·只看过的月份跟着设置走', core.computeMonth(c, '2026-11').base, 12345);
+    eq('冻结·两版一致', ctx.computeMonth('2026-11').base, core.computeMonth(c, '2026-11').base);
+  }
+
+  /* 7.2 记过一天：第一次渲染时落盘，之后改设置不影响 */
+  {
+    const { h, c } = fresh();
+    ctx.DB = h;
+    ctx.setRecord('2026-11-03', 'work', 'work', 2, '');
+    core.setRecord(c, '2026-11-03', 'work', 'work', 2, '');
+    ctx.computeMonth('2026-11'); core.computeMonth(c, '2026-11');
+    h.settings.baseSalary = 20000; c.settings.baseSalary = 20000;
+    eq('冻结·记过的月份不跟设置变', core.computeMonth(c, '2026-11').base, 8000);
+    eq('冻结·两版一致', ctx.computeMonth('2026-11').base, core.computeMonth(c, '2026-11').base);
+  }
+
+  /* 7.3 只标了「已核对」也算经手过 */
+  {
+    const { h, c } = fresh();
+    ctx.DB = h;
+    ctx.monthP('2026-11').checked = true;
+    core.monthP(c, '2026-11').checked = true;
+    ctx.computeMonth('2026-11'); core.computeMonth(c, '2026-11');
+    h.settings.rate = 300; c.settings.rate = 300;
+    eq('冻结·标过核对的月份不跟设置变', core.computeMonth(c, '2026-11').rate, 120);
+    eq('冻结·两版一致', ctx.computeMonth('2026-11').rate, core.computeMonth(c, '2026-11').rate);
+  }
+
+  /* 7.4 手动把某月基数填 0：0 也是「已定」，不能被设置值顶回来 */
+  {
+    const { h, c } = fresh();
+    ctx.DB = h;
+    ctx.monthP('2026-11').base = 0;
+    core.monthP(c, '2026-11').base = 0;
+    h.settings.baseSalary = 20000; c.settings.baseSalary = 20000;
+    eq('冻结·手填 0 也算已定', core.computeMonth(c, '2026-11').base, 0);
+    eq('冻结·两版一致', ctx.computeMonth('2026-11').base, core.computeMonth(c, '2026-11').base);
+  }
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项；逐日核对 ' + dayChecked + ' 天');
 if (bad.length) { console.log('\n失败样例：\n' + bad.join('\n')); process.exit(1); }
 console.log('内核与 HTML 版完全一致');

@@ -410,6 +410,30 @@ ok(Math.abs(c1.dailyRate - 400) < 1e-9, '日薪随之重算', c1.dailyRate);
 sum.resetParams();
 ok(core.computeMonth(core.normalize(current()), sum.data.ym).workdays !== 20, '恢复默认参数生效');
 
+/* 工资参数冻结：记过账的月份冻住，只是翻看过的不冻 */
+reset();
+seedDb();
+const sumF = makePage('summary');
+sumF.onLoad();
+const stF = require(path.join(ROOT, 'utils/store.js'));
+
+sumF.setData({ ym: '2026-03' });          /* 这个月一条记录都没有 */
+sumF.render();
+ok(sumF.data.p.base === '8000', '没记过的月份显示设置里的基数', sumF.data.p.base);
+sumF.db.settings.baseSalary = 12000;
+stF.save(sumF.db);
+sumF.render();
+ok(sumF.data.p.base === '12000', '改设置后没记过的月份跟着变', sumF.data.p.base);
+
+sumF.setData({ ym: '2026-11' });          /* 记一天，第一次渲染时参数落盘 */
+core.setRecord(sumF.db, '2026-11-03', 'work', 'work', 2, '');
+stF.save(sumF.db);
+sumF.render();
+sumF.db.settings.baseSalary = 20000;
+stF.save(sumF.db);
+sumF.render();
+ok(sumF.data.p.base === '12000', '记过的月份不受之后改设置影响', sumF.data.p.base);
+
 /* 设置页 */
 reset();
 seedDb();
