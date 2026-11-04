@@ -25,6 +25,7 @@ Page({
     selKeys: [],
     scope: 'both',
     clearLes: false,
+    allowWk: false,
     ready: false
   },
 
@@ -161,13 +162,13 @@ Page({
     });
   },
 
-  prevMonth: function () { this.setData({ ym: core.addMonths(this.data.ym, -1), sheet: null, sel: false, selKeys: [] }); this.render(); },
-  nextMonth: function () { this.setData({ ym: core.addMonths(this.data.ym, 1), sheet: null, sel: false, selKeys: [] }); this.render(); },
-  goToday: function () { this.setData({ ym: core.todayKey().slice(0, 7), sel: false, selKeys: [] }); this.render(); },
+  prevMonth: function () { this.setData({ ym: core.addMonths(this.data.ym, -1), sheet: null, sel: false, selKeys: [], allowWk: false }); this.render(); },
+  nextMonth: function () { this.setData({ ym: core.addMonths(this.data.ym, 1), sheet: null, sel: false, selKeys: [], allowWk: false }); this.render(); },
+  goToday: function () { this.setData({ ym: core.todayKey().slice(0, 7), sel: false, selKeys: [], allowWk: false }); this.render(); },
   pickMonth: function (e) {
     var v = e.detail.value;
     if (!core.isYm(v)) { return; }
-    this.setData({ ym: v, sel: false, selKeys: [] });
+    this.setData({ ym: v, sel: false, selKeys: [], allowWk: false });
     this.render();
   },
 
@@ -187,13 +188,22 @@ Page({
   /* ---------- 滑动选择 ---------- */
   toggleSel: function () {
     if (this.data.sel) { this.exitSel(); return; }
-    this.setData({ sel: true, selKeys: [], scope: 'both', clearLes: false });
+    this.setData({ sel: true, selKeys: [], scope: 'both', clearLes: false, allowWk: false });
     this.paintSel();
   },
 
   exitSel: function () {
-    this.setData({ sel: false, selKeys: [], clearLes: false });
+    this.setData({ sel: false, selKeys: [], clearLes: false, allowWk: false });
     this.paintSel();
+  },
+
+  /* 整月周六补课时用：打开后连选不再跳过周末（法定假期仍然跳过） */
+  toggleAllowWk: function () {
+    var v = !this.data.allowWk;
+    this.setData({ allowWk: v });
+    if (v) {
+      wx.showToast({ title: '连选会带上周六日，法定假期仍跳过', icon: 'none' });
+    }
   },
 
   toggleKey: function (k) {
@@ -210,11 +220,13 @@ Page({
     this.paintSel();
   },
 
-  /* 连选只吃工作日：周末和法定假日跳过，调休补班的周六日照常算。
-     需要周末（监考、补课）就在格子上单点补选，手动不受这条限制。 */
+  /* 连选默认只吃工作日：周末和法定假日跳过，调休补班的周六日照常算。
+     需要周末（监考、补课）就在格子上单点补选，手动不受这条限制；
+     整月周六都有课，就在底栏把「含周末」打开，连选带上周六日，法定假期仍跳过。 */
   _selable: function (k) {
     if (!k) { return false; }
     if (core.preStart(this.db, k)) { return false; }
+    if (this.data.allowWk) { return !core.isHoliday(k); }
     return core.isWorkday(k);
   },
 
@@ -251,7 +263,7 @@ Page({
       td.active = true;
       td.add = !that._selable(td.key) || that.data.selKeys.indexOf(td.key) < 0;
       if (!that.data.sel) {
-        that.setData({ sel: true, selKeys: [], scope: 'both', clearLes: false });
+        that.setData({ sel: true, selKeys: [], scope: 'both', clearLes: false, allowWk: false });
         that.paintSel();
       }
       if (that._selable(td.key)) { that._slideApply([td.key]); }
@@ -287,7 +299,7 @@ Page({
         /* 横向占优但还没划够一格的一半，等下一帧，别急着丢弃 */
         if (adx < 14) { return; }
         td.moved = true;
-        this.setData({ sel: true, selKeys: [], scope: 'both', clearLes: false });
+        this.setData({ sel: true, selKeys: [], scope: 'both', clearLes: false, allowWk: false });
         this.paintSel();
         try { wx.vibrateShort({ type: 'light' }); } catch (err) { /* 部分机型不支持，忽略 */ }
       }
@@ -449,7 +461,7 @@ Page({
       });
       that._undo = { msg: that.data.ym, snap: snap };
       store.save(db);
-      that.setData({ sel: false, selKeys: [], clearLes: false });
+      that.setData({ sel: false, selKeys: [], clearLes: false, allowWk: false });
       that.render();
       that.showUndo('已修改 ' + keys.length + ' 天');
     };

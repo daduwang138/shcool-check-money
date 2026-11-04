@@ -331,6 +331,22 @@ ok(bcal.data.selKeys.join(',') === '2026-11-15', '周末仍可单点补选（监
 bcal.exitSel();
 ok(core.isWorkday('2026-10-10'), '调休补班的周六算工作日，连选不会误跳');
 
+/* 「含周末」开关：整月周六补课时用 */
+bcal.toggleSel();
+bcal.toggleAllowWk();
+ok(bcal.data.allowWk === true, '「含周末」可以打开');
+slide(bcal, '2026-11-13', 3 * 48, 0);
+ok(bcal.data.selKeys.join(',') === '2026-11-13,2026-11-14,2026-11-15,2026-11-16',
+  '含周末时跨周末连选带上周六日', bcal.data.selKeys.join(',') || '空');
+ok(bcal._selable('2026-10-03') === false, '含周末也不选法定假期里的日子');
+bcal.exitSel();
+ok(bcal.data.allowWk === false, '退出选择后「含周末」自动复位');
+bcal.toggleSel();
+bcal.toggleAllowWk();
+bcal.nextMonth();
+ok(bcal.data.allowWk === false, '切换月份后「含周末」回到默认关');
+bcal.prevMonth();
+
 /* 起算日之前的日期不参与滑动选择 */
 reset();
 seedDb();

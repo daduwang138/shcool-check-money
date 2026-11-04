@@ -76,6 +76,7 @@
     <view class="sb-chip {{scope === 'both' ? 'on' : ''}}" data-s="both" bindtap="pickScope">全天</view>
     <view class="sb-chip {{scope === 'am' ? 'on' : ''}}" data-s="am" bindtap="pickScope">只上午</view>
     <view class="sb-chip {{scope === 'pm' ? 'on' : ''}}" data-s="pm" bindtap="pickScope">只下午</view>
+    <view class="sb-chip sb-wk {{allowWk ? 'on' : ''}}" bindtap="toggleAllowWk">含周末</view>
     <view class="sb-chip sb-les {{clearLes ? 'on' : ''}}" bindtap="toggleClearLes">课时清零</view>
   </view>
   <view class="sb-row">
@@ -85,7 +86,7 @@
     <view class="sb-b l" data-st="leave" bindtap="applySel">请假</view>
     <view class="sb-b" data-st="empty" bindtap="applySel">空</view>
   </view>
-  <text class="sb-hint">左右滑动或长按可连选；周末与起算日前的日期自动跳过，周末可单点补选</text>
+  <text class="sb-hint">{{allowWk ? '含周末已开：周六日也会被划选，法定假期仍跳过' : '左右滑动或长按可连选；周末与起算日前的日期自动跳过，周末可单点补选'}}</text>
 </view>
 
 <view class="mask" wx:if="{{sheet}}" bindtap="closeSheet" catchtouchmove="noop"></view>

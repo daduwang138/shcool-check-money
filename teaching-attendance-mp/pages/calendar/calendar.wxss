@@ -648,6 +648,17 @@
   color: #F7D6B4;
 }
 
+/* 「含周末」：默认关；打开后连选也选周六日（法定假期仍跳过） */
+.sb-chip.sb-wk {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.sb-chip.sb-wk.on {
+  border-color: #F0B37E;
+  background: rgba(240, 179, 126, 0.18);
+  color: #F7D6B4;
+}
+
 .sb-row {
   display: flex;
   margin-top: 14rpx;
