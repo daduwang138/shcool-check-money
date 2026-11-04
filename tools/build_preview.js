@@ -12,7 +12,10 @@ const OUT = path.join(OUT_DIR, 'mp-preview.html');
 
 const core = require(path.join(MP, 'utils/core.js'));
 
-function rd(p) { return fs.readFileSync(path.join(MP, p), 'utf8'); }
+/* 读源码统一成 LF：源文件一旦被编辑器存成 CRLF，内嵌进去的源码字符串就跟着变，
+   同一份代码构建两次产物不同。仓库约定是 LF，这里是防手滑的兜底。 */
+function lf(s) { return s.replace(/\r\n/g, '\n'); }
+function rd(p) { return lf(fs.readFileSync(path.join(MP, p), 'utf8')); }
 
 const PAGES = [
   { key: 'pages/calendar/calendar', title: '记账', isTab: true },
@@ -87,9 +90,18 @@ const payload = {
 
 const sample = makeSample();
 
+/* setRecord 等写入会打 Date.now()，这些时间戳被内联进了产物，于是同一份源码
+   构建两次结果不同，git 永远显示「有改动」。统一钉成示例月份里的同一时刻，
+   预览里这个字段只用于跨文件裁决，不参与任何显示。 */
+const SAMPLE_STAMP = Date.parse('2026-11-04T20:30:00+08:00');
+const STAMP_KEYS = /^(upd|at|ts|savedAt|frozenAt)$/;
+const sampleStable = JSON.parse(JSON.stringify(sample, function (k, v) {
+  return (k && STAMP_KEYS.test(k)) ? SAMPLE_STAMP : v;
+}));
+
 /* 示例数据指纹：示例变了就重新种，用户在页面里改的数据则保留 */
 const sig = (() => {
-  const raw = JSON.stringify(sample);
+  const raw = JSON.stringify(sampleStable);
   let h = 0;
   for (let i = 0; i < raw.length; i++) {
     h = (h * 31 + raw.charCodeAt(i)) | 0;
@@ -99,12 +111,12 @@ const sig = (() => {
 
 const esc = s => String(s).replace(/<\/script/gi, '<\\/script');
 
-const shell = fs.readFileSync(path.join(__dirname, 'preview', 'shell.html'), 'utf8');
-const runtime = fs.readFileSync(path.join(__dirname, 'preview', 'runtime.js'), 'utf8');
+const shell = lf(fs.readFileSync(path.join(__dirname, 'preview', 'shell.html'), 'utf8'));
+const runtime = lf(fs.readFileSync(path.join(__dirname, 'preview', 'runtime.js'), 'utf8'));
 
 const boot = `(function () {
   var CFG = ${esc(JSON.stringify(payload))};
-  var SAMPLE = ${esc(JSON.stringify(sample))};
+  var SAMPLE = ${esc(JSON.stringify(sampleStable))};
   var SIG = '${sig}';
   var SIG_KEY = 'kqzb_preview_sig';
   var KEY = 'kqzb_preview_storage';
@@ -158,7 +170,9 @@ let html = shell
   .replace('/*__BOOT__*/', () => boot);
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
-fs.writeFileSync(OUT, html, 'utf8');
+/* 出口再归一化一次：模板字符串的换行取的是本文件自己的行尾，
+   本文件要是被编辑器存成 CRLF，产物里就会混进 CRLF。 */
+fs.writeFileSync(OUT, lf(html), 'utf8');
 
 const kb = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(1);
 console.log('已生成 ' + path.relative(ROOT, OUT) + '（' + kb + ' KB）');

@@ -1,0 +1,13 @@
+# 编辑器约定，和 .gitattributes 的 eol=lf 保持一致。
+# VS Code / WebStorm / Sublime 都认这个文件；记事本和老版微信开发者工具不认，以 git 为准。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+
+[*.md]
+trim_trailing_whitespace = false

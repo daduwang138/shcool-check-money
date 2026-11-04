@@ -1,3 +1,12 @@
 * text=auto eol=lf
+
+# 图片一律当二进制，不做行尾转换
 *.png binary
 *.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+
+# 构建产物：GitHub 不把它算进语言统计，diff 里默认折叠
+preview/mp-preview.html linguist-generated=true
