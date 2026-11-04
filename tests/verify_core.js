@@ -156,6 +156,18 @@ eq('qcsv 逗号', '"a,b"', core.qcsv('a,b'));
 eq('qcsv 引号', '"he said ""hi"""', core.qcsv('he said "hi"'));
 eq('fmt', '1,234.50', core.fmt(1234.5));
 
+/* 6. 课程表粘贴解析：两版必须给出一样的课表 */
+const courseSamples = [
+  '课程\t星期\t节数\t起止周\t单双周\n语文\t周一\t3\t1-16周\t每周\n数学\t星期三\t2\t1-8周\t单周\n英语\t礼拜5\t2\t9-16周\t双周',
+  '高二（3）班课表\n周一 第1-2节 语文 1-16周\n周二，数学，3节，第3周\n周三 英语 2 1~16 双周\n周五 自习\n乱七八糟一行',
+  '星期\t课程\t节数\t周次\n星期二\t物理\t第3-4节\t第1至16周\n星期四\t化学\t4节\t单周',
+  '周一,语文,3节,1-16周,每周\n周三,数学,2节,1-8周,单周\n周三,数学,2节,9-16周,双周\n周日,补课,2节,1-16周',
+  '只有课程名没有星期\n周一 只有星期\n'
+];
+courseSamples.forEach(function (t, i) {
+  eq('parseCourses#' + i, ctx.parseCourses(t, 16), core.parseCourses(t, 16));
+});
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项；逐日核对 ' + dayChecked + ' 天');
 if (bad.length) { console.log('\n失败样例：\n' + bad.join('\n')); process.exit(1); }
 console.log('内核与 HTML 版完全一致');

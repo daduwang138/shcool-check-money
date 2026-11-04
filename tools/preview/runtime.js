@@ -188,6 +188,7 @@
       return '<span' + boxAttrs(node, data, 'mp-text') + '>' + renderNodes(node.children, data) + '</span>';
     }
     if (tag === 'input') { return renderInput(node, data); }
+    if (tag === 'textarea') { return renderTextarea(node, data); }
     if (tag === 'switch') { return renderSwitch(node, data); }
     if (tag === 'picker') { return renderPicker(node, data); }
     if (tag === 'button') {
@@ -211,6 +212,20 @@
     if (a.password) { s += ' type="password"'; }
     s += dsAttrsAndBinds(node, data);
     return s + ' />';
+  }
+
+  /* 多行输入：内容不写进 HTML（非受控），否则每次 setData 都会把正在输入的文字顶掉 */
+  function renderTextarea(node, data) {
+    var a = node.attrs;
+    var cls = a.class ? interp(a.class, data) : '';
+    var s = '<textarea class="' + esc((cls + ' mp-textarea').trim()) + '"';
+    s += ' data-mp-id="' + node.uid + '"';
+    if (a.value) { s += ' data-mp-value="' + esc(interp(a.value, data)) + '"'; }
+    if (a.placeholder) { s += ' placeholder="' + esc(a.placeholder) + '"'; }
+    if (a.maxlength) { s += ' maxlength="' + esc(a.maxlength) + '"'; }
+    if (a.disabled) { s += ' disabled'; }
+    s += dsAttrsAndBinds(node, data);
+    return s + '>' + esc(a.value ? interp(a.value, data) : '') + '</textarea>';
   }
 
   function renderSwitch(node, data) {
@@ -646,14 +661,14 @@
 
   function captureFocus() {
     var a = document.activeElement;
-    if (a && a.tagName === 'INPUT' && a.dataset.mpId) {
-      return { id: a.dataset.mpId, s: a.selectionStart, e: a.selectionEnd };
+    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') && a.dataset.mpId) {
+      return { id: a.dataset.mpId, s: a.selectionStart, e: a.selectionEnd, ta: a.tagName === 'TEXTAREA' };
     }
     return null;
   }
   function restoreFocus(f) {
     if (!f) { return; }
-    var el = bodyEl.querySelector('input[data-mp-id="' + f.id + '"]');
+    var el = bodyEl.querySelector((f.ta ? 'textarea' : 'input') + '[data-mp-id="' + f.id + '"]');
     if (!el) { return; }
     el.focus();
     try { el.setSelectionRange(f.s, f.e); } catch (e) { /* 忽略 */ }
@@ -705,7 +720,7 @@
       if (!b.hasAttribute(old[i].name)) { a.removeAttribute(old[i].name); }
     }
     /* 输入框自己的输入状态优先，别被渲染值盖掉 */
-    if (a.tagName === 'INPUT') { return; }
+    if (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') { return; }
     morphChildren(a, b);
   }
 
@@ -1024,13 +1039,13 @@
 
     bodyEl.addEventListener('input', function (e) {
       var t = e.target;
-      if (t.tagName !== 'INPUT') { return; }
+      if (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA') { return; }
       if (t.hasAttribute('data-mp-ev-input')) { fire(t, 'input', { value: t.value }); }
     });
 
     bodyEl.addEventListener('focusout', function (e) {
       var t = e.target;
-      if (t.tagName !== 'INPUT') { return; }
+      if (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA') { return; }
       if (t.hasAttribute('data-mp-ev-blur')) { fire(t, 'blur', { value: t.value }); }
     });
 

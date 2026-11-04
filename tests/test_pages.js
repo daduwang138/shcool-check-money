@@ -416,6 +416,39 @@ ok(cr.data.editing.endWeek >= cr.data.editing.startWeek, '结束周不会小于�
 cr.saveCourse();
 ok(current().courses.length === 2, '编辑不会新增一条');
 
+/* 从 Excel 粘贴导入课表 */
+cr.openImport();
+ok(cr.data.imp && cr.data.imp.ok === 0, '打开导入面板，初始没有识别结果');
+cr.onImpText({
+  detail: {
+    value: '课程\t星期\t节数\t起止周\t单双周\n语文\t周一\t3\t1-16周\t每周\n化学\t星期四\t第3-4节\t第2-9周\t双周\n英语\t周五\t2\t1-16周\n这行认不出来'
+  }
+});
+ok(cr.data.imp.ok === 3, '识别出 3 门课程', JSON.stringify(cr.data.imp.items));
+ok(cr.data.imp.badCount === 1, '认不出的行被列出来', cr.data.imp.badCount);
+ok(/周四|星期四/.test(cr.data.imp.items[1].desc) || cr.data.imp.items[1].desc.indexOf('周四') >= 0,
+  '星期四被换算成 4', cr.data.imp.items[1].desc);
+
+cr.applyImport({ currentTarget: { dataset: { mode: 'append' } } });
+ok(cr.data.imp === null, '导入后回到课程列表');
+const names = current().courses.map(c => c.name).sort();
+ok(names.join(',') === '化学,数学,英语,语文', '追加导入后课程齐全', names.join(','));
+const chem = current().courses.filter(c => c.name === '化学')[0];
+ok(chem && chem.weekday === 4 && chem.lessons === 2 && chem.startWeek === 2 && chem.endWeek === 9 && chem.parity === 'even',
+  '第3-4节 / 第2-9周 / 双周 都解析对了', JSON.stringify(chem));
+
+/* 同一批再导一次不会产生重复 */
+cr.openImport();
+cr.onImpText({ detail: { value: '化学\t星期四\t第3-4节\t第2-9周\t双周' } });
+cr.applyImport({ currentTarget: { dataset: { mode: 'append' } } });
+ok(current().courses.length === 4, '重复课程不会再加一条', current().courses.length);
+
+/* 换成「清空后只留这些」 */
+cr.openImport();
+cr.onImpText({ detail: { value: '周一 语文 3节 1-16周\n周三 数学 2节 1-8周' } });
+cr.applyImport({ currentTarget: { dataset: { mode: 'replace' } } });
+ok(current().courses.length === 2, '替换模式只留粘贴的课程', current().courses.map(c => c.name).join(','));
+
 /* 导入合并 */
 reset();
 seedDb();

@@ -121,6 +121,100 @@ function lessonsFor(db, key) {
   return sum;
 }
 
+/* ---------- 课程表粘贴导入 ----------
+   把 Excel 里复制出来的课表解析成课程数组。列顺序随意，靠内容认字段：
+   星期（周一 / 星期四 / 礼拜5）、节数（3节 / 第1-2节）、周次（1-16周 / 第3周）、单双周、课程名。
+   认不出的行不写入，连同行号和原因一起返回，让用户自己改。 */
+function toHalf(s) {
+  return String(s == null ? '' : s)
+    .replace(/[\uFF01-\uFF5E]/g, function (ch) { return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); })
+    .replace(/\u3000/g, ' ');
+}
+var WEEK_CH = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7, '天': 7, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7 };
+var COL_HEAD = /^(课程|课名|科目|名称|星期|周几|周次|节次|节数|时间|单双周|单\/双周|备注|地点|教室)$/;
+
+function parseCourses(text, defEndWeek) {
+  var ok = [], bad = [];
+  var lines = String(text || '').split(/\r?\n/);
+  var i, j;
+
+  for (i = 0; i < lines.length; i++) {
+    var raw = lines[i];
+    if (!raw || !raw.trim()) { continue; }
+    var line = toHalf(raw).trim();
+    /* 表头行：既有「课程/科目」又有「星期/周次」这类词，直接略过 */
+    if (/课程|科目|课名/.test(line) && /星期|周几|周次|节次|单双/.test(line)) { continue; }
+    /* 标题行：「高二（3）班课表」这种，没有星期也没有数字 */
+    if (/课表|课程表|作息|时间表/.test(line) && !/(?:周|星期|礼拜)\s*[一二三四五六日天1-7]/.test(line)) { continue; }
+
+    var segs = line.split(/[\t,;|]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+    if (segs.length < 3) {
+      var bySpace = line.split(/\s+/).filter(Boolean);
+      if (bySpace.length > segs.length) { segs = bySpace; }
+    }
+
+    var weekday = 0, lessons = 0, startWeek = 1, endWeek = 0, parity = 'all';
+    var names = [], m;
+
+    for (j = 0; j < segs.length; j++) {
+      var seg = segs[j];
+      if (COL_HEAD.test(seg)) { continue; }
+
+      m = /^(?:周|星期|礼拜)\s*([一二三四五六日天1-7])$/.exec(seg);
+      if (m) { weekday = WEEK_CH[m[1]]; continue; }
+
+      if (/^(单周|单|odd)$/i.test(seg)) { parity = 'odd'; continue; }
+      if (/^(双周|双|even)$/i.test(seg)) { parity = 'even'; continue; }
+
+      /* 周次：1-16周 / 第1~16周 / 1至16周 */
+      m = /第?\s*(\d{1,2})\s*[-–—~～至到]\s*(\d{1,2})\s*周/.exec(seg);
+      if (m) { startWeek = parseInt(m[1], 10); endWeek = parseInt(m[2], 10); continue; }
+
+      /* 节数范围：第1-2节 → 两节 */
+      m = /第?\s*(\d{1,2})\s*[-–—~～至到]\s*(\d{1,2})\s*节/.exec(seg);
+      if (m) { var a = parseInt(m[1], 10), b = parseInt(m[2], 10); lessons = b >= a ? b - a + 1 : 1; continue; }
+
+      /* 单值周次：第3周 */
+      m = /第?\s*(\d{1,2})\s*周/.exec(seg);
+      if (m) { startWeek = endWeek = parseInt(m[1], 10); continue; }
+
+      /* 单值节数：3节 */
+      m = /第?\s*(\d{1,2})\s*节/.exec(seg);
+      if (m) { lessons = parseInt(m[1], 10); continue; }
+
+      /* 光秃秃的 1-16 当周次 */
+      m = /^(\d{1,2})\s*[-–—~～至到]\s*(\d{1,2})$/.exec(seg);
+      if (m) { startWeek = parseInt(m[1], 10); endWeek = parseInt(m[2], 10); continue; }
+
+      /* 光秃秃的单个数字当节数 */
+      m = /^\d{1,2}$/.exec(seg);
+      if (m) { if (!lessons) { lessons = parseInt(m[0], 10); } continue; }
+
+      names.push(seg);
+    }
+
+    if (!weekday) { bad.push({ line: i + 1, text: raw.trim(), why: '没认出星期几' }); continue; }
+    if (!lessons) { bad.push({ line: i + 1, text: raw.trim(), why: '没认出节数' }); continue; }
+
+    if (!endWeek) { endWeek = startWeek; }
+    if (endWeek < startWeek) { var t = startWeek; startWeek = endWeek; endWeek = t; }
+    if (!startWeek) { startWeek = 1; }
+    if (!endWeek) { endWeek = parseInt(defEndWeek, 10) || 16; }
+
+    names.sort(function (x, y) { return y.length - x.length; });
+    ok.push({
+      name: names[0] || '未命名课程',
+      weekday: weekday,
+      lessons: lessons,
+      startWeek: startWeek,
+      endWeek: endWeek,
+      parity: parity
+    });
+  }
+
+  return { ok: ok, bad: bad };
+}
+
 /* ---------- 数据 ---------- */
 function blankDB() {
   return {
@@ -379,7 +473,7 @@ module.exports = {
   round2: round2, num2: num2, fmt: fmt, fmtShort: fmtShort, sl: sl,
   isWorkday: isWorkday, autoWorkdays: autoWorkdays, isHoliday: isHoliday,
   dowOf: dowOf, weekdayOf: weekdayOf, dowLabel: dowLabel, isWeekendKey: isWeekendKey,
-  weekOf: weekOf, preStart: preStart, lessonsFor: lessonsFor,
+  weekOf: weekOf, preStart: preStart, lessonsFor: lessonsFor, parseCourses: parseCourses,
   blankDB: blankDB, normalize: normalize, peek: peek, hasContent: hasContent, dayCount: dayCount,
   defaultHalf: defaultHalf, effHalf: effHalf, isGhostHalf: isGhostHalf, isGhost: isGhost,
   setRecord: setRecord, monthP: monthP, computeMonth: computeMonth,

@@ -250,7 +250,7 @@ input[type=date],input[type=month]{font:inherit;font-size:13px;padding:6px 10px;
 input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;box-shadow:0 0 0 3px rgba(27,94,155,.12)}
 .wide{width:100%!important;text-align:left}
 
-.course-row{display:grid;grid-template-columns:minmax(100px,1.5fr) 92px 88px 78px 78px 36px;
+.course-row{display:grid;grid-template-columns:minmax(100px,1.5fr) 92px 88px 78px 78px 84px 36px;
   gap:8px;align-items:center;margin-bottom:7px}
 .course-row.head{font-size:11px;color:var(--faint);margin-bottom:8px;letter-spacing:.3px}
 .course-row input,.course-row select{width:100%!important;text-align:left;padding:6px 9px;font-size:12px}
@@ -278,6 +278,10 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
 .modal{position:fixed;inset:0;background:rgba(24,26,29,.42);backdrop-filter:blur(3px);
   display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
 .modal.show{display:flex}
+.imp-ta{width:100%;height:128px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+  background:#FAF9F4;color:var(--ink);font:13px/1.65 ui-monospace,Consolas,"PingFang SC",monospace;
+  resize:vertical;box-sizing:border-box}
+.imp-ta:focus{outline:2px solid #C2D7EA;outline-offset:1px}
 .sheet{background:#fff;border-radius:18px;padding:22px 24px;width:100%;max-width:430px;
   box-shadow:0 24px 64px rgba(0,0,0,.24);animation:pop .16s ease-out}
 @keyframes pop{from{transform:translateY(6px) scale(.99);opacity:.6}to{transform:none;opacity:1}}
@@ -501,6 +505,20 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
   </div>
 </div>
 
+<div class="modal" id="impModal">
+  <div class="sheet wide">
+    <h3>从 Excel 粘贴课表</h3>
+    <p class="muted" style="margin:0 0 10px">在 Excel / WPS 里选中课表区域复制，粘到下面。列的顺序随意，每行能认出「星期几、节数、周次、单双周、课程名」就行；认不出的行不会写入，会在下面标出来。</p>
+    <textarea id="impText" class="imp-ta" placeholder="周一　第1-2节　语文　1-16周&#10;周三　数学　3节　1-8周　单周&#10;周五,英语,2节,9-16周,双周"></textarea>
+    <div class="sug" id="impPreview" style="margin-top:10px;white-space:pre-line">粘贴后这里显示识别结果</div>
+    <div class="row">
+      <button class="btn" id="impCancel">取消</button>
+      <button class="btn" id="impAppend">追加到现有课程</button>
+      <button class="btn primary" id="impReplace">清空后只留这些</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="expModal">
   <div class="sheet wide">
     <h3>导出考勤统计</h3>
@@ -604,6 +622,99 @@ function autoWorkdays(y,m){
   return c;
 }
 /* ---------- 课程表 ---------- */
+/* 把 Excel 里复制出来的课表解析成课程数组。列顺序随意，靠内容认字段：
+   星期（周一 / 星期四 / 礼拜5）、节数（3节 / 第1-2节）、周次（1-16周 / 第3周）、单双周、课程名。
+   认不出的行不写入，连同行号和原因一起返回。 */
+function toHalf(s) {
+  return String(s == null ? '' : s)
+    .replace(/[\uFF01-\uFF5E]/g, function (ch) { return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); })
+    .replace(/\u3000/g, ' ');
+}
+var WEEK_CH = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7, '天': 7, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7 };
+var COL_HEAD = /^(课程|课名|科目|名称|星期|周几|周次|节次|节数|时间|单双周|单\/双周|备注|地点|教室)$/;
+
+function parseCourses(text, defEndWeek) {
+  var ok = [], bad = [];
+  var lines = String(text || '').split(/\r?\n/);
+  var i, j;
+
+  for (i = 0; i < lines.length; i++) {
+    var raw = lines[i];
+    if (!raw || !raw.trim()) { continue; }
+    var line = toHalf(raw).trim();
+    /* 表头行：既有「课程/科目」又有「星期/周次」这类词，直接略过 */
+    if (/课程|科目|课名/.test(line) && /星期|周几|周次|节次|单双/.test(line)) { continue; }
+    /* 标题行：「高二（3）班课表」这种，没有星期也没有数字 */
+    if (/课表|课程表|作息|时间表/.test(line) && !/(?:周|星期|礼拜)\s*[一二三四五六日天1-7]/.test(line)) { continue; }
+
+    var segs = line.split(/[\t,;|]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+    if (segs.length < 3) {
+      var bySpace = line.split(/\s+/).filter(Boolean);
+      if (bySpace.length > segs.length) { segs = bySpace; }
+    }
+
+    var weekday = 0, lessons = 0, startWeek = 1, endWeek = 0, parity = 'all';
+    var names = [], m;
+
+    for (j = 0; j < segs.length; j++) {
+      var seg = segs[j];
+      if (COL_HEAD.test(seg)) { continue; }
+
+      m = /^(?:周|星期|礼拜)\s*([一二三四五六日天1-7])$/.exec(seg);
+      if (m) { weekday = WEEK_CH[m[1]]; continue; }
+
+      if (/^(单周|单|odd)$/i.test(seg)) { parity = 'odd'; continue; }
+      if (/^(双周|双|even)$/i.test(seg)) { parity = 'even'; continue; }
+
+      /* 周次：1-16周 / 第1~16周 / 1至16周 */
+      m = /第?\s*(\d{1,2})\s*[-–—~～至到]\s*(\d{1,2})\s*周/.exec(seg);
+      if (m) { startWeek = parseInt(m[1], 10); endWeek = parseInt(m[2], 10); continue; }
+
+      /* 节数范围：第1-2节 → 两节 */
+      m = /第?\s*(\d{1,2})\s*[-–—~～至到]\s*(\d{1,2})\s*节/.exec(seg);
+      if (m) { var a = parseInt(m[1], 10), b = parseInt(m[2], 10); lessons = b >= a ? b - a + 1 : 1; continue; }
+
+      /* 单值周次：第3周 */
+      m = /第?\s*(\d{1,2})\s*周/.exec(seg);
+      if (m) { startWeek = endWeek = parseInt(m[1], 10); continue; }
+
+      /* 单值节数：3节 */
+      m = /第?\s*(\d{1,2})\s*节/.exec(seg);
+      if (m) { lessons = parseInt(m[1], 10); continue; }
+
+      /* 光秃秃的 1-16 当周次 */
+      m = /^(\d{1,2})\s*[-–—~～至到]\s*(\d{1,2})$/.exec(seg);
+      if (m) { startWeek = parseInt(m[1], 10); endWeek = parseInt(m[2], 10); continue; }
+
+      /* 光秃秃的单个数字当节数 */
+      m = /^\d{1,2}$/.exec(seg);
+      if (m) { if (!lessons) { lessons = parseInt(m[0], 10); } continue; }
+
+      names.push(seg);
+    }
+
+    if (!weekday) { bad.push({ line: i + 1, text: raw.trim(), why: '没认出星期几' }); continue; }
+    if (!lessons) { bad.push({ line: i + 1, text: raw.trim(), why: '没认出节数' }); continue; }
+
+    if (!endWeek) { endWeek = startWeek; }
+    if (endWeek < startWeek) { var t = startWeek; startWeek = endWeek; endWeek = t; }
+    if (!startWeek) { startWeek = 1; }
+    if (!endWeek) { endWeek = parseInt(defEndWeek, 10) || 16; }
+
+    names.sort(function (x, y) { return y.length - x.length; });
+    ok.push({
+      name: names[0] || '未命名课程',
+      weekday: weekday,
+      lessons: lessons,
+      startWeek: startWeek,
+      endWeek: endWeek,
+      parity: parity
+    });
+  }
+
+  return { ok: ok, bad: bad };
+}
+
 function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");}
 function weekdayOf(key){var p=ymd(key);return ((new Date(p[0],p[1]-1,p[2]).getDay()+6)%7)+1;}
 function dowOf(key){var p=ymd(key);return new Date(p[0],p[1]-1,p[2]).getDay();}
@@ -1654,6 +1765,51 @@ function applySelection(kind){
   }
 }
 
+/* ---------- 课程表粘贴导入 ---------- */
+function impCoursesOpen(){
+  $("impText").value="";
+  $("impPreview").textContent="粘贴后这里显示识别结果";
+  $("impModal").classList.add("show");
+  setTimeout(function(){try{$("impText").focus();}catch(e){}},60);
+}
+function impCoursesPreview(){
+  var r=parseCourses($("impText").value,(DB.term&&DB.term.defaultWeeks)||16);
+  if(!r.ok.length&&!r.bad.length){$("impPreview").textContent="粘贴后这里显示识别结果";return r;}
+  var W=["一","二","三","四","五","六","日"],L=[];
+  L.push("认出 "+r.ok.length+" 门课程"+(r.bad.length?"，"+r.bad.length+" 行没法用":""));
+  r.ok.slice(0,4).forEach(function(c){
+    L.push("　"+c.name+" · 周"+W[c.weekday-1]+" · "+c.lessons+" 节 · 第 "+c.startWeek+"–"+c.endWeek+" 周"+
+      (c.parity==="odd"?" · 单周":c.parity==="even"?" · 双周":""));
+  });
+  if(r.ok.length>4)L.push("　…还有 "+(r.ok.length-4)+" 门");
+  r.bad.slice(0,3).forEach(function(b){
+    L.push("　第 "+b.line+" 行没法用："+b.why+"（"+b.text.slice(0,18)+"）");
+  });
+  $("impPreview").textContent=L.join("\n");
+  return r;
+}
+function impCoursesApply(mode){
+  var r=parseCourses($("impText").value,(DB.term&&DB.term.defaultWeeks)||16);
+  if(!r.ok.length){alert("没认出课程。每行至少要有「周几」和「几节」，例如：周一　第1-2节　语文　1-16周");return;}
+  if(mode==="replace"&&DB.courses.length&&
+    !confirm("会清掉现在的 "+DB.courses.length+" 门课程，只留这次粘贴的。已经填过的课时不受影响，仍然算数。"))return;
+  if(mode==="replace")DB.courses=[];
+  var dup=0;
+  r.ok.forEach(function(c){
+    var same=DB.courses.some(function(x){
+      return x.name===c.name&&x.weekday===c.weekday&&x.startWeek===c.startWeek&&x.endWeek===c.endWeek&&x.parity===c.parity;
+    });
+    if(same){dup++;return;}
+    DB.courses.push({id:"c"+Math.random().toString(36).slice(2,8),name:c.name,weekday:c.weekday,
+      lessons:c.lessons,startWeek:c.startWeek,endWeek:c.endWeek,parity:c.parity});
+  });
+  persist().then(function(){
+    $("impModal").classList.remove("show");
+    renderSet();
+    toast("导入 "+(r.ok.length-dup)+" 门"+(dup?"，跳过重复 "+dup:""));
+  });
+}
+
 /* ---------- 批量设置（日期范围 + 星期） ---------- */
 var BK={wd:{0:true,1:true,2:true,3:true,4:true,5:true,6:true},state:"work"};
 function openBulk(){
@@ -1995,12 +2151,16 @@ function courseRowsHtml(){
   var WD=["周一","周二","周三","周四","周五","周六","周日"];
   return DB.courses.map(function(c,i){
     var opts=WD.map(function(w,j){var v=j+1;return '<option value="'+v+'"'+(v===parseInt(c.weekday,10)?" selected":"")+'>'+w+'</option>';}).join("");
+    var pars=[["all","每周"],["odd","单周"],["even","双周"]].map(function(p){
+      return '<option value="'+p[0]+'"'+((c.parity||"all")===p[0]?" selected":"")+'>'+p[1]+'</option>';
+    }).join("");
     return '<div class="course-row" data-i="'+i+'">'
       +'<input type="text" class="c-name" value="'+esc(c.name)+'" placeholder="课程名（可不填）">'
       +'<select class="c-wd">'+opts+'</select>'
       +'<input type="number" class="c-les" min="0" max="20" step="1" value="'+c.lessons+'">'
       +'<input type="number" class="c-sw" min="1" max="30" step="1" value="'+c.startWeek+'">'
       +'<input type="number" class="c-ew" min="1" max="30" step="1" value="'+c.endWeek+'">'
+      +'<select class="c-par">'+pars+'</select>'
       +'<button class="del" title="删除这门课">×</button>'
       +'</div>';
   }).join("");
@@ -2013,6 +2173,8 @@ function syncCourse(row){
   c.lessons=Math.max(0,parseInt(row.querySelector(".c-les").value,10)||0);
   c.startWeek=Math.max(1,parseInt(row.querySelector(".c-sw").value,10)||1);
   c.endWeek=Math.max(1,parseInt(row.querySelector(".c-ew").value,10)||16);
+  var par=row.querySelector(".c-par");
+  if(par)c.parity=par.value||"all";
   if(c.endWeek<c.startWeek)c.endWeek=c.startWeek;
 }
 function renderSet(){
@@ -2050,9 +2212,9 @@ function renderSet(){
   h+='<p class="muted">配一次，整个学期不用再想今天几节。配完在记账页点「按课程表填课时」，一次填满整月。</p>';
   h+='<div class="fields"><div class="field"><div><label>第 1 教学周的周一</label><div class="desc">换算周次的基准日，填开学第一周的周一</div></div><input type="date" id="termStart" value="'+(DB.term.start||"")+'"></div></div>';
   h+='<h3>课程</h3>';
-  h+='<div class="course-row head"><span>课程</span><span>周几</span><span>每次节数</span><span>起始周</span><span>结束周</span><span></span></div>';
+  h+='<div class="course-row head"><span>课程</span><span>周几</span><span>每次节数</span><span>起始周</span><span>结束周</span><span>单双周</span><span></span></div>';
   h+='<div id="courseList">'+courseRowsHtml()+'</div>';
-  h+='<div style="margin-top:12px"><button class="btn sm" id="addCourse">+ 添加课程</button></div>';
+  h+='<div style="margin-top:12px"><button class="btn sm" id="addCourse">+ 添加课程</button> <button class="btn sm" id="impCourses">从 Excel 粘贴课表</button></div>';
   h+='<h3>快速生成（一周七格）</h3>';
   h+='<p class="muted" style="margin-bottom:2px">填每周一到周日各几节，一次生成本学期所有课程行；0 节的自动跳过。生成会替换下面现有的课程行。</p>';
   h+='<div class="weekgen">'+[1,2,3,4,5,6,0].map(function(w){
@@ -2198,6 +2360,7 @@ function renderSet(){
     DB.courses.push({id:"c"+Date.now(),name:"",weekday:1,lessons:2,startWeek:1,endWeek:16,parity:"all"});
     persist().then(function(){renderSet();});
   });
+  var ic=$("impCourses");if(ic)ic.addEventListener("click",impCoursesOpen);
   $("backupNow").addEventListener("click",backupToDisk);
   var pk=$("peekFile");if(pk)pk.addEventListener("click",peekFile);
   $("dlJson").addEventListener("click",downloadJson);
@@ -2691,6 +2854,13 @@ function bindEvents(){
   $("bkTo").addEventListener("change",updateBkPreview);
   $("bkCancel").addEventListener("click",function(){$("bulkModal").classList.remove("show");});
   $("bulkModal").addEventListener("click",function(e){if(e.target===this)this.classList.remove("show");});
+
+  /* 课程表粘贴导入 */
+  $("impText").addEventListener("input",impCoursesPreview);
+  $("impCancel").addEventListener("click",function(){$("impModal").classList.remove("show");});
+  $("impAppend").addEventListener("click",function(){impCoursesApply("append");});
+  $("impReplace").addEventListener("click",function(){impCoursesApply("replace");});
+  $("impModal").addEventListener("click",function(e){if(e.target===this)this.classList.remove("show");});
   $("bkApply").addEventListener("click",function(){
     var keys=bulkKeys();
     if(!keys.length){alert("这个范围内没有符合条件的日子，检查一下日期和星期。");return;}

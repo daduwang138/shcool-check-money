@@ -11,6 +11,7 @@ Page({
     courses: [],
     preview: '',
     editing: null,
+    imp: null,
     weekdayOpts: [1, 2, 3, 4, 5, 6, 7],
     parityOpts: [
       { v: 'all', label: '每周' },
@@ -209,6 +210,92 @@ Page({
         wx.showToast({ title: '已删除', icon: 'none' });
       }
     });
+  },
+
+  /* ---------- 从 Excel 粘贴导入 ---------- */
+  openImport: function () {
+    this._impText = '';
+    this.setData({ imp: { textLen: 0, ok: 0, items: [], badCount: 0, badList: [], more: 0 } });
+  },
+
+  closeImport: function () {
+    this._impText = '';
+    this.setData({ imp: null });
+  },
+
+  onImpText: function (e) {
+    this._impText = e.detail.value || '';
+    this.previewImport();
+  },
+
+  previewImport: function () {
+    var text = this._impText || '';
+    var dw = (this.db.term && this.db.term.defaultWeeks) || 16;
+    var r = core.parseCourses(text, dw);
+    var items = r.ok.slice(0, 6).map(function (c) {
+      var parts = ['周' + (WEEKDAY[c.weekday] || '?'), c.lessons + ' 节', '第 ' + c.startWeek + '–' + c.endWeek + ' 周'];
+      if (c.parity !== 'all') { parts.push(PARITY[c.parity]); }
+      return { name: c.name, desc: parts.join(' · ') };
+    });
+    this.setData({
+      imp: {
+        textLen: text.trim().length,
+        ok: r.ok.length,
+        items: items,
+        more: Math.max(r.ok.length - items.length, 0),
+        badCount: r.bad.length,
+        badList: r.bad.slice(0, 4)
+      }
+    });
+  },
+
+  applyImport: function (e) {
+    var mode = e.currentTarget.dataset.mode;
+    var text = this._impText || '';
+    var dw = (this.db.term && this.db.term.defaultWeeks) || 16;
+    var r = core.parseCourses(text, dw);
+    if (!r.ok.length) {
+      wx.showToast({ title: '没认出课程，看看格式', icon: 'none' });
+      return;
+    }
+    var that = this;
+    var run = function () {
+      var db = that.db;
+      if (mode === 'replace') { db.courses = []; }
+      var dup = 0;
+      r.ok.forEach(function (c) {
+        var same = db.courses.some(function (x) {
+          return x.name === c.name && x.weekday === c.weekday &&
+            x.startWeek === c.startWeek && x.endWeek === c.endWeek && x.parity === c.parity;
+        });
+        if (same) { dup++; return; }
+        db.courses.push({
+          id: 'c' + Math.random().toString(36).slice(2, 8),
+          name: c.name, weekday: c.weekday, lessons: c.lessons,
+          startWeek: c.startWeek, endWeek: c.endWeek, parity: c.parity
+        });
+      });
+      store.save(db);
+      that._impText = '';
+      that.setData({ imp: null });
+      that.render();
+      wx.showToast({
+        title: '导入 ' + (r.ok.length - dup) + ' 门' + (dup ? '，跳过重复 ' + dup : ''),
+        icon: 'none'
+      });
+    };
+
+    if (mode === 'replace' && this.db.courses.length) {
+      wx.showModal({
+        title: '替换全部课程',
+        content: '会清掉现在的 ' + this.db.courses.length + ' 门课程，只留这次粘贴的。已经填过的课时不受影响。',
+        confirmText: '替换',
+        confirmColor: '#A33A28',
+        success: function (res) { if (res.confirm) { run(); } }
+      });
+      return;
+    }
+    run();
   },
 
   noop: function () {}
