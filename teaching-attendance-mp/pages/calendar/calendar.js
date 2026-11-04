@@ -210,6 +210,14 @@ Page({
     this.paintSel();
   },
 
+  /* 连选只吃工作日：周末和法定假日跳过，调休补班的周六日照常算。
+     需要周末（监考、补课）就在格子上单点补选，手动不受这条限制。 */
+  _selable: function (k) {
+    if (!k) { return false; }
+    if (core.preStart(this.db, k)) { return false; }
+    return core.isWorkday(k);
+  },
+
   /* 一颗格子的宽高，用来把手指位移换算成跨了几格 */
   _metrics: function () {
     if (this._m && this._m.w > 4) { return this._m; }
@@ -241,12 +249,12 @@ Page({
       if (that._touch !== td || td.moved || td.idx0 < 0) { return; }
       td.moved = true;
       td.active = true;
-      td.add = !td.key || that.data.selKeys.indexOf(td.key) < 0;
+      td.add = !that._selable(td.key) || that.data.selKeys.indexOf(td.key) < 0;
       if (!that.data.sel) {
         that.setData({ sel: true, selKeys: [], scope: 'both', clearLes: false });
         that.paintSel();
       }
-      if (td.key && !core.preStart(that.db, td.key)) { that._slideApply([td.key]); }
+      if (that._selable(td.key)) { that._slideApply([td.key]); }
       try { wx.vibrateShort({ type: 'medium' }); } catch (err) { /* 忽略 */ }
     }, 420);
   },
@@ -284,10 +292,10 @@ Page({
         try { wx.vibrateShort({ type: 'light' }); } catch (err) { /* 部分机型不支持，忽略 */ }
       }
       /* 从月初的空白格起手也允许滑，只是空白格本身不选中 */
-      td.add = !td.key || this.data.selKeys.indexOf(td.key) < 0;
+      td.add = !this._selable(td.key) || this.data.selKeys.indexOf(td.key) < 0;
       td.active = true;
-      /* 起算日之前的日期不参与，但滑过去之后的日子照样能选 */
-      if (td.key && !core.preStart(this.db, td.key)) { this._slideApply([td.key]); }
+      /* 起算日之前、周末与法定假日都不参与连选，滑过去之后的工作日照样能选 */
+      if (this._selable(td.key)) { this._slideApply([td.key]); }
     }
 
     if (!td.active) { return; }
@@ -302,7 +310,7 @@ Page({
     for (var i = td.last + step; step > 0 ? i <= idx : i >= idx; i += step) {
       var c = cells[i];
       if (!c || c.blank || !c.key) { continue; }
-      if (core.preStart(this.db, c.key)) { continue; }
+      if (!this._selable(c.key)) { continue; }
       add.push(c.key);
     }
     td.last = idx;

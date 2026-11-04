@@ -308,6 +308,29 @@ ok(bcal.data.selKeys.every(k => core.isWorkday(k)), '选中的都是法定工作
 bcal.exitSel();
 ok(bcal.data.sel === false && !bcal.data.selKeys.length, '退出选择后清空选区');
 
+/* 连选默认跳过周末：11-13 周五 → 11-16 周一，中间的 14、15 不进选区 */
+slide(bcal, '2026-11-13', 3 * 48, 0);
+ok(bcal.data.selKeys.join(',') === '2026-11-13,2026-11-16',
+  '跨周末横滑只选工作日', bcal.data.selKeys.join(',') || '空');
+ok(bcal.data.selKeys.every(k => core.isWorkday(k)), '连选出来的都是工作日');
+
+bcal.exitSel();
+slide(bcal, '2026-11-14', 3 * 48, 0);
+ok(bcal.data.selKeys.join(',') === '2026-11-16,2026-11-17',
+  '从周六起手滑动，周末格本身不入选区', bcal.data.selKeys.join(',') || '空');
+
+bcal.exitSel();
+slide(bcal, '2026-11-16', -3 * 48, 0);
+ok(bcal.data.selKeys.join(',') === '2026-11-13,2026-11-16',
+  '反向跨周末同样跳过周末', bcal.data.selKeys.join(',') || '空');
+
+bcal.exitSel();
+bcal.toggleSel();
+bcal.toggleKey('2026-11-15');
+ok(bcal.data.selKeys.join(',') === '2026-11-15', '周末仍可单点补选（监考、补课）');
+bcal.exitSel();
+ok(core.isWorkday('2026-10-10'), '调休补班的周六算工作日，连选不会误跳');
+
 /* 起算日之前的日期不参与滑动选择 */
 reset();
 seedDb();
