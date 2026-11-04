@@ -1,0 +1,38 @@
+{
+  "pages": [
+    "pages/calendar/calendar",
+    "pages/summary/summary",
+    "pages/settings/settings",
+    "pages/courses/courses"
+  ],
+  "window": {
+    "navigationBarTitleText": "教学考勤记账本",
+    "navigationBarBackgroundColor": "#F5F4F0",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F5F4F0",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#8A8E96",
+    "selectedColor": "#1B5E9B",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/calendar/calendar",
+        "text": "记账"
+      },
+      {
+        "pagePath": "pages/summary/summary",
+        "text": "汇总"
+      },
+      {
+        "pagePath": "pages/settings/settings",
+        "text": "设置"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

@@ -1,0 +1,126 @@
+page {
+  min-height: 100%;
+  background: #F5F4F0;
+  color: #191C20;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 28rpx;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+view, text, input, picker, button {
+  box-sizing: border-box;
+}
+
+.card {
+  margin: 0 24rpx 20rpx;
+  padding: 26rpx 26rpx 24rpx;
+  border: 1rpx solid #E7E5DD;
+  border-radius: 22rpx;
+  background: #FFFFFF;
+}
+
+.card-title {
+  display: block;
+  margin-bottom: 16rpx;
+  color: #4C5057;
+  font-size: 26rpx;
+  font-weight: 500;
+  letter-spacing: 1rpx;
+}
+
+.muted {
+  color: #666B73;
+  font-size: 24rpx;
+  line-height: 1.7;
+}
+
+.hint {
+  color: #8A8E96;
+  font-size: 23rpx;
+  line-height: 1.7;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 84rpx;
+  border-bottom: 1rpx solid #F1EFE8;
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row-label {
+  color: #4C5057;
+  font-size: 27rpx;
+}
+
+.row-value {
+  color: #191C20;
+  font-size: 27rpx;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn {
+  display: flex;
+  height: 76rpx;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid #DCDAD1;
+  border-radius: 16rpx;
+  background: #FFFFFF;
+  color: #2F3338;
+  font-size: 27rpx;
+  font-weight: 500;
+}
+
+.btn.primary {
+  border-color: #174C7C;
+  background: #1B5E9B;
+  color: #FFFFFF;
+}
+
+.btn.ghost {
+  border-color: #E7E5DD;
+  background: #FAF9F4;
+  color: #5F6470;
+}
+
+.btn.danger {
+  border-color: #E8C9C4;
+  background: #FFFFFF;
+  color: #A33A28;
+}
+
+.btn:active {
+  opacity: .82;
+}
+
+.tag {
+  padding: 3rpx 12rpx;
+  border: 1rpx solid #E7E5DD;
+  border-radius: 999rpx;
+  color: #666B73;
+  font-size: 21rpx;
+  line-height: 1.6;
+}
+
+.tag.ok {
+  border-color: #9FE1CB;
+  background: #EAF7F2;
+  color: #0F6E56;
+}
+
+.tag.warn {
+  border-color: #F5C99B;
+  background: #FDF4E3;
+  color: #854F0B;
+}
+
+.arrow {
+  color: #B4B2A9;
+  font-size: 26rpx;
+}

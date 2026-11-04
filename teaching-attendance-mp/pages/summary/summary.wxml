@@ -1,0 +1,73 @@
+<view class="page">
+  <view class="topbar">
+    <view class="nav" bindtap="prevMonth" hover-class="nav-hover">‹</view>
+    <picker mode="date" fields="month" value="{{ym}}" bindchange="pickMonth">
+      <view class="mon">{{monLabel}}<text class="caret">▾</text></view>
+    </picker>
+    <view class="nav" bindtap="nextMonth" hover-class="nav-hover">›</view>
+  </view>
+
+  <view class="hero">
+    <text class="hero-label">本月应发</text>
+    <view class="hero-num"><text class="cur">¥</text><text class="amt">{{total}}</text></view>
+    <view class="hero-sub">
+      <text class="hs" wx:for="{{heroSubs}}" wx:key="k">{{item.k}} {{item.v}}</text>
+    </view>
+  </view>
+
+  <view class="halves-card">
+    <view class="hb" wx:for="{{halfRows}}" wx:key="k">
+      <view class="hb-dot {{item.cls}}"></view>
+      <text class="hb-k">{{item.k}}</text>
+      <text class="hb-v">{{item.v}}<text class="hb-u"> 半天</text></text>
+    </view>
+  </view>
+
+  <view class="card">
+    <text class="card-title">计算过程</text>
+    <view class="row" wx:for="{{rows}}" wx:key="k">
+      <text class="row-label">{{item.k}}</text>
+      <text class="row-value">{{item.v}}</text>
+    </view>
+  </view>
+
+  <view class="card">
+    <text class="card-title">本月参数</text>
+    <view class="row">
+      <text class="row-label">应上班天数</text>
+      <input class="num-in" type="number" value="{{p.workdays}}" bindblur="setWorkdays" />
+    </view>
+    <view class="row">
+      <text class="row-label">基本工资</text>
+      <input class="num-in" type="digit" value="{{p.base}}" bindblur="setBase" />
+    </view>
+    <view class="row">
+      <text class="row-label">课时单价</text>
+      <input class="num-in" type="digit" value="{{p.rate}}" bindblur="setRate" />
+    </view>
+    <view class="param-note" bindtap="resetParams">改过之后点这里，恢复成设置里的默认值</view>
+  </view>
+
+  <view class="card">
+    <view class="row">
+      <view>
+        <text class="row-label">标记为已核对</text>
+        <text class="sub">核对后再改会二次确认，防止手误</text>
+      </view>
+      <switch checked="{{checked}}" bindchange="toggleChecked" color="#1B5E9B" />
+    </view>
+    <view class="row">
+      <text class="row-label">本月有记录的天数</text>
+      <text class="row-value">{{dayCount}} 天</text>
+    </view>
+  </view>
+
+  <view class="export">
+    <view class="btn primary" bindtap="exportMonth">导出本月 CSV</view>
+    <view class="btn" bindtap="exportAll">导出全部月份</view>
+  </view>
+
+  <view class="tips">
+    <text>CSV 用 Excel / WPS 直接打开，含月度汇总与每日明细两段。手机端点导出会生成文件并转为「发送给聊天」，存到文件传输助手后可在电脑上使用。</text>
+  </view>
+</view>

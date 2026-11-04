@@ -1,0 +1,2812 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>教学考勤记账本</title>
+<style>
+*{box-sizing:border-box}
+:root{
+  --bg:#F5F4F0;--surface:#FFFFFF;
+  --line:#E7E5DD;--line-soft:#F1EFE8;
+  --ink:#191C20;--muted:#666B73;--faint:#9C9A91;
+  --blue:#1B5E9B;--blue-d:#174C7C;
+  --radius:16px;
+  --sh1:0 1px 2px rgba(20,20,19,.04);
+  --sh2:0 6px 24px rgba(20,20,19,.07);
+}
+html,body{margin:0;padding:0}
+[hidden]{display:none!important}
+body{
+  background:var(--bg);color:var(--ink);
+  font:13.5px/1.65 "Inter",-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:0 22px 96px}
+
+/* ---------- 顶栏 ---------- */
+.top{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;
+  gap:16px;flex-wrap:wrap;padding:15px 0 13px;margin-bottom:20px;
+  border-bottom:1px solid var(--line);background:rgba(245,244,240,.92);backdrop-filter:blur(10px) saturate(140%)}
+.brand{display:flex;align-items:center;gap:10px}
+.brand::before{content:"记";display:grid;place-items:center;width:28px;height:28px;border-radius:9px;
+  background:linear-gradient(150deg,#2C76BC,#164C7E);color:#fff;font-size:13px;font-weight:600;
+  box-shadow:0 3px 8px rgba(22,76,126,.26)}
+.brand .muted{font-size:11.5px;padding-left:10px;border-left:1px solid var(--line)}
+.hgroup{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dirpill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border-radius:9px;
+  border:1px solid var(--line);background:#fff;color:#4A4F56;font:inherit;font-size:12px;
+  cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s}
+.dirpill:hover{border-color:#BFC6CE;background:#FCFCFA}
+.dirpill::before{content:"";width:7px;height:7px;border-radius:50%;background:#9AA0A6;
+  box-shadow:0 0 0 3px rgba(154,160,166,.16)}
+.dirpill[data-s="ok"]{color:#1E5E4A;border-color:#BFDCCF;background:#F1F8F4}
+.dirpill[data-s="ok"]::before{background:#2E8B64;box-shadow:0 0 0 3px rgba(46,139,100,.16)}
+.dirpill[data-s="warn"]{color:#8A4B0F;border-color:#E9CFA6;background:#FDF6EA;font-weight:500}
+.dirpill[data-s="warn"]::before{background:#C97A1E;box-shadow:0 0 0 3px rgba(201,122,30,.18);
+  animation:dpulse 1.8s ease-in-out infinite}
+@keyframes dpulse{50%{opacity:.4}}
+h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.2px}
+h2{font-size:13px;font-weight:600;margin:0 0 14px;color:#3C4046;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:3px;height:12px;border-radius:2px;background:var(--blue);display:block}
+h3{font-size:12px;font-weight:600;margin:20px 0 8px;color:var(--faint);letter-spacing:.4px}
+p{margin:0 0 8px}
+.muted{color:var(--muted);font-size:12px}
+.faint{color:var(--faint);font-size:12px}
+.err{color:#A32D2D;font-size:12px;min-height:18px;margin:6px 0 0}
+
+.tabs{display:flex;gap:2px;background:#E9E7E0;padding:3px;border-radius:11px;
+  box-shadow:inset 0 1px 2px rgba(20,20,19,.05)}
+.tab{border:0;background:transparent;color:var(--muted);font:inherit;font-size:12.5px;font-weight:500;
+  padding:6px 18px;border-radius:8px;cursor:pointer;transition:color .15s,background .15s}
+.tab:hover{color:var(--ink)}
+.tab.active{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(20,20,19,.1)}
+
+/* ---------- 工具条 ---------- */
+.bar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.bar2{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.monnav{display:flex;align-items:center;gap:7px}
+.monnav strong{font-size:16px;font-weight:600;min-width:118px;text-align:center;
+  font-variant-numeric:tabular-nums;letter-spacing:.2px}
+.tools{display:flex;gap:7px;flex-wrap:wrap}
+
+.btn{border:1px solid var(--line);background:#fff;color:#33373D;font:inherit;font-size:12.5px;
+  height:32px;padding:0 13px;border-radius:9px;cursor:pointer;white-space:nowrap;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  box-shadow:var(--sh1);transition:background .15s,border-color .15s,box-shadow .15s}
+.btn:hover{background:#FBFAF7;border-color:#D6D3C9;box-shadow:0 2px 8px rgba(20,20,19,.07)}
+.btn:active{transform:translateY(.5px)}
+.btn.icon{width:30px;height:30px;padding:0;font-size:15px;color:#4C5057;border-radius:9px}
+.btn.primary{background:linear-gradient(180deg,#2265A3,#1A578F);border-color:#174C7C;color:#fff;
+  box-shadow:0 1px 2px rgba(23,76,124,.28),inset 0 1px 0 rgba(255,255,255,.14)}
+.btn.primary:hover{background:linear-gradient(180deg,#1F5D97,#154B7D);border-color:#143F68;color:#fff}
+.btn.ghost{background:transparent;box-shadow:none}
+.btn.danger{color:#A32D2D;border-color:#EFD3D3}
+.btn.danger:hover{background:#FDF6F6;border-color:#E3B8B8}
+.btn.sm{height:28px;padding:0 10px;font-size:12px;border-radius:8px}
+button:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- 月度数字条 ---------- */
+.chips{display:flex;align-items:stretch;background:#fff;border:1px solid var(--line);
+  border-radius:12px;box-shadow:var(--sh1);overflow:hidden}
+.chip{position:relative;display:inline-flex;align-items:baseline;gap:5px;
+  padding:7px 15px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.chip+.chip::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:1px;background:var(--line-soft)}
+.chip b{font-size:16px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;
+  letter-spacing:-.2px;line-height:1.2}
+
+/* ---------- 图例 ---------- */
+.legend{display:flex;flex-wrap:wrap;gap:7px 15px;align-items:center;font-size:11.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.legend .sw{display:inline-flex;align-items:center;justify-content:center;width:21px;height:19px;
+  border-radius:6px;font-size:10.5px;font-style:normal;font-weight:600;line-height:1;letter-spacing:-.5px}
+.legend .sw.pre{background:#EFEEE7;border:1px dashed #B0AEA4;color:#7C7A72;
+  background-image:repeating-linear-gradient(45deg,rgba(110,108,100,.30) 0 4px,rgba(255,255,255,0) 4px 8px)}
+.legend .sw.miss{background:#FDF4E3;border:2px dashed #A8680E;color:#A8680E;font-size:10px}
+
+/* ---------- 月历 ---------- */
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.cal .wd{text-align:center;font-size:11.5px;font-weight:600;color:#41474F;
+  letter-spacing:.5px;padding:2px 0 7px}
+.cal .wd:nth-child(6),.cal .wd:nth-child(7){color:#5E5749}
+:focus-visible{outline:2px solid #1B5E9B;outline-offset:2px;border-radius:6px}
+.cell{background:#fff;border:1px solid #E4E1D8;border-radius:13px;padding:7px 7px 8px;
+  min-height:92px;display:flex;flex-direction:column;gap:6px;cursor:pointer;
+  box-shadow:0 1px 2px rgba(20,20,19,.03);
+  transition:border-color .15s,box-shadow .15s}
+.cell:hover{border-color:#D7D4CA;box-shadow:0 3px 12px rgba(20,20,19,.07)}
+.cell.blank{background:transparent;border:0;cursor:default;min-height:0}
+.cell.rest{background:#FBFAF6;border-color:#EEECE4}
+.cell.pre{background:#F8F7F2;border-style:dashed;border-color:#DEDCD2;
+  background-image:repeating-linear-gradient(45deg,rgba(120,118,110,.055) 0 5px,rgba(255,255,255,0) 5px 10px)}
+.cell.pre .half{background:transparent;border-color:#E2E0D8;color:#CFCDC6;background-image:none;box-shadow:none}
+.cell.pre .dnum .cd{color:#7C7A72}
+.cell.miss{background:#FDF4E3;border:2px dashed #A8680E}
+.cell.sel{border-color:#1B5E9B;background:#EAF3FB;box-shadow:0 0 0 1px #1B5E9B,0 3px 12px rgba(27,94,155,.14)}
+.cell.today{border-color:#A9CBE8;box-shadow:inset 0 0 0 1px #CFE2F2}
+
+.dnum{font-size:12.5px;font-weight:500;color:#4C5057;display:flex;align-items:center;
+  justify-content:space-between;line-height:1;min-height:20px}
+.cell.today .dnum>span:first-child{display:inline-grid;place-items:center;width:20px;height:20px;
+  border-radius:999px;background:linear-gradient(180deg,#2265A3,#1A578F);color:#fff;
+  font-size:11.5px;margin:-2px 0 -2px -1px}
+.dnum .cd{font-size:9.5px;font-weight:600;letter-spacing:.2px;color:var(--faint);
+  border:1px solid var(--line);border-radius:999px;padding:1px 6px;line-height:1.5}
+.cell.today .dnum .cd{color:#1B5E9B;border-color:#CFE2F2;background:#F2F8FD}
+
+.halves{display:flex;gap:4px}
+.half{flex:1;height:25px;border-radius:7px;font-size:11.5px;font-weight:600;letter-spacing:0;
+  cursor:pointer;font-family:inherit;border:1px dashed #E4E2DA;background:#FCFBF8;color:#CFCDC4;
+  display:grid;place-items:center;transition:border-color .12s,box-shadow .12s,filter .12s}
+.half:hover{border-color:#CBC8BE;filter:brightness(.985)}
+.half:active{transform:translateY(.5px)}
+/* 状态：实心 / 斜纹 / 点纹 / 灰底 / 虚框，不靠色相也能分辨 */
+.half.s-work,.sw.s-work{background:linear-gradient(180deg,#2265A3,#1A578F);border:1px solid #174C7C;
+  color:#fff;box-shadow:0 1px 2px rgba(23,76,124,.22)}
+.half.s-inv,.sw.s-inv{background:#D8EDE5;border:1px solid #0F6E56;color:#0A4A39;
+  background-image:repeating-linear-gradient(45deg,rgba(15,110,86,.40) 0 1.5px,rgba(15,110,86,0) 1.5px 5px)}
+.half.s-ot,.sw.s-ot{background:#FBE3C4;border:1px solid #A05A00;color:#66390A;
+  background-image:radial-gradient(rgba(160,90,0,.50) 1px,rgba(160,90,0,0) 1.15px);background-size:4px 4px}
+.half.s-leave,.sw.s-leave{background:#E6E4DC;border:1px solid #7A7973;color:#3B3A36}
+.half.ghost-half,.sw.ghost-half{background:#fff;border:1px dashed #B7D0E6;color:#7FA3C4;
+  background-image:none;box-shadow:none}
+/* 休息日：只把“还没填的空槽”压淡；已记的加班 / 监考 / 上班照常满色显示 */
+.cell.rest .half.s-empty{border-color:#EAE7DE;background:transparent;color:#D2CFC5}
+.cell.rest .half.s-empty.ghost-half{border-color:#D9E3EC;color:#A8BED4}
+.cell.rest .lessons{margin-bottom:2px}
+.cell.rest .dnum .cd{color:#8B8377;border-color:#E6E2D7;background:#F6F4EC}
+
+.lessons{margin-top:auto;align-self:flex-start;font-size:10.5px;font-weight:600;
+  padding:1px 7px;border-radius:6px;background:#F1F5FA;color:#2B5C8A;
+  font-variant-numeric:tabular-nums;line-height:1.7}
+.lessons.zero{background:transparent;color:#B9B7AE;font-weight:500;padding-left:1px}
+.lessons.ghost{color:#A8A69C;font-weight:400}
+.lessons.ghost::before{content:"";display:inline-block;width:5px;height:5px;border:1px dashed #B4B2A9;
+  border-radius:50%;margin-right:5px;vertical-align:1px}
+
+/* ---------- 拖选 ---------- */
+.cal .cell{touch-action:none}
+body.dragging{cursor:crosshair;-webkit-user-select:none;user-select:none}
+body.dragging .cell:hover{border-color:#EBE9E2;box-shadow:none}
+.selbar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);width:max-content;
+  background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px rgba(20,20,19,.16);
+  padding:9px 11px;display:none;align-items:center;gap:6px;flex-wrap:wrap;z-index:60;
+  max-width:calc(100vw - 20px)}
+.selbar.show{display:flex}
+.selbar .cnt{font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;padding:0 8px 0 4px}
+.selbar .sb{border:1px solid var(--line);background:#fff;font:inherit;font-size:12px;height:28px;
+  padding:0 11px;border-radius:8px;cursor:pointer;color:var(--muted);transition:.12s}
+.selbar .sb:hover{background:#FAFAF7;border-color:#D3D0C6}
+.selbar .sb.w{color:#174C7C;border-color:#B9D1E8}
+.selbar .sb.i{color:#0A4A39;border-color:#B7D8CC}
+.selbar .sb.o{color:#66390A;border-color:#E2C7A2}
+.selbar .sb.l{color:#3B3A36;border-color:#CFCDC4}
+.selbar .div{width:1px;height:18px;background:var(--line)}
+.undobar{position:fixed;left:18px;bottom:18px;background:#22252A;color:#fff;font-size:12px;
+  padding:8px 9px 8px 14px;border-radius:11px;display:none;align-items:center;gap:10px;z-index:120;
+  box-shadow:0 12px 30px rgba(0,0,0,.2)}
+.undobar.show{display:flex}
+.undobar button{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;font:inherit;
+  font-size:12px;padding:3px 10px;border-radius:7px;cursor:pointer}
+.undobar button:hover{background:rgba(255,255,255,.12)}
+.undobar button.x{border-color:transparent;color:rgba(255,255,255,.62);font-size:15px;line-height:1;
+  padding:3px 6px;border-radius:6px}
+.undobar button.x:hover{background:rgba(255,255,255,.14);color:#fff}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.chk input{width:auto!important;margin:0}
+
+/* ---------- 说明折叠 ---------- */
+.help{margin-top:22px;border-top:1px solid var(--line);padding-top:12px}
+.help summary{cursor:pointer;font-size:12px;color:var(--muted);list-style:none;
+  display:flex;align-items:center;gap:7px;user-select:none;width:max-content}
+.help summary::-webkit-details-marker{display:none}
+.help summary::before{content:"";width:0;height:0;border-left:5px solid currentColor;
+  border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .18s}
+.help[open] summary::before{transform:rotate(90deg)}
+.help p{font-size:12px;color:var(--faint);line-height:1.95;margin-top:10px}
+.hint{font-size:11.5px;color:var(--faint);margin-top:14px;line-height:1.85}
+.sug{font-size:12px;color:var(--muted);margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* ---------- 卡片 / 表格 / 表单 ---------- */
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:20px 22px;margin-bottom:14px;box-shadow:var(--sh1)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr;gap:8px}}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+th{font-weight:600;color:var(--faint);font-size:11px;letter-spacing:.4px;border-bottom:1px solid var(--line)}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:#FCFBF8}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.total td{font-weight:600;border-top:1px solid var(--line);background:#FAF9F4;padding-top:12px;padding-bottom:12px}
+tr.total td.num{font-size:17px;letter-spacing:-.3px}
+tr.hi td{background:#F8FAFD}
+tr.hi:hover td{background:#F4F8FC}
+
+.field{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0;
+  border-bottom:1px solid var(--line-soft)}
+.field:last-child{border-bottom:0}
+.fields{display:grid;grid-template-columns:1fr 1fr;column-gap:38px}
+.fields .field{border-bottom:0;padding:9px 0}
+@media(max-width:840px){.fields{grid-template-columns:1fr;column-gap:0}}
+table.detail{table-layout:fixed}
+table.detail td:nth-child(1),table.detail th:nth-child(1){width:26%}
+table.detail td:nth-child(2),table.detail th:nth-child(2),
+table.detail td:nth-child(3),table.detail th:nth-child(3){width:15%}
+table.detail td:nth-child(4),table.detail th:nth-child(4){width:12%}
+.field label{font-size:12.5px;font-weight:500}
+.field .desc{font-size:11px;color:var(--faint);margin-top:2px;line-height:1.5}
+
+input[type=text],input[type=password],input[type=number],select{
+  font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;
+  background:#FCFBF8;color:var(--ink);width:130px;text-align:right;transition:.15s}
+select{text-align:left;background:#fff}
+input:focus,select:focus{outline:0;border-color:#8FB4D6;background:#fff;
+  box-shadow:0 0 0 3px rgba(27,94,155,.12)}
+input[type=password]{text-align:left;width:170px}
+input[type=date],input[type=month]{font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);
+  border-radius:9px;background:#fff;color:var(--ink)}
+input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;box-shadow:0 0 0 3px rgba(27,94,155,.12)}
+.wide{width:100%!important;text-align:left}
+
+.course-row{display:grid;grid-template-columns:minmax(100px,1.5fr) 92px 88px 78px 78px 36px;
+  gap:8px;align-items:center;margin-bottom:7px}
+.course-row.head{font-size:11px;color:var(--faint);margin-bottom:8px;letter-spacing:.3px}
+.course-row input,.course-row select{width:100%!important;text-align:left;padding:6px 9px;font-size:12px}
+.course-row input[type=number]{text-align:center}
+.course-row .del{border:1px solid var(--line);background:#fff;color:#B45252;border-radius:8px;
+  cursor:pointer;font-size:14px;line-height:1;height:30px;font-family:inherit;transition:.12s}
+.course-row .del:hover{background:#FDF6F6;border-color:#EBC9C9}
+@media(max-width:700px){.course-row{grid-template-columns:1fr 1fr 1fr}.course-row.head{display:none}}
+
+.wp-grid,.weekgen{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px;margin-top:6px}
+.wp-grid .lb{font-size:10.5px;color:var(--faint);text-align:center;margin-bottom:2px;letter-spacing:.3px}
+.wp-grid select,.weekgen input{width:100%!important;min-width:0;text-align:center;padding:6px 2px;font-size:12px}
+.weekgen input[type=number]{text-align:center}
+.rowflex{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.rowflex input[type=date]{width:auto}
+
+.switch{position:relative;width:40px;height:23px;background:#DCD9D0;border-radius:999px;
+  cursor:pointer;transition:background .18s;flex:0 0 auto}
+.switch.on{background:linear-gradient(180deg,#2265A3,#1A578F)}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .18s}
+.switch.on::after{transform:translateX(17px)}
+
+/* ---------- 弹窗 ---------- */
+.modal{position:fixed;inset:0;background:rgba(24,26,29,.42);backdrop-filter:blur(3px);
+  display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modal.show{display:flex}
+.sheet{background:#fff;border-radius:18px;padding:22px 24px;width:100%;max-width:430px;
+  box-shadow:0 24px 64px rgba(0,0,0,.24);animation:pop .16s ease-out}
+@keyframes pop{from{transform:translateY(6px) scale(.99);opacity:.6}to{transform:none;opacity:1}}
+.sheet h3{margin:0 0 16px;color:var(--ink);font-size:15px;font-weight:600;letter-spacing:.2px}
+.sect{margin-bottom:15px}
+.sect .lb{font-size:11.5px;color:var(--faint);margin-bottom:7px;letter-spacing:.3px}
+.opts{display:flex;gap:6px;flex-wrap:wrap}
+.opt{border:1px solid var(--line);background:#fff;font:inherit;font-size:12px;font-weight:500;
+  height:30px;padding:0 13px;border-radius:8px;cursor:pointer;color:var(--muted);transition:.12s}
+.opt:hover{border-color:#D3D0C6;background:#FCFBF8}
+.opt.active.s-empty{background:#EDEBE4;color:var(--ink);border-color:#B4B2A1}
+.opt.s-work{color:#174C7C;border-color:#C2D7EA}
+.opt.s-inv{color:#0A4A39;border-color:#BCDBD0}
+.opt.s-ot{color:#66390A;border-color:#E4CAA6}
+.opt.s-leave{color:#3B3A36;border-color:#D2D0C7}
+.opt.active.s-work{background:linear-gradient(180deg,#2265A3,#1A578F);border-color:#174C7C;color:#fff}
+.opt.active.s-inv{background:#D8EDE5;border-color:#0F6E56;color:#0A4A39;
+  background-image:repeating-linear-gradient(45deg,rgba(15,110,86,.40) 0 1.5px,rgba(15,110,86,0) 1.5px 5px)}
+.opt.active.s-ot{background:#FBE3C4;border-color:#A05A00;color:#66390A;
+  background-image:radial-gradient(rgba(160,90,0,.50) 1px,rgba(160,90,0,0) 1.15px);background-size:4px 4px}
+.opt.active.s-leave{background:#E6E4DC;border-color:#7A7973;color:#3B3A36}
+.stepper{display:flex;align-items:center;gap:10px}
+.stepper button{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:#fff;
+  font-size:17px;line-height:1;cursor:pointer;color:var(--ink);box-shadow:var(--sh1);transition:.12s}
+.stepper button:hover{background:#FCFBF8;border-color:#D3D0C6}
+.stepper .val{font-size:20px;font-weight:600;min-width:46px;text-align:center;
+  font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.sheet .row{display:flex;gap:8px;margin-top:18px}
+.sheet .row .btn{flex:1;height:36px;font-size:13px}
+.sheet .note{width:100%;text-align:left;margin-top:8px}
+.sheet.wide{max-width:478px}
+
+/* ---------- 导出统计 ---------- */
+.frow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.frow .lbl{font-size:12px;color:var(--muted);min-width:30px}
+.frow input[type=month]{width:134px;text-align:left;padding:5px 9px}
+.chkline{display:flex;gap:16px;flex-wrap:wrap}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:2px 9px;
+  border-radius:999px;border:1px solid var(--line);background:#FAF9F4;color:var(--muted);white-space:nowrap}
+.tag.ok{border-color:#B7D8CC;background:#EFF8F4;color:#0A4A39}
+.tag.warn{border-color:#E9D3A8;background:#FDF7EA;color:#7A4A06}
+.dirpath{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:#3C4046;
+  background:#FAF9F4;border:1px solid var(--line-soft);border-radius:8px;padding:4px 9px;
+  max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;
+  vertical-align:middle}
+.dircell{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.fileline{margin:10px 0 0;font-size:11.5px;color:#5A5F66;background:#FAF9F4;border:1px solid var(--line-soft);
+  border-radius:9px;padding:7px 10px;line-height:1.65;word-break:break-all}
+.fileline[data-s="ok"]{border-color:#B7D8CC;background:#F5FBF8;color:#0A4A39}
+.fileline[data-s="warn"]{border-color:#E9D3A8;background:#FDF7EA;color:#7A4A06}
+.fl-row{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.fl-row+.fl-row{margin-top:4px}
+.fl-k{flex:0 0 66px;color:#878C93;font-size:11px;letter-spacing:.02em}
+.fl-v{font-weight:600;color:#33373D}
+.fl-n{color:#6B7078;font-weight:400}
+.fl-n::before{content:"·";margin-right:6px;color:#A8ADB4}
+.fl-cmp{margin-top:6px;padding-top:6px;border-top:1px dashed rgba(0,0,0,.09);font-size:11px}
+.hint code,.fileline code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+  background:#F1EFE8;border-radius:4px;padding:1px 4px;color:#3C4046}
+.notice{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#FDF7EA;border:1px solid #E9D3A8;
+  color:#6B4408;border-radius:11px;padding:9px 12px;font-size:12px;line-height:1.65;margin-bottom:14px}
+.notice .grow{flex:1;min-width:240px}
+.notice .btn{background:#fff}
+.notice .btn.primary{background:linear-gradient(180deg,#2265A3,#1A578F);border-color:#174C7C;color:#fff;
+  box-shadow:0 2px 7px rgba(26,87,143,.24)}
+.notice .btn.primary:hover{background:linear-gradient(180deg,#1F5D97,#154B7D);color:#fff}
+.notice .btn.ghost{background:transparent;border-color:transparent;color:#8A6A32;box-shadow:none}
+
+/* ---------- 口令页 ---------- */
+.lock{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;
+  padding:20px;z-index:100}
+.lockbox{background:#fff;border:1px solid var(--line);border-radius:18px;padding:32px 28px;
+  width:100%;max-width:330px;text-align:center;box-shadow:var(--sh2)}
+.lockbox h1{margin-bottom:6px}
+.lockbox p{margin-bottom:18px}
+.lockbox input{width:100%!important;text-align:left;margin-bottom:10px;padding:10px 12px}
+.lockbox .btn{width:100%;height:38px;padding:0}
+
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#22252A;color:#fff;
+  font-size:12.5px;padding:9px 18px;border-radius:999px;opacity:0;transition:opacity .2s;
+  pointer-events:none;z-index:200;box-shadow:0 12px 30px rgba(0,0,0,.22)}
+.toast.show{opacity:1}
+@media print{.top,.bar2,.tabs,.btn,.hint,.help,.selbar,.undobar,.notice{display:none!important}}
+</style>
+</head>
+<body>
+
+<div id="lockScreen" class="lock" hidden>
+  <div class="lockbox">
+    <h1>教学考勤记账本</h1>
+    <p class="muted">请输入打开口令</p>
+    <input id="lockPass" type="password" placeholder="口令" autocomplete="current-password">
+    <button id="lockBtn" class="btn primary">打开</button>
+    <p id="lockErr" class="err"></p>
+    <p class="faint" style="margin-top:14px">口令只在本机校验，不会上传</p>
+  </div>
+</div>
+
+<div id="app" hidden>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <h1>教学考勤记账本</h1>
+      <span class="muted hide-sm">数据只存在这台电脑</span>
+    </div>
+    <nav class="tabs">
+      <button data-view="cal" class="tab active">记账</button>
+      <button data-view="sum" class="tab">汇总</button>
+      <button data-view="set" class="tab">设置</button>
+    </nav>
+    <button class="dirpill" id="dirPill" type="button" title="点一下把浏览器里的记录写到硬盘">检查中…</button>
+  </header>
+
+  <section id="view-cal">
+    <div class="notice" id="dirNotice" hidden>
+      <span class="grow">每天的出勤和课时，现在只存在这台电脑的浏览器里。选一个数据目录，就会按月存成你自己的 JSON（如 <b>考勤数据_2026-10.json</b>）—— 能备份、能归档、能拷到另一台电脑；也可以先下载一份整库 JSON 存着。</span>
+      <button class="btn sm primary" id="noticeSet">设置数据目录</button>
+      <button class="btn sm" id="noticeDl">先下载一份</button>
+      <button class="btn sm ghost" id="noticeHide">以后再说</button>
+    </div>
+    <div class="bar">
+      <div class="monnav">
+        <button id="prevM" class="btn icon">‹</button>
+        <strong id="monLabel"></strong>
+        <button id="nextM" class="btn icon">›</button>
+        <button id="toNow" class="btn sm">本月</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="bar2">
+      <div class="legend">
+        <span><i class="sw s-work">班</i>上班 · 实心</span>
+        <span><i class="sw s-inv">监</i>监考 · 斜纹</span>
+        <span><i class="sw s-ot">加</i>加班 · 点纹</span>
+        <span><i class="sw s-leave">假</i>请假 · 灰底</span>
+        <span><i class="sw ghost-half">班</i>默认上班 · 虚框</span>
+        <span><i class="sw pre">·</i>未入职</span>
+        <span><i class="sw miss">!</i>疑似漏记</span>
+      </div>
+      <div class="tools">
+        <button id="bulkSet" class="btn sm">批量设置</button>
+        <button id="fillCourse" class="btn sm primary">按课程表填课时</button>
+        <button id="fillWork" class="btn sm">恢复默认出勤</button>
+        <button id="clearM" class="btn sm">清空本月</button>
+      </div>
+    </div>
+    <div class="cal" id="cal"></div>
+    <details class="help">
+      <summary>使用说明与图例含义</summary>
+      <p>法定工作日默认就算全天上班（<b>虚框「班」</b>），<b>不用一天天点</b>。只有例外才需要动：点虚框格子先确认为上班，再点依次切换 监考 → 加班 → 请假 → 空。点日期空白处录入课时和备注。<br><b>每格不看颜色也能认</b>：上午、下午两个小格里直接写着「班 / 监 / 加 / 假」，实心=上班、斜纹=监考、点纹=加班、灰底=请假、虚框=默认上班（还没确认）。<br><b>入职当月起算</b>：在「设置 → 入职起算日」填一次，之前的日子全部灰显、不计出勤和课时，不用逐天去点。<br><b>在日期上按住拖动可圈选多天</b>，松手后底部出现操作条，一次套用到整片；跨月的规则用「批量设置」。<br>「清空本月」会把出勤、课时一起归零（可撤销）；想让法定工作日重新自动算回来，点「恢复默认出勤」。<br>课时里淡色的 <b>4 节?</b> 只表示“课程表上这天有课、还没填”；你改成几节就以你的记录为准，不会再提示。</p>
+    </details>
+  </section>
+
+  <section id="view-sum" hidden></section>
+  <section id="view-set" hidden></section>
+
+</div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="sheet">
+    <h3 id="mTitle">编辑</h3>
+    <div class="sect">
+      <div class="lb">上午</div>
+      <div class="opts" id="mAm"></div>
+    </div>
+    <div class="sect">
+      <div class="lb">下午</div>
+      <div class="opts" id="mPm"></div>
+    </div>
+    <div class="sect">
+      <div class="lb">当天课时</div>
+      <div class="stepper">
+        <button id="mMinus">−</button>
+        <div class="val" id="mLessons">0</div>
+        <button id="mPlus">＋</button>
+        <span class="faint" style="margin-left:6px">节</span>
+      </div>
+      <div class="sug" id="mSug" style="display:none"></div>
+    </div>
+    <div class="sect">
+      <div class="lb">备注（可选）</div>
+      <input type="text" id="mNote" class="note" placeholder="例如：代课 2 节、调休">
+    </div>
+    <div class="row">
+      <button class="btn" id="mPrev">前一天</button>
+      <button class="btn primary" id="mDone">完成</button>
+      <button class="btn" id="mNext">后一天</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="bulkModal">
+  <div class="sheet">
+    <h3>批量设置</h3>
+    <div class="sect">
+      <div class="lb">日期范围</div>
+      <div class="rowflex" style="margin:0">
+        <input type="date" id="bkFrom">
+        <span class="faint">至</span>
+        <input type="date" id="bkTo">
+      </div>
+    </div>
+    <div class="sect">
+      <div class="lb">只在以下星期生效（可多选）</div>
+      <div class="opts" id="bkWd"></div>
+    </div>
+    <div class="sect">
+      <div class="lb">设为</div>
+      <div class="opts" id="bkState"></div>
+    </div>
+    <div class="sect">
+      <label class="chk"><input type="checkbox" id="bkClearLes"> 同时把课时清零</label>
+    </div>
+    <div class="sug" id="bkPreview" style="margin-top:0"></div>
+    <div class="row">
+      <button class="btn" id="bkCancel">取消</button>
+      <button class="btn primary" id="bkApply">应用</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="expModal">
+  <div class="sheet wide">
+    <h3>导出考勤统计</h3>
+    <div class="sect">
+      <div class="lb">范围</div>
+      <div class="opts" id="expQuick"></div>
+      <div class="frow" style="margin-top:9px">
+        <input type="month" id="expFrom"><span class="faint">至</span><input type="month" id="expTo">
+      </div>
+    </div>
+    <div class="sect">
+      <div class="lb">包含内容</div>
+      <div class="chkline">
+        <label class="chk"><input type="checkbox" id="expSum" checked> 月度汇总</label>
+        <label class="chk"><input type="checkbox" id="expDay" checked> 每日明细</label>
+      </div>
+    </div>
+    <div class="sug" id="expPreview" style="margin-top:0"></div>
+    <div class="row">
+      <button class="btn" id="expCancel">取消</button>
+      <button class="btn primary" id="expRun">导出 CSV</button>
+    </div>
+  </div>
+</div>
+
+<div class="selbar" id="selbar">
+  <span class="cnt" id="selCount">已选 0 天</span>
+  <button class="sb w" data-set="work">上班</button>
+  <button class="sb i" data-set="inv">监考</button>
+  <button class="sb o" data-set="ot">加班</button>
+  <button class="sb l" data-set="leave">请假</button>
+  <button class="sb" data-set="empty">空</button>
+  <span class="div"></span>
+  <button class="sb" data-set="am">只上午</button>
+  <button class="sb" data-set="pm">只下午</button>
+  <label class="chk"><input type="checkbox" id="selClearLes"> 连课时清零</label>
+  <span class="div"></span>
+  <button class="sb" id="selCancel">取消</button>
+</div>
+
+<div class="undobar" id="undobar"><span id="undoMsg">已应用</span><button id="undoBtn">撤销</button><button id="undoX" class="x" type="button" title="关闭" aria-label="关闭">×</button></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+var DB_KEY="kqzb_data_v1", META_KEY="kqzb_meta_v1";
+var DB=null, META={pass:false,salt:""}, PASS=null, CUR="", VIEW="cal", EDIT=null;
+var DIR=null, DIRWARNED=false;          /* 用户指定的数据目录句柄（File System Access API） */
+var DIR_STALE=false;                    /* 有目录、但这次没能写进文件（多为权限被浏览器降级） */
+var PERM_HOOKED=false;                  /* 是否已挂上「下一次点击时补授权」的监听 */
+var FILE_LOCKED=false;                  /* 数据文件被口令加密、当前读不出，先别覆盖它 */
+var DIR_READY=false;                    /* 目录里的设置文件是否读通过（决定能不能安全清理多余文件） */
+var EXP={from:"",to:""};
+var CALCELLS=[], POS={};
+var DRAG={on:false,moved:false,sx:0,sy:0,startKey:null}, SELKEYS=[], SUPPRESS_CLICK=false, UNDO=null;
+
+var STATES={
+  "":{label:"空",cls:"s-empty",ch:""},
+  "work":{label:"上班",cls:"s-work",ch:"班"},
+  "inv":{label:"监考",cls:"s-inv",ch:"监"},
+  "ot":{label:"加班",cls:"s-ot",ch:"加"},
+  "leave":{label:"请假",cls:"s-leave",ch:"假"}
+};
+var CYCLE=["","work","inv","ot","leave"];
+
+var HOLIDAYS={
+  2026:{
+    note:"国办发明电〔2025〕7号",
+    spans:[["2026-01-01","2026-01-03"],["2026-02-15","2026-02-23"],["2026-04-04","2026-04-06"],["2026-05-01","2026-05-05"],["2026-06-19","2026-06-21"],["2026-09-25","2026-09-27"],["2026-10-01","2026-10-07"]],
+    makeup:["2026-01-04","2026-02-14","2026-02-28","2026-05-09","2026-09-20","2026-10-10"]
+  }
+};
+
+function $(id){return document.getElementById(id);}
+function pad(n){return n<10?"0"+n:""+n;}
+function dk(y,m,d){return y+"-"+pad(m)+"-"+pad(d);}
+function todayKey(){var t=new Date();return dk(t.getFullYear(),t.getMonth()+1,t.getDate());}
+function ymd(key){var a=key.split("-");return [parseInt(a[0],10),parseInt(a[1],10),parseInt(a[2],10)];}
+function round2(v){return Math.round(v*100)/100;}
+function fmt(n){return (Math.round(n*100)/100).toLocaleString("zh-CN",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtShort(n){var r=Math.round(n*100)/100;return Number.isInteger(r)?String(r):r.toFixed(2);}
+function toast(msg){var t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("show");},1900);}
+
+function table(y){return HOLIDAYS[y]||null;}
+function isWeekendKey(key){var p=ymd(key);var w=new Date(p[0],p[1]-1,p[2]).getDay();return w===0||w===6;}
+function inSpan(key,spans){for(var i=0;i<spans.length;i++){if(key>=spans[i][0]&&key<=spans[i][1])return true;}return false;}
+function isWorkday(key){
+  var y=ymd(key)[0], t=table(y);
+  if(!t) return !isWeekendKey(key);
+  if(t.makeup.indexOf(key)>=0) return true;
+  if(isWeekendKey(key)) return false;
+  if(inSpan(key,t.spans)) return false;
+  return true;
+}
+function autoWorkdays(y,m){
+  var n=new Date(y,m,0).getDate(),c=0;
+  for(var d=1;d<=n;d++){if(isWorkday(dk(y,m,d)))c++;}
+  return c;
+}
+/* ---------- 课程表 ---------- */
+function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");}
+function weekdayOf(key){var p=ymd(key);return ((new Date(p[0],p[1]-1,p[2]).getDay()+6)%7)+1;}
+function dowOf(key){var p=ymd(key);return new Date(p[0],p[1]-1,p[2]).getDay();}
+function dateNum(key){var p=ymd(key);return new Date(p[0],p[1]-1,p[2]).getTime();}
+function weekOf(key){
+  if(!DB.term||!DB.term.start)return null;
+  var diff=Math.floor((dateNum(key)-dateNum(DB.term.start))/86400000);
+  if(diff<0)return 0;
+  return Math.floor(diff/7)+1;
+}
+function isHoliday(key){
+  var y=ymd(key)[0], t=table(y);
+  if(!t)return false;
+  return inSpan(key,t.spans);
+}
+function lessonsFor(key){
+  if(preStart(key))return 0;                 // 入职前没有课
+  var w=weekOf(key);
+  if(w===null||w<1)return 0;
+  if(isHoliday(key))return 0;
+  var wd=weekdayOf(key),sum=0;
+  for(var i=0;i<DB.courses.length;i++){
+    var c=DB.courses[i];
+    if(parseInt(c.weekday,10)!==wd)continue;
+    if(w<(c.startWeek||1)||w>(c.endWeek||16))continue;
+    if(c.parity==="odd"&&w%2===0)continue;
+    if(c.parity==="even"&&w%2===1)continue;
+    sum+=parseInt(c.lessons,10)||0;
+  }
+  return sum;
+}
+function coursePreviewText(){
+  if(!DB.term||!DB.term.start)return "先填第 1 教学周的周一，才能把周次换算成日期。";
+  if(!DB.courses.length)return "还没有课程，点下面的「添加课程」。";
+  var q=ymd(CUR+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate(),tot=0,days=0;
+  for(var d=1;d<=n;d++){
+    var v=lessonsFor(dk(y,m,d));
+    if(v>0){tot+=v;days++;}
+  }
+  return "按当前课程表，"+y+" 年 "+m+" 月共 "+tot+" 节，分布在 "+days+" 天。";
+}
+
+/* ---------- 数据 ---------- */
+function blankDB(){
+  return {
+    v:1,savedAt:0,
+    settings:{owner:"",baseSalary:0,rate:0,rates:[{id:"default",name:"正课",price:0}],
+      enableBase:true,enableLesson:true,enableInv:true,enableOt:true,autoWork:true,
+      /* 常规周：下标 0=周日 … 6=周六；1=全天，0.5=只上午，0=不上班 */
+      weekPattern:[0,1,1,1,1,1,0],
+      /* 入职起算日（YYYY-MM-DD）：这天之前一律不算出勤、不计课时 */
+      startDate:"",
+      /* 数据文件的前缀：每月一个文件，如 考勤数据_2026-10.json（目录句柄存在 IndexedDB） */
+      fileBase:"考勤数据",
+      /* 旧版单文件名的残留字段，只用于识别老数据，不再参与写入 */
+      fileName:"考勤数据.json",
+      /* 用户在记账页点过「以后再说」就不再提示设目录 */
+      dirTipOff:false},
+    months:{},
+    days:{},
+    term:{start:"",defaultWeeks:16},
+    courses:[]
+  };
+}
+function normalize(db){
+  var b=blankDB();
+  if(!db||typeof db!=="object")return b;
+  db.settings=Object.assign(b.settings,db.settings||{});
+  if(!Array.isArray(db.settings.rates)||!db.settings.rates.length)db.settings.rates=b.settings.rates;
+  var wp=db.settings.weekPattern;
+  if(!Array.isArray(wp)||wp.length!==7)db.settings.weekPattern=b.settings.weekPattern.slice();
+  else db.settings.weekPattern=wp.map(function(v){v=parseFloat(v);return v===0.5?0.5:(v?1:0);});
+  if(typeof db.settings.startDate!=="string")db.settings.startDate="";
+  if(typeof db.settings.fileName!=="string"||!db.settings.fileName.trim())db.settings.fileName="考勤数据.json";
+  /* 文件前缀：老数据里只有 fileName（整库单文件），从这里推导出前缀 */
+  if(typeof db.settings.fileBase!=="string"||!db.settings.fileBase.trim()){
+    db.settings.fileBase=String(db.settings.fileName||"考勤数据").replace(/\.json$/i,"").trim()||"考勤数据";
+  }
+  db.settings.fileBase=db.settings.fileBase.replace(/[\\/:*?"<>|]/g,"").trim()||"考勤数据";
+  db.settings.dirTipOff=!!db.settings.dirTipOff;
+  if(!db.months||typeof db.months!=="object")db.months={};
+  if(!db.days||typeof db.days!=="object")db.days={};
+  /* v1→v2：给老记录补上"课时已确认"标记。有记录就视为你确认过这一天，
+     避免明明改成 0 节、月历还提示"课程表 4 节？" */
+  Object.keys(db.days).forEach(function(k){
+    var r=db.days[k];
+    if(!r||typeof r!=="object")return;
+    if(r.lset==null)r.lset=true;
+  });
+  db.term=Object.assign(b.term,db.term||{});
+  if(!Array.isArray(db.courses))db.courses=[];
+  db.courses=db.courses.map(function(c){
+    return {id:c.id||("c"+Math.random().toString(36).slice(2,8)),name:c.name||"",
+      weekday:parseInt(c.weekday,10)||1,lessons:parseInt(c.lessons,10)||0,
+      startWeek:parseInt(c.startWeek,10)||1,endWeek:parseInt(c.endWeek,10)||16,
+      parity:c.parity||"all"};
+  });
+  return db;
+}
+function rec(key){
+  var r=DB.days[key];
+  if(!r)r=DB.days[key]={am:"",pm:"",lessons:0,note:"",upd:0};
+  if(r.am==null)r.am="";
+  if(r.pm==null)r.pm="";
+  if(r.lessons==null)r.lessons=0;
+  if(r.upd==null)r.upd=0;
+  return r;
+}
+function peek(key){return DB.days[key]||null;}
+function sl(v){return STATES[v]||STATES[""];}
+/* 入职起算日之前：不算出勤、不计课时 */
+function preStart(key){
+  var s=DB.settings.startDate;
+  return !!(s&&key<s);
+}
+/* 这一天的"默认"状态：法定工作日整天上班；非节假日的日子再看常规周；法定节假日一律休 */
+function defaultHalf(key,which){
+  if(!DB.settings.autoWork)return "";
+  if(preStart(key))return "";               // 入职前，无论什么规则都不算
+  if(isWorkday(key))return "work";          // 含调休补班的周六
+  if(isHoliday(key))return "";              // 国庆、春节等，任何规则都不越过它
+  var wp=DB.settings.weekPattern||[];
+  var v=wp[dowOf(key)];
+  if(v>=1)return "work";
+  if(v===0.5&&which==="am")return "work";
+  return "";
+}
+/* 某个半天的实际状态：有记录以记录为准；没记录时用默认值 */
+function effHalf(key,which){
+  var r=DB.days[key];
+  if(r)return r[which]||"";
+  return defaultHalf(key,which);
+}
+function isGhostHalf(key,which){
+  return !DB.days[key]&&defaultHalf(key,which)!=="";
+}
+function isGhost(key){
+  return isGhostHalf(key,"am")||isGhostHalf(key,"pm");
+}
+/* 写一天的记录；清空时若该日法定上班，留一个"明确不上班"的墓碑，避免又被默认值顶回来 */
+function setRecord(key,am,pm,lessons,note,lset){
+  var prev=DB.days[key];
+  var kept=(lset===undefined)?(prev?!!prev.lset:((parseInt(lessons,10)||0)>0)):!!lset;
+  if(!am&&!pm&&!lessons&&!note){
+    /* 这天本来就默认上班（法定工作日或常规周），要留一个"明确不上班"的墓碑，
+       否则清空后默认值又会把它顶回来 */
+    if(defaultHalf(key,"am")||defaultHalf(key,"pm")){
+      DB.days[key]={am:"",pm:"",lessons:0,note:"",off:true,lset:kept,upd:Date.now()};
+    }else{
+      delete DB.days[key];
+    }
+  }else{
+    DB.days[key]={am:am,pm:pm,lessons:lessons,note:note,off:false,lset:kept,upd:Date.now()};
+  }
+}
+function monthP(ym){
+  var p=DB.months[ym];
+  if(!p){p=DB.months[ym]={};}
+  var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
+  if(p.workdays==null)p.workdays=autoWorkdays(y,m);
+  if(!p.base)p.base=DB.settings.baseSalary;
+  if(!p.rate)p.rate=DB.settings.rate;
+  if(p.checked==null)p.checked=false;
+  return p;
+}
+function computeMonth(ym){
+  var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
+  var n=new Date(y,m,0).getDate();
+  var half=0,lessons=0,filledDays=0,counted={work:0,inv:0,ot:0,leave:0};
+  for(var d=1;d<=n;d++){
+    var k=dk(y,m,d), rec0=peek(k);
+    if(preStart(k))continue;                 // 入职前的日子整个跳过
+    var a=effHalf(k,"am"), b=effHalf(k,"pm");
+    if(a==="work"||a==="inv"||a==="ot"){half++;counted[a]++;}
+    else if(a==="leave"){counted.leave++;}
+    if(b==="work"||b==="inv"||b==="ot"){half++;counted[b]++;}
+    else if(b==="leave"){counted.leave++;}
+    if(rec0){
+      lessons+=rec0.lessons||0;
+      if(rec0.am||rec0.pm||rec0.lessons||rec0.note)filledDays++;
+    }
+  }
+  var p=monthP(ym);
+  var workdays=p.workdays||autoWorkdays(y,m);
+  var base=DB.settings.enableBase?(p.base||0):0;
+  var rate=DB.settings.enableLesson?(p.rate||0):0;
+  var dailyRate=workdays>0?base/workdays:0;
+  var actual=half/2;
+  var capped=Math.min(actual,workdays);
+  var extra=Math.max(actual-workdays,0);
+  var basePart=round2(dailyRate*capped);
+  var extraPart=round2(dailyRate*extra);
+  var lessonFee=round2(lessons*rate);
+  return {
+    ym:ym,workdays:workdays,actual:actual,half:half,lessons:lessons,filledDays:filledDays,
+    dailyRate:dailyRate,base:base,rate:rate,
+    capped:capped,extra:extra,basePart:basePart,extraPart:extraPart,lessonFee:lessonFee,
+    total:round2(basePart+extraPart+lessonFee),counted:counted,checked:!!p.checked,
+    start:DB.settings.startDate||""
+  };
+}
+
+/* ---------- 加密 ---------- */
+function b64(buf){var b=new Uint8Array(buf),s="";for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);}
+function unb64(str){var s=atob(str),a=new Uint8Array(s.length);for(var i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
+function hasCrypto(){return !!(window.crypto&&window.crypto.subtle);}
+/* 派生密钥缓存：按月分文件后一次保存可能要写好几个文件，
+   每个文件都跑一遍 PBKDF2 太慢，同一口令+盐只派生一次，各自换 IV */
+var KEYC={salt:null,pass:null,key:null};
+function deriveKey(pass,saltB64){
+  if(KEYC.key&&KEYC.salt===saltB64&&KEYC.pass===pass)return Promise.resolve(KEYC.key);
+  var enc=new TextEncoder();
+  return crypto.subtle.importKey("raw",enc.encode(pass),"PBKDF2",false,["deriveKey"]).then(function(km){
+    return crypto.subtle.deriveKey({name:"PBKDF2",salt:unb64(saltB64),iterations:120000,hash:"SHA-256"},km,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+  }).then(function(k){
+    KEYC={salt:saltB64,pass:pass,key:k};
+    return k;
+  });
+}
+function encryptText(text,saltB64){
+  var iv=crypto.getRandomValues(new Uint8Array(12));
+  return deriveKey(PASS,saltB64).then(function(key){
+    return crypto.subtle.encrypt({name:"AES-GCM",iv:iv},key,new TextEncoder().encode(text));
+  }).then(function(ct){
+    return JSON.stringify({enc:1,salt:saltB64,iv:b64(iv),ct:b64(ct)});
+  });
+}
+function decryptText(raw,saltB64,pass){
+  var o=JSON.parse(raw);
+  /* 走带缓存的 deriveKey：一次打开要解密「设置 + 若干月份」，不能每个文件都重跑 PBKDF2 */
+  return deriveKey(pass,o.salt||saltB64).then(function(key){
+    return crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(o.iv)},key,unb64(o.ct));
+  }).then(function(pt){return new TextDecoder().decode(pt);});
+}
+
+/* ---------- 存取 ---------- */
+function serialize(){
+  DB.savedAt=Date.now();
+  /* 缩进两格的明文：文件里一天一行，记事本打开就能核对，不再是一整行看不清 */
+  var json=JSON.stringify(DB,null,2);
+  if(META.pass&&PASS)return encryptText(json,META.salt);
+  return Promise.resolve(json);
+}
+/* ---------- 文件命名：整库拆成「设置一份 + 每月一份」，月份按年份分文件夹 ---------- */
+function baseName(){
+  var n=(DB&&DB.settings&&DB.settings.fileBase)||"考勤数据";
+  return String(n).replace(/[\\/:*?"<>|]/g,"").trim()||"考勤数据";
+}
+/* 旧版整库单文件的名字，只用来识别老数据 */
+function dataFileName(){return baseName()+".json";}
+function cfgFileName(){return baseName()+"_设置.json";}
+function monthFileName(ym){return baseName()+"_"+ym+".json";}
+/* 年份文件夹：2026/考勤数据_2026-10.json */
+function yearOf(ym){return String(ym).slice(0,4);}
+function monthPath(ym){return yearOf(ym)+"/"+monthFileName(ym);}
+function isYearName(n){return /^\d{4}$/.test(n);}
+function splitPath(p){
+  return String(p||"").split("/").filter(function(s){return s&&s!==".";});
+}
+function ymOf(k){return String(k).slice(0,7);}
+function isYm(v){return /^\d{4}-\d{2}$/.test(v);}
+function hasContent(r){return !!(r&&(r.am||r.pm||r.lessons||r.note));}
+function monthKeysOf(db){
+  var set={};
+  Object.keys((db&&db.days)||{}).forEach(function(k){if(/^\d{4}-\d{2}-\d{2}$/.test(k))set[ymOf(k)]=1;});
+  Object.keys((db&&db.months)||{}).forEach(function(k){if(isYm(k))set[k]=1;});
+  return Object.keys(set).sort();
+}
+function localMonthKeys(){return monthKeysOf(DB);}
+function cfgBody(){
+  return {v:1,type:"config",monthList:localMonthKeys(),
+          settings:DB.settings,term:DB.term,courses:DB.courses};
+}
+function monthBody(ym){
+  var days={};
+  Object.keys(DB.days).filter(function(k){return ymOf(k)===ym;}).sort().forEach(function(k){days[k]=DB.days[k];});
+  return {v:1,type:"month",ym:ym,month:DB.months[ym]||null,days:days};
+}
+function dirSupported(){return !!(window.showDirectoryPicker);}
+/* 目录权限：non-interactive 只查不弹窗；interactive 才能在点击里申请 */
+function dirPerm(interactive){
+  if(!DIR)return Promise.resolve(false);
+  var opt={mode:"readwrite"};
+  var q=DIR.queryPermission?DIR.queryPermission(opt):Promise.resolve("granted");
+  return q.then(function(st){
+    if(st==="granted")return true;
+    if(!interactive||!DIR.requestPermission)return false;
+    return DIR.requestPermission(opt).then(function(s){return s==="granted";});
+  }).catch(function(){return false;});
+}
+/* 沿「年/文件」这样的路径拿到子目录句柄；create=true 时缺哪层建哪层 */
+function dirAt(parts,create){
+  var p=Promise.resolve(DIR);
+  (parts||[]).forEach(function(seg){
+    p=p.then(function(dh){
+      if(!dh||typeof dh.getDirectoryHandle!=="function")return null;
+      return dh.getDirectoryHandle(seg,{create:!!create}).catch(function(){return null;});
+    });
+  });
+  return p.catch(function(){return null;});
+}
+function writeDirFile(name,content,type){
+  if(!DIR)return Promise.resolve(false);
+  var parts=splitPath(name),file=parts.pop();
+  if(!file)return Promise.resolve(false);
+  return dirPerm(false).then(function(ok){
+    if(!ok)return false;
+    return dirAt(parts,true).then(function(dh){
+      if(!dh)return false;
+      return dh.getFileHandle(file,{create:true}).then(function(fh){
+        return fh.createWritable().then(function(w){
+          return w.write(new Blob([content],{type:type||"application/json"})).then(function(){return w.close();});
+        });
+      }).then(function(){return true;});
+    });
+  }).catch(function(){return false;});
+}
+function readDirFile(name){
+  if(!DIR)return Promise.resolve(null);
+  var parts=splitPath(name),file=parts.pop();
+  if(!file)return Promise.resolve(null);
+  return dirPerm(false).then(function(ok){
+    if(!ok)return null;
+    return dirAt(parts,false).then(function(dh){
+      if(!dh)return null;
+      return dh.getFileHandle(file).then(function(fh){return fh.getFile();})
+        .then(function(f){return f.text();}).catch(function(){return null;});
+    });
+  }).catch(function(){return null;});
+}
+function statDirFile(name){
+  var parts=splitPath(name),file=parts.pop();
+  if(!file)return Promise.resolve(null);
+  return dirAt(parts,false).then(function(dh){
+    if(!dh)return null;
+    return dh.getFileHandle(file).then(function(fh){return fh.getFile();})
+      .then(function(f){return {size:f.size,mtime:f.lastModified};})
+      .catch(function(){return null;});
+  }).catch(function(){return null;});
+}
+function removeDirFile(name){
+  if(!DIR)return Promise.resolve(false);
+  var parts=splitPath(name),file=parts.pop();
+  if(!file)return Promise.resolve(false);
+  return dirPerm(false).then(function(ok){
+    if(!ok)return false;
+    return dirAt(parts,false).then(function(dh){
+      if(!dh||typeof dh.removeEntry!=="function")return false;
+      return dh.removeEntry(file).then(function(){return true;}).catch(function(){return false;});
+    });
+  }).catch(function(){return false;});
+}
+function dayCount(db){
+  return Object.keys((db&&db.days)||{}).filter(function(k){
+    var r=db.days[k];return r&&(r.am||r.pm||r.lessons||r.note);
+  }).length;
+}
+/* 把文件里有、本机没有的天补进来（本机已有的以本机为准）。返回补了几条 */
+function mergeMissingDays(src){
+  var n=0;
+  Object.keys((src&&src.days)||{}).forEach(function(k){
+    if(!hasContent(DB.days[k])&&hasContent(src.days[k])){DB.days[k]=src.days[k];n++;}
+  });
+  return n;
+}
+/* 以数据文件为准：文件更新→读文件，本机更新→写回文件。返回 file / local / same */
+function applyFileDb(obj,force){
+  var db;
+  try{db=normalize(obj);}catch(e){return Promise.resolve(false);}
+  var f=db.savedAt||0, l=(DB&&DB.savedAt)||0;
+  var fDays=dayCount(db), lDays=dayCount(DB);
+  /* 少数据保护：文件虽然更新，但记录比浏览器里还少（含空文件）——
+     绝不拿它盖掉更全的记录，改为把浏览器这份写回文件。真要反向覆盖走「从文件重新载入」。
+     写回之前先把文件里独有的那些天并进来，免得「只在文件里有的月份」被连带清掉。 */
+  if(!force&&f>l&&fDays<lDays){
+    DIR_STALE=true;
+    if(mergeMissingDays(db))DB.savedAt=Date.now();
+    return persist().then(function(){return "local";});
+  }
+  if(force||f>l){
+    DB=db;
+    return persist().then(function(){return "file";});
+  }
+  /* 本机不旧于文件：以本机为准，同样把文件里独有的天并进来 */
+  var added=mergeMissingDays(db);
+  if(l>f||added){
+    if(added)DB.savedAt=Date.now();
+    return persist().then(function(){return "local";});
+  }
+  return Promise.resolve("same");
+}
+/* 遍历一个目录里的条目；老浏览器没有 values() 就当作空 */
+function eachEntry(dh,fn){
+  if(!dh||typeof dh.values!=="function")return Promise.resolve();
+  var it;
+  try{it=dh.values();}catch(e){return Promise.resolve();}
+  function step(){
+    return it.next().then(function(r){
+      if(r.done)return;
+      return Promise.resolve(fn(r.value)).then(step);
+    });
+  }
+  return step().catch(function(){});
+}
+/* 扫描数据目录：年份文件夹（2026/…）里的月份文件，加上老版平铺在根目录的月份文件。
+   返回 [{ym,year,inYear,name,path}]，path 是相对数据目录的路径 */
+function scanMonthFiles(){
+  if(!DIR)return Promise.resolve([]);
+  var pre=baseName()+"_",out=[];
+  function pick(h,year,inYear){
+    if(!h||h.kind!=="file")return;
+    var nm=h.name;
+    if(nm.indexOf(pre)!==0)return;
+    var ym=nm.slice(pre.length).replace(/\.json$/i,"");
+    if(!isYm(ym))return;
+    out.push({ym:ym,year:inYear?year:yearOf(ym),inYear:!!inYear,name:nm,
+              path:inYear?year+"/"+nm:nm});
+  }
+  return eachEntry(DIR,function(h){
+    if(!h)return;
+    if(h.kind==="file"){pick(h,null,false);return;}
+    if(h.kind!=="directory"||!isYearName(h.name))return;
+    var y=h.name;
+    return eachEntry(h,function(f){if(f&&f.kind==="file")pick(f,y,true);});
+  }).then(function(){return out;});
+}
+/* 目录里有哪些月份（浏览器不支持枚举时返回空，改用设置里的清单） */
+function listDirMonths(){
+  return scanMonthFiles().then(function(files){
+    var out=[];
+    files.forEach(function(f){if(out.indexOf(f.ym)<0)out.push(f.ym);});
+    return out.sort();
+  });
+}
+/* 读某个月的文件：优先年份文件夹，其次老版平铺在根目录的那份 */
+function readMonthText(ym,known){
+  var cands=[monthPath(ym)];
+  if(known&&cands.indexOf(known)<0)cands.push(known);
+  if(cands.indexOf(monthFileName(ym))<0)cands.push(monthFileName(ym));
+  function go(i){
+    if(i>=cands.length)return Promise.resolve(null);
+    return readDirFile(cands[i]).then(function(t){
+      return (t==null||t==="")?go(i+1):t;
+    });
+  }
+  return go(0);
+}
+/* 一段文本 → 对象；加密且当前没口令时返回 "locked"，读不出返回 null */
+function decodeText(txt){
+  if(txt==null||!txt)return Promise.resolve(null);
+  var o;
+  try{o=JSON.parse(txt);}catch(e){return Promise.resolve(null);}
+  if(o&&o.enc){
+    if(!PASS)return Promise.resolve("locked");
+    return decryptText(txt,META.salt||"",PASS).then(function(t){
+      try{return JSON.parse(t);}catch(e){return null;}
+    }).catch(function(){return "locked";});
+  }
+  return Promise.resolve(o);
+}
+/* 把「设置 + 各月文件」合成一个整库；旧版整库单文件走 isLegacy */
+function assembleDb(cfg,legacyObj,isLegacy){
+  var db;
+  if(isLegacy&&legacyObj){
+    db=legacyObj;
+    if(!db.days)db.days={};
+    if(!db.months)db.months={};
+  }else{
+    db={v:1,savedAt:(cfg&&cfg.savedAt)||0,settings:(cfg&&cfg.settings)||{},
+        term:(cfg&&cfg.term)||{},courses:(cfg&&cfg.courses)||[],months:{},days:{}};
+  }
+  var cand={};
+  localMonthKeys().forEach(function(k){cand[k]=1;});
+  if(cfg&&Array.isArray(cfg.monthList))cfg.monthList.forEach(function(k){if(isYm(k))cand[k]=1;});
+  return scanMonthFiles().then(function(found){
+    DIR_READY=true;      /* 目录内容已枚举清楚，之后才允许清理多余文件 */
+    var map={};
+    found.forEach(function(f){
+      cand[f.ym]=1;
+      if(!map[f.ym]||f.inYear)map[f.ym]=f.path;     /* 年份目录里的那份优先 */
+    });
+    var yms=Object.keys(cand).filter(isYm).sort();
+    return Promise.all(yms.map(function(ym){
+      return readMonthText(ym,map[ym]).then(decodeText).then(function(m){
+        if(m==="locked")return {locked:true};
+        if(!m||!m.days)return null;
+        Object.keys(m.days).forEach(function(k){if(!db.days[k])db.days[k]=m.days[k];});
+        if(m.month&&!db.months[ym])db.months[ym]=m.month;
+        return true;
+      }).catch(function(){return null;});
+    })).then(function(rs){
+      if(rs.some(function(r){return r&&r.locked;}))return {locked:true};
+      if(isLegacy)return {db:db,legacy:true};
+      if(!cfg&&!found.length)return null;            /* 空目录：什么文件都还没有 */
+      return {db:db};
+    });
+  });
+}
+/* 读整个目录：设置 + 各月文件，合成一个整库对象。没有文件返回 null */
+function loadDirDb(){
+  if(!DIR)return Promise.resolve(null);
+  return readDirFile(cfgFileName()).then(function(cfgTxt){
+    if(cfgTxt==null||!cfgTxt){
+      /* 没有设置文件：可能是旧版整库单文件，也可能只剩月份文件 */
+      return readDirFile(dataFileName()).then(function(oldTxt){
+        if(!oldTxt)return assembleDb(null,null,false);
+        return decodeText(oldTxt).then(function(o){
+          if(o==="locked")return {locked:true};
+          if(!o)return assembleDb(null,null,false);
+          return assembleDb(null,o,true);
+        });
+      });
+    }
+    return decodeText(cfgTxt).then(function(cfg){
+      if(cfg==="locked")return {locked:true};
+      if(!cfg)return null;
+      return assembleDb(cfg,null,false);
+    });
+  }).catch(function(){return null;});
+}
+/* 读取数据文件并与本机对照；返回 false 表示没有文件或读不出来 */
+function hydrateFromDir(force){
+  if(!DIR)return Promise.resolve(false);
+  FILE_LOCKED=false;
+  return loadDirDb().then(function(res){
+    if(!res)return false;
+    if(res.locked){FILE_LOCKED=true;return "locked";}
+    if(res.legacy){
+      /* 旧版整库单文件：先按新旧比一次，然后把库改写成按月分文件 */
+      return applyFileDb(res.db,force).then(function(st){
+        if(st==="same")return persist().then(function(){return "migrated";});
+        return st;
+      });
+    }
+    return applyFileDb(res.db,force);
+  }).catch(function(){return false;});
+}
+function renderAll(){
+  renderCal();
+  if(!$("view-sum").hidden)renderSum();
+  if(!$("view-set").hidden)renderSet();
+}
+/* 数据文件是加密的、本机又没有口令时，让用户就地输一次口令把它打开 */
+function unlockFile(){
+  var p=prompt("这个数据文件设置了打开口令，请输入口令读取：\n（口令只在本机校验，输错不会改动文件）","");
+  if(!p)return Promise.resolve(false);
+  return readDirFile(cfgFileName()).then(function(txt){
+    if(txt==null)return readDirFile(dataFileName());     /* 旧版单文件也认 */
+    return txt;
+  }).then(function(txt){
+    if(!txt)return false;
+    var env={};try{env=JSON.parse(txt);}catch(e){}
+    if(!env.enc)return false;
+    return decryptText(txt,env.salt||"",p).then(function(){
+      META={pass:true,salt:env.salt||""};
+      PASS=p;
+      localStorage.setItem(META_KEY,JSON.stringify(META));
+      FILE_LOCKED=false;
+      return hydrateFromDir(true).then(function(){return true;});
+    });
+  }).catch(function(){return false;});
+}
+/* ---------- 按文件落盘：每月一份，只重写真正改动的文件 ---------- */
+var LASTRAW={};   /* 文件名 → 上次写入的主体（不含 savedAt），用来跳过没变的月份 */
+function packText(body){
+  var o={};
+  for(var k in body)if(Object.prototype.hasOwnProperty.call(body,k))o[k]=body[k];
+  o.savedAt=DB.savedAt;
+  return JSON.stringify(o,null,2);
+}
+function writeBody(name,body,force){
+  var key=JSON.stringify(body);
+  if(!force&&LASTRAW[name]===key)return Promise.resolve("skip");
+  var text=packText(body);
+  var go=(META.pass&&PASS)
+    ? encryptText(text,META.salt).then(function(enc){return writeDirFile(name,enc,"application/json");})
+    : writeDirFile(name,text,"application/json");
+  return go.then(function(ok){
+    if(ok)LASTRAW[name]=key;
+    return ok?"ok":"fail";
+  });
+}
+/* 收尾清理：删掉不该再存在的月份文件。
+   两种要删：①月份记录被清空（否则旧文件下次打开会把数据「复活」）；
+   ②老版平铺在根目录的月份文件，确认年份目录里已有同月副本（等于迁过去）。 */
+function pruneMonthFiles(){
+  if(!DIR||typeof DIR.removeEntry!=="function")return Promise.resolve();
+  /* 没读过设置文件 = 不知道目录里到底有什么，这时候删文件太冒险，直接不清理 */
+  if(!DIR_READY)return Promise.resolve();
+  return scanMonthFiles().then(function(files){
+    var keep={},haveYear={};
+    localMonthKeys().forEach(function(ym){keep[ym]=1;});
+    files.forEach(function(f){if(f.inYear)haveYear[f.ym]=1;});
+    var jobs=[];
+    files.forEach(function(f){
+      if(!keep[f.ym])jobs.push(removeDirFile(f.path));
+      else if(!f.inYear&&haveYear[f.ym])jobs.push(removeDirFile(f.path));
+    });
+    return Promise.all(jobs);
+  }).catch(function(){});
+}
+/* 把整库按「年份文件夹 / 每月一份 + 设置一份」写到目录；force=true 时全部重写 */
+function writeDbToDir(force){
+  if(!DIR)return Promise.resolve(false);
+  var jobs=localMonthKeys().map(function(ym){
+    return writeBody(monthPath(ym),monthBody(ym),force);
+  });
+  return Promise.all(jobs).then(function(rs){
+    if(rs.some(function(r){return r==="fail";}))return false;
+    /* 设置文件每次都写：里面记着月份清单，也顺手当整库的版本戳 */
+    return writeBody(cfgFileName(),cfgBody(),true).then(function(r){
+      if(r==="fail")return false;
+      return pruneMonthFiles().then(function(){return true;});
+    });
+  });
+}
+function persist(){
+  return serialize().then(function(raw){
+    localStorage.setItem(DB_KEY,raw);
+    localStorage.setItem(META_KEY,JSON.stringify(META));
+    if(DIR&&FILE_LOCKED){
+      if(!DIRWARNED){
+        DIRWARNED=true;
+        toast("数据文件是加密的、当前口令读不出，本次不覆盖它；先在设置里用口令打开");
+      }
+      return;
+    }
+    if(!DIR)return;
+    return writeDbToDir(false).then(function(ok){
+      DIR_STALE=!ok;
+      if(!ok){
+        hookPermOnce();                     /* 下次点页面时顺手把权限要回来 */
+        if(!DIRWARNED){
+          DIRWARNED=true;
+          toast("记录已存在浏览器里，但这次没写进硬盘 —— 浏览器要求点一下重新授权。点标题栏的「未写入硬盘」即可保存。");
+        }
+      }
+      refreshDirBadge();
+    });
+  }).catch(function(e){console.error(e);toast("保存失败，请立即导出备份");});
+}
+/* 导出落盘：设过数据目录就写进去，否则走浏览器下载 */
+function saveOut(name,content,type){
+  if(DIR){
+    return writeDirFile(name,content,type).then(function(ok){
+      if(ok){toast("已保存到 "+DIR.name+" / "+name);return;}
+      download(content,name,type);
+      toast("数据目录未授权，已改为下载");
+    });
+  }
+  download(content,name,type);
+}
+
+/* ---------- 落盘状态 + 一键「存到硬盘」 ---------- */
+/* 清点目录：几个月文件、一共多少天、多大、最后写入（加密文件只报大小） */
+function dirStat(){
+  if(!DIR)return Promise.resolve(null);
+  return loadDirDb().then(function(res){
+    if(!res)return null;
+    if(res.locked)return {locked:true,months:[],days:null,size:0,mtime:0};
+    var db=normalize(res.db);
+    var keys=Object.keys(db.days).filter(function(k){return hasContent(db.days[k]);}).sort();
+      return monthFileMeta(monthKeysOf(db)).then(function(files){
+        var size=0,mtime=0,years=[];
+        files.forEach(function(f){
+          size+=f.size;if(f.mtime>mtime)mtime=f.mtime;
+          if(years.indexOf(f.year)<0)years.push(f.year);
+        });
+        var per={};
+        files.forEach(function(f){
+          per[f.ym]=Object.keys(db.days).filter(function(k){
+            return ymOf(k)===f.ym&&hasContent(db.days[k]);
+          }).length;
+        });
+        return hasOldSingleFile().then(function(old){
+          return {months:files,days:keys.length,first:keys[0]||"",last:keys[keys.length-1]||"",
+                  size:size,mtime:mtime,legacy:!!res.legacy,legacyLeft:old,locked:false,per:per,
+                  years:years.sort(),flat:files.filter(function(f){return f.name.indexOf("/")<0;}).length};
+        });
+      });
+  }).catch(function(){return null;});
+}
+/* 目录里是否还躺着旧版的整库单文件（迁移后一般就不用了） */
+function hasOldSingleFile(){
+  if(!DIR)return Promise.resolve(false);
+  return dirPerm(false).then(function(ok){
+    if(!ok)return false;
+    return DIR.getFileHandle(dataFileName()).then(function(){return true;}).catch(function(){return false;});
+  }).catch(function(){return false;});
+}
+function monthFileMeta(yms){
+  return dirPerm(false).then(function(ok){
+    if(!ok)return [];
+    return scanMonthFiles().then(function(files){
+      var byYm={};
+      files.forEach(function(f){if(!byYm[f.ym]||f.inYear)byYm[f.ym]=f;});
+      var want=(yms&&yms.length)?yms:Object.keys(byYm).sort();
+      return Promise.all(want.map(function(ym){
+        var f=byYm[ym];
+        if(!f)return null;
+        return statDirFile(f.path).then(function(i){
+          if(!i)return null;
+          return {ym:ym,name:f.path,year:f.year,size:i.size,mtime:i.mtime};
+        }).catch(function(){return null;});
+      })).then(function(a){return a.filter(Boolean);});
+    });
+  });
+}
+function refreshDirBadge(){
+  var el=$("dirPill");
+  if(!el)return;
+  if(!DIR){
+    el.dataset.s="";
+    el.textContent="仅浏览器 · 存到硬盘";
+    el.title="记录目前只在浏览器里，点一下下载一份 JSON 到硬盘";
+    return;
+  }
+  if(DIR_STALE){
+    el.dataset.s="warn";
+    el.textContent="未写入硬盘 · 点此保存";
+    el.title="浏览器里的记录还没写进「"+DIR.name+"」，点一下立即写入";
+    return;
+  }
+  el.dataset.s="ok";
+  el.textContent="已存硬盘 · "+DIR.name;
+  el.title="每次改动会自动写入 "+DIR.name+" 里对应年份、对应月份的文件；点一下可立即全量写入并核对";
+}
+/* 浏览器重开页面后会把目录权限降回「未授权」，自动写入会失败。
+   只在真的写失败后挂一次监听，用户下一次点页面时补授权并补写。 */
+function hookPermOnce(){
+  if(PERM_HOOKED||!DIR)return;
+  PERM_HOOKED=true;
+  var fire=function(){
+    document.removeEventListener("pointerdown",fire,true);
+    PERM_HOOKED=false;
+    if(!DIR)return;
+    dirPerm(false).then(function(ok){
+      if(ok)return;
+      dirPerm(true).then(function(yes){
+        if(!yes)return;
+        DIR_STALE=false;DIRWARNED=false;
+        persist().then(function(){toast("写入权限已恢复，记录已补写进硬盘文件");});
+      }).catch(function(){});
+    });
+  };
+  document.addEventListener("pointerdown",fire,true);
+}
+/* 把浏览器里的记录写到硬盘：一个动作，结果说清楚，写完还要核对一遍 */
+function backupToDisk(){
+  if(!DIR){downloadJson();return;}     /* 已经绑了目录就一定往目录写，不再看 API 探测结果 */
+  var n=dayCount(DB);
+  var nM=localMonthKeys().length;
+  var lv=n?("浏览器里 "+n+" 天记录 / "+nM+" 个月"):"浏览器里还没有记录";
+  toast("正在写入 "+DIR.name+" …");
+  dirPerm(true).then(function(ok){
+    if(!ok)throw new Error("perm");
+    return serialize().then(function(raw){
+      localStorage.setItem(DB_KEY,raw);          /* 顺手把缓存和文件对齐 */
+      return writeDbToDir(true);                 /* 点了就全量重写，不靠缓存判断 */
+    });
+  }).then(function(ok){
+    if(!ok)throw new Error("write");
+    return dirStat();                            /* 写完读回来核对，不听一面之词 */
+  }).then(function(info){
+    DIR_STALE=false;DIRWARNED=false;
+    var s=lv+" → 已写入 "+DIR.name+"："+((info&&info.months.length)||nM)+" 个月份文件";
+    if(info&&info.years&&info.years.length)s+="（"+info.years.join("、")+" 共 "+info.years.length+" 个年份目录）";
+    if(info&&info.days!=null){
+      s+="，读回核对 "+info.days+" 天 · "+(info.size/1024).toFixed(1)+" KB";
+      if(info.days!==n){
+        toast("写入完成，但核对结果不一致");
+        alert("写完了，但读回来核对不一致：\n\n浏览器 "+n+" 天\n文件 "+info.days+" 天\n\n"
+          +"多半是写文件途中授权被收回。请再点一次「把浏览器数据存到硬盘」；\n"
+          +"若仍不一致，就用「下载整库 JSON」另存一份。");
+        refreshDirBadge();
+        if(!$("view-set").hidden)renderSet();
+        return;
+      }
+    }
+    toast(s);
+    refreshDirBadge();
+    if(!$("view-set").hidden)renderSet();
+  }).catch(function(e){
+    DIR_STALE=true;refreshDirBadge();
+    if(e&&e.message==="perm")toast("没拿到文件夹授权，可改用「下载整库 JSON」存到下载文件夹");
+    else toast("写入失败，可改用「下载整库 JSON」存到下载文件夹");
+    if(!$("view-set").hidden)renderSet();
+  });
+}
+/* 清点目录：有哪些月份文件、各多少天、最近几天记了什么 */
+function peekFile(){
+  if(!DIR){toast("先选一个数据目录");return Promise.resolve();}
+  toast("正在读取 "+DIR.name+" …");
+  var NM={work:"上班",inv:"监考",ot:"加班",leave:"请假"};
+  return dirPerm(true).then(function(ok){
+    if(!ok)return {denied:true};
+    return loadDirDb().then(function(r){return r||{missing:true};});
+  }).then(function(res){
+    if(res.denied){toast("没拿到读取权限，点「连接 / 同步」也可以授权");return;}
+    if(res.missing){alert("文件夹「"+DIR.name+"」里还没有 "+baseName()+" 的数据。\n\n点「把浏览器数据存到硬盘」创建。");return;}
+    if(res.locked){alert("数据文件是加密的，读不出内容。\n\n用口令打开后再看，或导出一份明文备份来核对。");return;}
+    var db=normalize(res.db);
+    var keys=Object.keys(db.days).filter(function(k){return hasContent(db.days[k]);}).sort();
+    var yms=monthKeysOf(db);
+    return monthFileMeta(yms).then(function(files){
+      var size=0;files.forEach(function(f){size+=f.size;});
+      /* 按年份分组列：2026/ 下面挂各月文件 */
+      var byYear={},order=[];
+      yms.forEach(function(ym){
+        var c=keys.filter(function(k){return ymOf(k)===ym;}).length;
+        var f=files.filter(function(x){return x.ym===ym;})[0];
+        var y=yearOf(ym);
+        if(!byYear[y]){byYear[y]=[];order.push(y);}
+        byYear[y].push("    "+monthFileName(ym)+"   "+c+" 天"+(f?" · "+(f.size/1024).toFixed(1)+" KB":""));
+      });
+      var per=order.map(function(y){return "  "+y+"/\n"+byYear[y].join("\n");});
+      var lines=keys.slice(-6).map(function(k){
+        var r=db.days[k]||{},st;
+        if(r.am&&r.pm&&r.am===r.pm)st=NM[r.am]||r.am;
+        else if(r.am||r.pm)st=(r.am?"上午 "+(NM[r.am]||r.am):"")+(r.am&&r.pm?"、":"")+(r.pm?"下午 "+(NM[r.pm]||r.pm):"");
+        else st="只记了课时";
+        return "  "+k+"  "+st+(r.lessons?" · "+r.lessons+" 节":"")+(r.note?"  「"+r.note+"」":"");
+      });
+      var head="文件夹："+DIR.name+"\n结构：年份目录 / "+baseName()+"_年-月.json（一个月一个文件）"
+        +"\n合计："+yms.length+" 个月份文件 · "+order.length+" 个年份目录 · "+keys.length+" 天 · "+(size/1024).toFixed(1)+" KB"
+        +(keys.length?"\n日期："+keys[0]+" 至 "+keys[keys.length-1]:"");
+      var list=yms.length?("\n\n目录结构：\n"+per.slice(-12).join("\n")):"\n\n还没有任何月份文件。";
+      var body=lines.length?("\n\n最近几天：\n"+lines.join("\n")):"";
+      var kd=localKeys().length;
+      var cmp=(keys.length===kd)?"\n\n和浏览器里的 "+kd+" 天一致。"
+        :"\n\n浏览器里是 "+kd+" 天，和文件不一致"+(kd>keys.length?"，点「把浏览器数据存到硬盘」补齐。":"，可以点「从文件重新载入」取回。");
+      alert(head+list+body+cmp);
+    });
+  });
+}
+/* 不需要任何授权：走浏览器下载，落到「下载」文件夹 */
+function downloadJson(){
+  var n=dayCount(DB);
+  return serialize().then(function(raw){
+    var name=baseName()+"-整库-"+todayKey()+".json";
+    download(raw,name,"application/json");
+    toast("已下载 "+name+"："+(n?n+" 天记录":"空记录")+" · 整库一个文件，在「下载」文件夹");
+  });
+}
+function loadRaw(){
+  var meta=localStorage.getItem(META_KEY);
+  if(meta){try{META=JSON.parse(meta);}catch(e){}}
+  return localStorage.getItem(DB_KEY);
+}
+function idbGet(k){
+  return new Promise(function(res){
+    try{
+      var r=indexedDB.open("kqzb",1);
+      r.onupgradeneeded=function(){r.result.createObjectStore("kv");};
+      r.onsuccess=function(){
+        try{
+          var db=r.result,tx=db.transaction("kv","readonly");
+          var g=tx.objectStore("kv").get(k);
+          g.onsuccess=function(){res(g.result||null);};
+          g.onerror=function(){res(null);};
+        }catch(e){res(null);}
+      };
+      r.onerror=function(){res(null);};
+    }catch(e){res(null);}
+  });
+}
+function idbSet(k,v){
+  return new Promise(function(res){
+    try{
+      var r=indexedDB.open("kqzb",1);
+      r.onupgradeneeded=function(){r.result.createObjectStore("kv");};
+      r.onsuccess=function(){
+        try{
+          var db=r.result,tx=db.transaction("kv","readwrite");
+          /* 目录句柄可能因浏览器实现差异无法结构化克隆，别让它变成未捕获异常 */
+          tx.objectStore("kv").put(v,k);
+          tx.oncomplete=function(){res(true);};
+          tx.onerror=function(){res(false);};
+          tx.onabort=function(){res(false);};
+        }catch(e){res(false);}
+      };
+      r.onerror=function(){res(false);};
+    }catch(e){res(false);}
+  });
+}
+
+/* ---------- 渲染：月历 ---------- */
+function setCur(ym){CUR=ym;}
+function shiftMonth(delta){
+  var p=ymd(CUR+"-01");var dt=new Date(p[0],p[1]-1+delta,1);
+  CUR=dt.getFullYear()+"-"+pad(dt.getMonth()+1);
+  renderCal();
+}
+function renderCal(){
+  var p=ymd(CUR+"-01"), y=p[0], m=p[1];
+  $("monLabel").textContent=y+" 年 "+m+" 月";
+  var first=new Date(y,m-1,1).getDay();
+  var lead=(first+6)%7;
+  var n=new Date(y,m,0).getDate();
+  var today=todayKey();
+  var html="";
+  ["一","二","三","四","五","六","日"].forEach(function(w){html+='<div class="wd">'+w+'</div>';});
+  for(var i=0;i<lead;i++)html+='<div class="cell blank"></div>';
+  var hasTable=!!table(y);
+  CALCELLS=[];POS={};
+  for(var d=1;d<=n;d++){
+    var k=dk(y,m,d), r=peek(k), pre=preStart(k);
+    var am=pre?"":effHalf(k,"am"), pm=pre?"":effHalf(k,"pm"), les=(pre||!r)?0:(parseInt(r.lessons,10)||0);
+    var wk=isWorkday(k), ghA=isGhostHalf(k,"am"), ghP=isGhostHalf(k,"pm");
+    /* 法定休息日：即便记了加班 / 监考，也仍然标「休」，好认出这是休息日加班 */
+    var rest=!wk;
+    var miss=(k<today&&wk&&!DB.settings.autoWork&&!am&&!pm&&!pre);
+    var cls="cell"+(miss?" miss":"")+(k===today?" today":"")+(pre?" pre":"")+(rest?" rest":"");
+    var idx=CALCELLS.length;
+    CALCELLS.push({key:k,row:Math.floor((lead+idx)/7),col:(lead+idx)%7});
+    POS[k]=CALCELLS[idx];
+    html+='<div class="'+cls+'" data-d="'+k+'">';
+    html+='<div class="dnum"><span>'+d+'</span>'+(k===today?'<span class="cd">今天</span>':(pre?'<span class="cd faint">未入职</span>':(rest?'<span class="cd faint">休</span>':'')))+'</div>';
+    html+='<div class="halves">';
+    html+='<button class="half '+sl(am).cls+(ghA?" ghost-half":"")+'" data-d="'+k+'" data-half="am" title="上午：'+(ghA?"默认上班（假期或调休请点开改）":sl(am).label)+'" aria-label="上午'+(ghA?"默认上班":sl(am).label)+'">'+sl(am).ch+'</button>';
+    html+='<button class="half '+sl(pm).cls+(ghP?" ghost-half":"")+'" data-d="'+k+'" data-half="pm" title="下午：'+(ghP?"默认上班（假期或调休请点开改）":sl(pm).label)+'" aria-label="下午'+(ghP?"默认上班":sl(pm).label)+'">'+sl(pm).ch+'</button>';
+    html+='</div>';
+    var exp=lessonsFor(k), lset=!!(r&&r.lset);
+    if(les)html+='<div class="lessons">'+les+' 节</div>';
+    else if(exp>0&&lset)html+='<div class="lessons zero" title="课程表上这天是 '+exp+' 节，你已改为 0 节">0 节</div>';
+    else if(exp>0)html+='<div class="lessons zero ghost" title="课程表上这天是 '+exp+' 节，还没填">'+exp+' 节?</div>';
+    html+='</div>';
+  }
+  $("cal").innerHTML=html;
+  var c=computeMonth(CUR);
+  var chips=$("chips");
+  var ch='<span class="chip">应上班 <b>'+c.workdays+'</b> 天</span>';
+  ch+='<span class="chip">实际出勤 <b>'+fmtShort(c.actual)+'</b> 天</span>';
+  ch+='<span class="chip">课时 <b>'+c.lessons+'</b> 节</span>';
+  ch+='<span class="chip">应发 <b>¥'+fmt(c.total)+'</b></span>';
+  if(DB.settings.startDate&&DB.settings.startDate.slice(0,7)===CUR){
+    var sd=ymd(DB.settings.startDate);
+    ch+='<span class="chip" style="color:#854F0B;border-color:#EF9F27">'+sd[1]+'/'+sd[2]+' 起算</span>';
+  }
+  if(c.checked)ch+='<span class="chip" style="color:#0F6E56;border-color:#5DCAA5">已核对</span>';
+  if(!hasTable)ch+='<span class="chip" style="color:#854F0B;border-color:#EF9F27">该年放假安排未内置，按周一至周五估算</span>';
+  chips.innerHTML=ch;
+}
+
+function cycleHalf(key,which){
+  if(preStart(key)){toast("这天在入职起算日之前，不计出勤。要改请在设置里调整起算日");return;}
+  var ym=key.slice(0,7), p=monthP(ym);
+  if(p.checked&&!confirm("本月已标记核对，仍要修改吗？"))return;
+  var r0=peek(key);
+  var am=r0?(r0.am||""):effHalf(key,"am");
+  var pm=r0?(r0.pm||""):effHalf(key,"pm");
+  var les=r0?(parseInt(r0.lessons,10)||0):0;
+  var note=r0?(r0.note||""):"";
+  var opts=CYCLE.filter(function(s){ return !(s==="inv"&&!DB.settings.enableInv) && !(s==="ot"&&!DB.settings.enableOt); });
+  var nxt;
+  if(!r0){
+    nxt="work";
+  }else{
+    var i=opts.indexOf(which==="am"?am:pm);
+    nxt=opts[(i+1)%opts.length];
+  }
+  if(which==="am")am=nxt; else pm=nxt;
+  setRecord(key,am,pm,les,note);
+  persist().then(function(){renderCal();});
+}
+
+/* ---------- 拖选与批量套用 ---------- */
+function rectKeys(a,b){
+  var A=POS[a],B=POS[b];
+  if(!A||!B)return a?[a]:[];
+  var r1=Math.min(A.row,B.row),r2=Math.max(A.row,B.row);
+  var c1=Math.min(A.col,B.col),c2=Math.max(A.col,B.col);
+  return CALCELLS.filter(function(x){return x.row>=r1&&x.row<=r2&&x.col>=c1&&x.col<=c2;}).map(function(x){return x.key;});
+}
+function setSel(keys){
+  SELKEYS=keys;
+  var set={};keys.forEach(function(k){set[k]=1;});
+  Array.prototype.forEach.call(document.querySelectorAll("#cal .cell[data-d]"),function(el){
+    el.classList.toggle("sel",!!set[el.dataset.d]);
+  });
+}
+function clearSel(){
+  SELKEYS=[];
+  Array.prototype.forEach.call(document.querySelectorAll("#cal .cell.sel"),function(el){el.classList.remove("sel");});
+  $("selbar").classList.remove("show");
+}
+function showSelBar(){
+  if(!SELKEYS.length)return;
+  $("selCount").textContent="已选 "+SELKEYS.length+" 天";
+  $("selbar").classList.add("show");
+}
+function hideUndo(){UNDO=null;clearTimeout(showUndo._t);$("undobar").classList.remove("show");}
+function showUndo(msg,snap){
+  UNDO={snap:snap};
+  $("undoMsg").textContent=msg;
+  $("undobar").classList.add("show");
+  clearTimeout(showUndo._t);
+  showUndo._t=setTimeout(hideUndo,5000);
+}
+function undoApply(){
+  if(!UNDO)return;
+  Object.keys(UNDO.snap).forEach(function(k){
+    var v=UNDO.snap[k];
+    if(v===null)delete DB.days[k];
+    else DB.days[k]=v;
+  });
+  var n=Object.keys(UNDO.snap).length;
+  hideUndo();
+  persist().then(function(){renderCal();toast("已撤销 "+n+" 天");});
+}
+/* 把一组日期整体设为某个状态；clearLes 为真时连课时一起清零 */
+function applyKeys(keys,am,pm,clearLes,quiet){
+  keys=keys.filter(function(k){return !preStart(k);});
+  if(!keys.length)return false;
+  var checked={};
+  keys.forEach(function(k){var ym=k.slice(0,7);if(monthP(ym).checked)checked[ym]=1;});
+  var cm=Object.keys(checked);
+  if(cm.length&&!confirm("选中范围包含已标记核对的月份（"+cm.join("、")+"），仍要修改吗？"))return false;
+  var snap={};
+  keys.forEach(function(k){
+    var r=DB.days[k];
+    snap[k]=r?JSON.parse(JSON.stringify(r)):null;
+    var les=clearLes?0:(r?(parseInt(r.lessons,10)||0):0);
+    var note=r?(r.note||""):"";
+    setRecord(k,am,pm,les,note,clearLes?true:(r?!!r.lset:false));
+  });
+  showUndo("已修改 "+keys.length+" 天",snap);
+  persist().then(function(){
+    renderCal();
+    if(!quiet)toast("已设置 "+keys.length+" 天");
+  });
+  return true;
+}
+var SETMAP={
+  work:["work","work"], inv:["inv","inv"], ot:["ot","ot"], leave:["leave","leave"],
+  empty:["",""], am:["work",""], pm:["", "work"]
+};
+function applySelection(kind){
+  var m=SETMAP[kind];
+  if(!m)return;
+  var clear=$("selClearLes").checked;
+  var keys=SELKEYS.slice();
+  if(applyKeys(keys,m[0],m[1],clear)){
+    clearSel();
+    $("selClearLes").checked=false;
+  }
+}
+
+/* ---------- 批量设置（日期范围 + 星期） ---------- */
+var BK={wd:{0:true,1:true,2:true,3:true,4:true,5:true,6:true},state:"work"};
+function openBulk(){
+  var q=ymd(CUR+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate();
+  $("bkFrom").value=dk(y,m,1);
+  $("bkTo").value=dk(y,m,n);
+  BK.wd={0:true,1:true,2:true,3:true,4:true,5:true,6:true};
+  BK.state="work";
+  renderBkOpts();
+  $("bulkModal").classList.add("show");
+}
+function renderBkOpts(){
+  var WD=["日","一","二","三","四","五","六"];
+  var order=[1,2,3,4,5,6,0];
+  $("bkWd").innerHTML=order.map(function(i){
+    return '<button class="opt'+(BK.wd[i]?" active":"")+'" data-wd="'+i+'">周'+WD[i]+'</button>';
+  }).join("");
+  var list=[["work","上班"],["inv","监考"],["ot","加班"],["leave","请假"],["empty","空"],["am","只上午"],["pm","只下午"]];
+  $("bkState").innerHTML=list.map(function(x){
+    return '<button class="opt '+(x[0]==="empty"?"s-empty":STATES[x[0]]?STATES[x[0]].cls:"")+(BK.state===x[0]?" active":"")+'" data-st="'+x[0]+'">'+x[1]+'</button>';
+  }).join("");
+  updateBkPreview();
+}
+function updateBkPreview(){
+  var ks=bulkKeys();
+  $("bkPreview").innerHTML="将影响 <b>"+ks.length+"</b> 天"+(ks.length?"（"+ks[0]+" 起）":"");
+}
+function bulkKeys(){
+  var a=$("bkFrom").value,b=$("bkTo").value;
+  if(!a||!b||b<a)return [];
+  var keys=[],t=new Date(a.replace(/-/g,"/"));
+  var end=new Date(b.replace(/-/g,"/"));
+  var guard=0;
+  while(t<=end&&guard++<400){
+    var w=t.getDay();
+    if(BK.wd[w])keys.push(dk(t.getFullYear(),t.getMonth()+1,t.getDate()));
+    t.setDate(t.getDate()+1);
+  }
+  return keys.filter(function(k){return !preStart(k);});
+}
+
+/* ---------- 编辑器 ---------- */
+function openEditor(key){
+  if(preStart(key)){toast("这天在入职起算日之前，不计出勤。要改请在设置里调整起算日");return;}
+  EDIT=key;
+  var p=ymd(key), r0=peek(key);
+  var am=r0?(r0.am||""):effHalf(key,"am");
+  var pm=r0?(r0.pm||""):effHalf(key,"pm");
+  var les=r0?(parseInt(r0.lessons,10)||0):0;
+  $("mTitle").textContent=p[0]+" 年 "+p[1]+" 月 "+p[2]+" 日"+(r0?"":" · 默认上班");
+  buildOpts("mAm",am,"am");
+  buildOpts("mPm",pm,"pm");
+  $("mLessons").textContent=les;
+  $("mNote").value=r0?(r0.note||""):"";
+  var sug=lessonsFor(key), box=$("mSug");
+  if(sug>0&&!(r0&&r0.lset)){
+    box.style.display="";
+    box.innerHTML='<span>课程表上是 '+sug+' 节</span><button class="btn sm" id="mUseSug">用 '+sug+' 节</button>';
+    box.querySelector("#mUseSug").onclick=function(){$("mLessons").textContent=sug;box.style.display="none";};
+  }else{
+    box.style.display="none"; box.innerHTML="";
+  }
+  $("modal").classList.add("show");
+}
+function buildOpts(id,cur,which){
+  var box=$(id);
+  var html="";
+  CYCLE.forEach(function(s){
+    if(s==="inv"&&!DB.settings.enableInv)return;
+    if(s==="ot"&&!DB.settings.enableOt)return;
+    var on=(s===cur)?" active":"";
+    html+='<button class="opt '+STATES[s].cls+on+'" data-v="'+s+'" data-w="'+which+'">'+STATES[s].label+'</button>';
+  });
+  box.innerHTML=html;
+}
+function saveEditor(close){
+  if(!EDIT)return;
+  var key=EDIT, ym=key.slice(0,7), mp=monthP(ym);
+  var am=$("mAm").querySelector(".opt.active"), pm=$("mPm").querySelector(".opt.active");
+  var lessons=parseInt($("mLessons").textContent,10)||0;
+  var note=$("mNote").value.trim();
+  if(mp.checked&&!confirm("本月已标记核对，仍要修改吗？"))return;
+  setRecord(key, am?am.dataset.v:"", pm?pm.dataset.v:"", lessons, note, true);
+  persist().then(function(){
+    renderCal();
+    if($("view-sum").hidden===false)renderSum();
+    if(close){$("modal").classList.remove("show");EDIT=null;}
+  });
+}
+function stepDay(delta){
+  if(!EDIT)return;
+  var p=ymd(EDIT);var dt=new Date(p[0],p[1]-1,p[2]+delta);
+  var k=dk(dt.getFullYear(),dt.getMonth()+1,dt.getDate());
+  saveEditor(false);
+  EDIT=k;
+  openEditor(k);
+}
+
+/* ---------- 汇总 ---------- */
+function renderSum(){
+  var c=computeMonth(CUR), p=monthP(CUR);
+  var v=$("view-sum");
+  var rows="";
+  var y=ymd(CUR+"-01")[0],m=ymd(CUR+"-01")[1],n=new Date(y,m,0).getDate();
+  for(var d=1;d<=n;d++){
+    var k=dk(y,m,d),r=peek(k);
+    if(preStart(k))continue;
+    var a=effHalf(k,"am"), b=effHalf(k,"pm"), les=r?(parseInt(r.lessons,10)||0):0;
+    if(!a&&!b&&!les)continue;
+    var wd=["日","一","二","三","四","五","六"][new Date(y,m-1,d).getDay()];
+    rows+="<tr><td>"+m+"/"+d+" 周"+wd+"</td><td>"+(a?sl(a).label:"—")+"</td><td>"+(b?sl(b).label:"—")+"</td><td class='num'>"+les+"</td><td class='faint'>"+(r&&r.note?r.note:"")+"</td></tr>";
+  }
+  if(!rows)rows="<tr><td colspan='5' class='faint'>本月还没有记录</td></tr>";
+
+  var html="";
+  html+='<div class="card">';
+  html+='<h2>'+y+' 年 '+m+' 月 · 工资核对</h2>';
+  html+='<div class="grid2"><div>';
+  html+='<div class="field"><div><label>当月法定工作日</label><div class="desc">按国务院放假安排自动算，可改</div></div><input type="number" id="sumWorkdays" min="0" max="31" step="1" value="'+c.workdays+'"></div>';
+  html+='<div class="field"><div><label>基本工资</label><div class="desc">本月取值，改设置不影响已记录月份</div></div><input type="number" id="sumBase" min="0" step="0.01" value="'+(p.base||0)+'"></div>';
+  html+='<div class="field"><div><label>课时单价</label><div class="desc">每节</div></div><input type="number" id="sumRate" min="0" step="0.01" value="'+(p.rate||0)+'"></div>';
+  html+='</div><div>';
+  html+='<table><tbody>';
+  if(c.start&&c.start.slice(0,7)===CUR){
+    var sd=ymd(c.start);
+    html+='<tr><td>入职起算</td><td class="num">'+sd[1]+'/'+sd[2]+' 起<span class="faint">（之前不计）</span></td></tr>';
+  }
+  html+='<tr><td>实际出勤</td><td class="num"><b>'+fmtShort(c.actual)+'</b> 天</td></tr>';
+  html+='<tr><td>折算日薪</td><td class="num">¥'+fmt(c.dailyRate)+'</td></tr>';
+  html+='<tr><td>上班 / 监考 / 加班</td><td class="num">'+c.counted.work+' / '+c.counted.inv+' / '+c.counted.ot+' 半天</td></tr>';
+  html+='<tr><td>请假</td><td class="num">'+c.counted.leave+' 半天</td></tr>';
+  html+='<tr><td>课时合计</td><td class="num">'+c.lessons+' 节</td></tr>';
+  html+='</tbody></table>';
+  html+='</div></div>';
+  html+='</div>';
+
+  html+='<div class="card">';
+  html+='<h2>计算过程</h2>';
+  html+='<table><tbody>';
+  html+='<tr class="hi"><td>① 基本工资部分<br><span class="faint">'+fmt(c.dailyRate)+' × ¥'+fmtShort(c.base)+' ÷ '+c.workdays+' 天，取 '+fmtShort(c.capped)+' 天</span></td><td class="num">¥'+fmt(c.basePart)+'</td></tr>';
+  html+='<tr class="hi"><td>② 超出天数部分<br><span class="faint">超出 '+fmtShort(c.extra)+' 天（实际 '+fmtShort(c.actual)+' − 应上 '+c.workdays+'）</span></td><td class="num">¥'+fmt(c.extraPart)+'</td></tr>';
+  html+='<tr class="hi"><td>③ 课时费<br><span class="faint">'+c.lessons+' 节 × ¥'+fmtShort(c.rate)+'</span></td><td class="num">¥'+fmt(c.lessonFee)+'</td></tr>';
+  html+='<tr class="total"><td>应发合计</td><td class="num" style="font-size:16px">¥'+fmt(c.total)+'</td></tr>';
+  html+='</tbody></table>';
+  html+='<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">';
+  html+='<button class="btn primary" id="sumCopy">复制工资核对单</button>';
+  html+='<button class="btn" id="sumCsv">导出本月 Excel</button>';
+  html+='<button class="btn" id="sumExport">导出多月统计</button>';
+  html+='<button class="btn" id="sumToggleCheck">'+(c.checked?"取消已核对":"标记已核对")+'</button>';
+  html+='</div>';
+  html+='<p class="hint">这是个人记账工具，结果不作为与学校结算的正式依据。拿到工资条后请核对三项：出勤天数、课时数、单价。</p>';
+  html+='</div>';
+
+  html+='<div class="card"><h2>每日明细</h2><table class="detail"><thead><tr><th>日期</th><th>上午</th><th>下午</th><th class="num">课时</th><th>备注</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  v.innerHTML=html;
+
+  $("sumWorkdays").addEventListener("change",function(){
+    var val=parseFloat(this.value); if(isNaN(val)||val<0)val=0;
+    p.workdays=val; persist().then(function(){renderSum();renderCal();});
+  });
+  $("sumBase").addEventListener("change",function(){
+    var val=parseFloat(this.value); if(isNaN(val)||val<0)val=0;
+    p.base=val; persist().then(function(){renderSum();renderCal();});
+  });
+  $("sumRate").addEventListener("change",function(){
+    var val=parseFloat(this.value); if(isNaN(val)||val<0)val=0;
+    p.rate=val; persist().then(function(){renderSum();renderCal();});
+  });
+  $("sumCopy").addEventListener("click",function(){copySummary(c);});
+  $("sumCsv").addEventListener("click",function(){exportCsv(CUR);});
+  $("sumExport").addEventListener("click",function(){openExport("cur");});
+  $("sumToggleCheck").addEventListener("click",function(){
+    p.checked=!p.checked;
+    persist().then(function(){renderSum();renderCal();});
+  });
+}
+
+function summaryText(c){
+  var p=ymd(c.ym+"-01");
+  var L=[];
+  L.push(p[0]+" 年 "+p[1]+" 月 工资核对");
+  L.push("————————————————");
+  L.push("法定工作日："+c.workdays+" 天");
+  L.push("实际出勤："+fmtShort(c.actual)+" 天（上班 "+c.counted.work+" / 监考 "+c.counted.inv+" / 加班 "+c.counted.ot+" 半天，请假 "+c.counted.leave+" 半天）");
+  L.push("课时合计："+c.lessons+" 节");
+  L.push("————————————————");
+  L.push("折算日薪："+fmt(c.dailyRate)+" 元");
+  L.push("① 基本工资部分："+fmt(c.basePart)+" 元");
+  L.push("② 超出天数部分："+fmt(c.extraPart)+" 元");
+  L.push("③ 课时费："+fmt(c.lessonFee)+" 元");
+  L.push("应发合计："+fmt(c.total)+" 元");
+  return L.join("\n");
+}
+function copySummary(c){
+  var txt=summaryText(c);
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){toast("已复制，可直接粘贴给财务");},function(){fallbackCopy(txt);});
+  }else fallbackCopy(txt);
+}
+function fallbackCopy(txt){
+  var ta=document.createElement("textarea");
+  ta.value=txt;ta.style.position="fixed";ta.style.opacity="0";
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand("copy");toast("已复制");}catch(e){toast("复制失败，请手动选择");}
+  document.body.removeChild(ta);
+}
+
+/* ---------- 导出统计 ---------- */
+function qcsv(v){var s=String(v==null?"":v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function csvRow(a){return a.map(qcsv).join(",");}
+/* CSV 里的钱不能带千分位，否则 Excel 当文本 */
+function num2(v){return (Math.round(v*100)/100).toFixed(2);}
+function addMonths(ym,delta){
+  var p=ymd(ym+"-01"),dt=new Date(p[0],p[1]-1+delta,1);
+  return dt.getFullYear()+"-"+pad(dt.getMonth()+1);
+}
+function monthsBetween(a,b){
+  if(!a||!b)return [];
+  if(b<a){var t=a;a=b;b=t;}
+  var out=[],p=ymd(a+"-01"),y=p[0],m=p[1],guard=0;
+  while(guard++<240){
+    var ym=y+"-"+pad(m);
+    out.push(ym);
+    if(ym>=b)break;
+    m++;if(m>12){m=1;y++;}
+  }
+  return out;
+}
+/* 有实际记录的月份（出勤、课时、备注任意一项），用于「全部」范围 */
+function monthsWithData(){
+  var set={};
+  Object.keys(DB.days).forEach(function(k){
+    var r=DB.days[k];if(!r)return;
+    if(r.am||r.pm||r.lessons||r.note)set[k.slice(0,7)]=1;
+  });
+  var arr=Object.keys(set).sort();
+  if(!arr.length)arr=[CUR];
+  return arr;
+}
+function buildExportCsv(months,incSum,incDay){
+  var L=[];
+  L.push(csvRow(["考勤统计",months[0]+" 至 "+months[months.length-1]]));
+  L.push(csvRow(["导出时间",new Date().toLocaleString("zh-CN")]));
+  if(DB.settings.startDate)L.push(csvRow(["入职起算日",DB.settings.startDate]));
+  L.push(csvRow(["计薪参数","基本工资 "+fmtShort(DB.settings.baseSalary)+" 元/月；课时单价 "+fmtShort(DB.settings.rate)+" 元/节"]));
+  L.push("");
+  var tot={actual:0,les:0,base:0,extra:0,fee:0,all:0};
+  if(incSum){
+    L.push(csvRow(["月度汇总"]));
+    L.push(csvRow(["月份","法定工作日","实际出勤(天)","上班(半天)","监考(半天)","加班(半天)","请假(半天)",
+      "课时(节)","折算日薪","基本工资部分","超出天数部分","课时费","应发合计","状态"]));
+    months.forEach(function(ym){
+      var c=computeMonth(ym);
+      tot.actual+=c.actual;tot.les+=c.lessons;tot.base+=c.basePart;
+      tot.extra+=c.extraPart;tot.fee+=c.lessonFee;tot.all+=c.total;
+      L.push(csvRow([ym,c.workdays,fmtShort(c.actual),c.counted.work,c.counted.inv,c.counted.ot,
+        c.counted.leave,c.lessons,num2(c.dailyRate),num2(c.basePart),num2(c.extraPart),
+        num2(c.lessonFee),num2(c.total),c.checked?"已核对":"未核对"]));
+    });
+    L.push(csvRow(["合计",months.length+" 个月",fmtShort(tot.actual),"","","","",tot.les,"",
+      num2(tot.base),num2(tot.extra),num2(tot.fee),num2(tot.all),""]));
+    L.push("");
+  }
+  if(incDay){
+    L.push(csvRow(["每日明细"]));
+    L.push(csvRow(["月份","日期","星期","上午","下午","课时","备注"]));
+    months.forEach(function(ym){
+      var p=ymd(ym+"-01"),y=p[0],m=p[1],n=new Date(y,m,0).getDate();
+      for(var d=1;d<=n;d++){
+        var k=dk(y,m,d);
+        if(preStart(k))continue;
+        var r=peek(k),a=effHalf(k,"am"),b=effHalf(k,"pm");
+        var les=r?(parseInt(r.lessons,10)||0):0, note=r?(r.note||""):"";
+        if(!a&&!b&&!les&&!note)continue;
+        var wd=["日","一","二","三","四","五","六"][new Date(y,m-1,d).getDay()];
+        L.push(csvRow([ym,k,"周"+wd,a?sl(a).label:"",b?sl(b).label:"",les,note]));
+      }
+    });
+    L.push("");
+  }
+  return "\ufeff"+L.join("\r\n");
+}
+/* 汇总页的「导出 Excel」：当月一份，含汇总 + 明细 */
+function exportCsv(ym){
+  saveOut("考勤统计-"+ym+".csv",buildExportCsv([ym],true,true),"text/csv;charset=utf-8");
+}
+function openExport(range){
+  $("expQuick").innerHTML=[["cur","本月"],["q","近三个月"],["y","今年"],["all","全部记录"]]
+    .map(function(x){return '<button class="opt'+(x[0]===range?" active":"")+'" data-r="'+x[0]+'">'+x[1]+'</button>';}).join("");
+  expApplyRange(range||"cur");
+  $("expModal").classList.add("show");
+}
+function expApplyRange(r){
+  EXP.range=r;
+  var now=new Date(), cy=now.getFullYear(), cur=cy+"-"+pad(now.getMonth()+1);
+  if(r==="cur"){EXP.from=CUR;EXP.to=CUR;}
+  else if(r==="q"){EXP.from=addMonths(cur,-2);EXP.to=cur;}
+  else if(r==="y"){EXP.from=cy+"-01";EXP.to=cur;}
+  else {var all=monthsWithData();EXP.from=all[0];EXP.to=all[all.length-1];}
+  $("expFrom").value=EXP.from;$("expTo").value=EXP.to;
+  Array.prototype.forEach.call($("expQuick").children,function(b){b.classList.toggle("active",b.dataset.r===r);});
+  updateExpPreview();
+}
+function updateExpPreview(){
+  var ms=monthsBetween($("expFrom").value,$("expTo").value);
+  var incSum=$("expSum").checked, incDay=$("expDay").checked;
+  if(!incSum&&!incDay){$("expPreview").textContent="至少勾选一项内容";return;}
+  if(!ms.length){$("expPreview").textContent="请先选一个有效的月份范围";return;}
+  var days=0,les=0,tot=0;
+  ms.forEach(function(ym){var c=computeMonth(ym);days+=c.actual;les+=c.lessons;tot+=c.total;});
+  $("expPreview").innerHTML="将导出 <b>"+ms.length+"</b> 个月（"+ms[0]+" ~ "+ms[ms.length-1]+"）"
+    +" · 合计出勤 "+fmtShort(days)+" 天 · "+les+" 节 · ¥"+fmt(tot);
+}
+function runExport(){
+  var ms=monthsBetween($("expFrom").value,$("expTo").value);
+  var incSum=$("expSum").checked, incDay=$("expDay").checked;
+  if(!ms.length){alert("请选择有效的月份范围");return;}
+  if(!incSum&&!incDay){alert("至少勾选一项内容");return;}
+  var name=ms.length===1?("考勤统计-"+ms[0]+".csv"):("考勤统计-"+ms[0]+"至"+ms[ms.length-1]+".csv");
+  saveOut(name,buildExportCsv(ms,incSum,incDay),"text/csv;charset=utf-8");
+  $("expModal").classList.remove("show");
+}
+function download(content,name,type){
+  var blob=new Blob([content],{type:type||"application/json"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");
+  a.href=url;a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},300);
+}
+
+/* ---------- 设置 ---------- */
+function dirTagHtml(){
+  if(!DIR)return '<span class="tag">未设置 · 仅浏览器存储</span>';
+  return '<span class="dirpath" title="'+esc(DIR.name)+'">'+esc(DIR.name)+'</span>'
+    +'<span class="tag" id="dirState">检查中</span>';
+}
+function courseRowsHtml(){
+  if(!DB.courses.length)return '<p class="faint" style="margin:4px 0 8px">暂无课程，点下面的「添加课程」。</p>';
+  var WD=["周一","周二","周三","周四","周五","周六","周日"];
+  return DB.courses.map(function(c,i){
+    var opts=WD.map(function(w,j){var v=j+1;return '<option value="'+v+'"'+(v===parseInt(c.weekday,10)?" selected":"")+'>'+w+'</option>';}).join("");
+    return '<div class="course-row" data-i="'+i+'">'
+      +'<input type="text" class="c-name" value="'+esc(c.name)+'" placeholder="课程名（可不填）">'
+      +'<select class="c-wd">'+opts+'</select>'
+      +'<input type="number" class="c-les" min="0" max="20" step="1" value="'+c.lessons+'">'
+      +'<input type="number" class="c-sw" min="1" max="30" step="1" value="'+c.startWeek+'">'
+      +'<input type="number" class="c-ew" min="1" max="30" step="1" value="'+c.endWeek+'">'
+      +'<button class="del" title="删除这门课">×</button>'
+      +'</div>';
+  }).join("");
+}
+function syncCourse(row){
+  var i=parseInt(row.dataset.i,10),c=DB.courses[i];
+  if(!c)return;
+  c.name=row.querySelector(".c-name").value;
+  c.weekday=parseInt(row.querySelector(".c-wd").value,10)||1;
+  c.lessons=Math.max(0,parseInt(row.querySelector(".c-les").value,10)||0);
+  c.startWeek=Math.max(1,parseInt(row.querySelector(".c-sw").value,10)||1);
+  c.endWeek=Math.max(1,parseInt(row.querySelector(".c-ew").value,10)||16);
+  if(c.endWeek<c.startWeek)c.endWeek=c.startWeek;
+}
+function renderSet(){
+  var s=DB.settings;
+  var h="";
+  h+='<div class="card"><h2>计薪参数</h2>';
+  h+='<div class="fields">';
+  h+='<div class="field"><div><label>基本工资（元/月）</label><div class="desc">用于按出勤天数折算</div></div><input type="number" id="setBase" min="0" step="0.01" value="'+(s.baseSalary||0)+'"></div>';
+  h+='<div class="field"><div><label>课时单价（元/节）</label><div class="desc">统一单价；多档位已在数据结构中预留，暂不开放</div></div><input type="number" id="setRate" min="0" step="0.01" value="'+(s.rate||0)+'"></div>';
+  h+='</div>';
+  h+='<h3>出勤默认值</h3>';
+  h+='<div class="fields">';
+  h+='<div class="field"><div><label>法定工作日默认算全天上班</label><div class="desc">开着就不用逐天勾选，只有请假、调休、监考这些例外才需要改</div></div><div class="switch'+(s.autoWork?" on":"")+'" data-k="autoWork"></div></div>';
+  h+='<div class="field"><div><label>入职起算日</label><div class="desc">这天之前不算出勤、不计课时，也不用到月历上逐天去点；留空表示不限</div></div><input type="date" id="setStart" value="'+(s.startDate||"")+'"></div>';
+  h+='</div>';
+  h+='<h3>常规周</h3>';
+  h+='<p class="muted" style="margin-bottom:6px">周一到周五之外，哪些天也算上班。法定节假日永远默认休息，不受这里影响。</p>';
+  var WD=["日","一","二","三","四","五","六"];
+  h+='<div class="wp-grid">'+[1,2,3,4,5,6,0].map(function(w){
+    var v=s.weekPattern[w];
+    var opt=function(val,txt){return '<option value="'+val+'"'+(v===val?" selected":"")+'>'+txt+'</option>';};
+    return '<div><div class="lb">周'+WD[w]+'</div><select class="wp" data-w="'+w+'">'+opt(1,"全天")+opt(0.5,"半天")+opt(0,"不上")+'</select></div>';
+  }).join("")+'</div>';
+  h+='<h3>计薪项目</h3>';
+  h+='<div class="fields">';
+  h+='<div class="field"><div><label>基本工资按出勤折算</label><div class="desc">关闭后只算课时费</div></div><div class="switch'+(s.enableBase?" on":"")+'" data-k="enableBase"></div></div>';
+  h+='<div class="field"><div><label>课时费</label><div class="desc">按课时数 × 单价计入</div></div><div class="switch'+(s.enableLesson?" on":"")+'" data-k="enableLesson"></div></div>';
+  h+='<div class="field"><div><label>监考</label><div class="desc">与出勤同价，计入实际出勤天数</div></div><div class="switch'+(s.enableInv?" on":"")+'" data-k="enableInv"></div></div>';
+  h+='<div class="field"><div><label>加班</label><div class="desc">与出勤同价，计入实际出勤天数</div></div><div class="switch'+(s.enableOt?" on":"")+'" data-k="enableOt"></div></div>';
+  h+='</div>';
+  h+='<div style="margin-top:16px"><button class="btn sm" id="applyToCur">把当前参数同步到本月</button> <span class="faint">用于先填设置、后补记录的情况</span></div>';
+  h+='</div>';
+
+  h+='<div class="card"><h2>课程表与教学周</h2>';
+  h+='<p class="muted">配一次，整个学期不用再想今天几节。配完在记账页点「按课程表填课时」，一次填满整月。</p>';
+  h+='<div class="fields"><div class="field"><div><label>第 1 教学周的周一</label><div class="desc">换算周次的基准日，填开学第一周的周一</div></div><input type="date" id="termStart" value="'+(DB.term.start||"")+'"></div></div>';
+  h+='<h3>课程</h3>';
+  h+='<div class="course-row head"><span>课程</span><span>周几</span><span>每次节数</span><span>起始周</span><span>结束周</span><span></span></div>';
+  h+='<div id="courseList">'+courseRowsHtml()+'</div>';
+  h+='<div style="margin-top:12px"><button class="btn sm" id="addCourse">+ 添加课程</button></div>';
+  h+='<h3>快速生成（一周七格）</h3>';
+  h+='<p class="muted" style="margin-bottom:2px">填每周一到周日各几节，一次生成本学期所有课程行；0 节的自动跳过。生成会替换下面现有的课程行。</p>';
+  h+='<div class="weekgen">'+[1,2,3,4,5,6,0].map(function(w){
+    return '<div><div class="lb">周'+WD[w]+'</div><input type="number" class="wg" data-w="'+w+'" min="0" max="20" step="1" value="0"></div>';
+  }).join("")+'</div>';
+  h+='<div class="rowflex"><span class="faint">第</span><input type="number" id="wgSw" min="1" max="30" step="1" value="1" style="width:62px">';
+  h+='<span class="faint">周 至 第</span><input type="number" id="wgEw" min="1" max="30" step="1" value="'+(DB.term.defaultWeeks||16)+'" style="width:62px">';
+  h+='<span class="faint">周</span><button class="btn sm" id="wgRun">生成课程行</button></div>';
+  h+='<p class="hint" id="coursePreview">'+coursePreviewText()+'</p>';
+  h+='</div>';
+
+  h+='<div class="card"><h2>数据存放</h2>';
+  h+='<p class="muted">记录按年份分文件夹、按月分文件存放：<code>2026/考勤数据_2026-10.json</code>、<code>2027/考勤数据_2027-01.json</code>，另在根目录放一份 <code>考勤数据_设置.json</code> 存工资参数和课程表。每个文件都是缩进过的明文，一天一段，记事本打开就能核对；某个学年结束，把那一年的文件夹整包拷走归档即可。改哪个月只重写那个月的文件，其它月份一个字都不会动。</p>';
+  h+='<p class="muted">两边不一致时不会盲目覆盖：文件里的时间更新、记录也比浏览器多，就读文件；浏览器这边更全，就把浏览器这份写回文件。文件如果比浏览器还少，绝不会拿它盖掉更全的记录 —— 真要反向覆盖，用下面的「从文件重新载入」。老版本的 <code>考勤数据.json</code> 会被自动识别并拆成月份文件，原文件保留不动；之前平铺在根目录的月份文件，也会在下次保存时自动迁进对应年份文件夹。</p>';
+  h+='<p class="muted">有一点要知道：浏览器出于安全，重新打开页面后会把文件夹权限降为「未授权」，那段时间的改动只能先留在浏览器里。标题栏的状态标签会变成 <b>未写入硬盘</b>，点它一下（或点下面的「把浏览器数据存到硬盘」）就补写回去 —— 这是浏览器强制的，不是工具在偷懒。</p>';
+  h+='<div class="fields">';
+  h+='<div class="field"><div><label>本地数据目录</label><div class="desc">'+(dirSupported()?"选一次即可长期记住，随时可换":"当前浏览器不支持目录绑定，请用 Chrome 或 Edge 打开")+'</div></div>';
+  h+='<div class="dircell">'+dirTagHtml()+'</div></div>';
+  h+='<div class="field"><div><label>文件前缀</label><div class="desc">月份文件按「年份目录/前缀_年-月.json」命名，改名不会删除旧文件</div></div><input type="text" id="setFileName" value="'+esc(baseName())+'" style="width:158px;text-align:left"></div>';
+  h+='</div>';
+  h+='<p class="fileline" id="fileLine">正在读取文件信息…</p>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">';
+  h+='<button class="btn primary" id="backupNow">把浏览器数据存到硬盘</button>';
+  h+='<button class="btn sm" id="peekFile"'+(DIR?"":" disabled")+'>看看文件里有什么</button>';
+  h+='<button class="btn sm" id="pickDir"'+(dirSupported()?"":" disabled")+'>'+(DIR?"更换目录":"选择目录")+'</button>';
+  h+='<button class="btn sm" id="writeNow"'+(DIR?"":" disabled")+'>连接 / 同步</button>';
+  h+='<button class="btn sm" id="dlJson">下载整库 JSON</button>';
+  if(DIR)h+='<button class="btn sm" id="reloadDir">从文件重新载入</button>';
+  if(DIR)h+='<button class="btn sm danger" id="dropDir">解除绑定</button>';
+  h+='</div>';
+  h+='<p class="hint" style="margin-top:10px">月份文件里就是一张按日期排的清单，例如 <code>days["2026-11-03"].lessons = 4</code> 表示这天 4 节课，<code>am</code> / <code>pm</code> 是上下午状态。用记事本就能打开看，也能自己复制走；想把某个月发给别人或归档，单独拷那一个文件就够。<br>浏览器为了安全不让网页挑路径，目录得你手动选一次，页面也只能看到文件夹名；重新打开页面后权限会被收回，这时点标题栏的「未写入硬盘」或上面的「把浏览器数据存到硬盘」，授权一次就把浏览器里的记录全部写进各月份文件，不会拿旧数据盖掉新的。</p>';
+  h+='<h3 style="margin-top:18px">导出与备份</h3>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  h+='<button class="btn" id="setExport">按月导出考勤统计</button>';
+  h+='<button class="btn primary" id="expJson">导出备份（加密）</button>';
+  h+='<button class="btn" id="expPlain">导出明文备份</button>';
+  h+='<button class="btn" id="impJson">导入备份</button>';
+  h+='</div>';
+  h+='<p class="hint" id="statLine"></p>';
+  h+='</div>';
+
+  h+='<div class="card"><h2>打开口令</h2>';
+  h+='<p class="muted">'+(META.pass?"已开启，数据在本地加密存放。":"未开启，任何能打开这台电脑的人都能看到记录。")+'</p>';
+  h+='<div class="fields"><div class="field"><div><label>设置 / 更换口令</label><div class="desc">口令只在本机校验，忘记无法找回 —— 请务必定期导出明文备份</div></div><button class="btn sm" id="setPass">设置</button></div>';
+  if(META.pass)h+='<div class="field"><div><label>关闭口令</label><div class="desc">关闭后数据以明文存放</div></div><button class="btn sm danger" id="clearPass">关闭</button></div>';
+  h+='</div>';
+  h+='</div>';
+
+  h+='<div class="card"><h2>说明</h2>';
+  h+='<p class="muted">默认出勤的判定顺序：入职起算日之前 → 一律不算；法定工作日 → 整天上班；常规周里设为上班的星期 → 按设置；法定节假日 → 一律休，常规周也越不过它。</p>';
+  h+='<p class="muted">课程表按「周几 + 每次节数 + 起止周」记录。第 1 教学周周一填准，周次才不会错；整周放假不顺延，照常算一周。填课时时会自动跳过法定节假日（国庆、春节、中秋等），不会把课算到放假日上。</p>';
+  h+='<p class="muted">法定工作日内置 2026 年（'+HOLIDAYS[2026].note+'），其他年份按周一至周五估算，可在汇总页手动改。每年 11 月前后国务院公布次年安排，需要更新时找我。</p>';
+  h+='<p class="muted">计算规则：实际出勤 =（上班+监考+加班 的半天数）÷ 2；折算日薪 = 基本工资 ÷ 当月法定工作日；应发 = 日薪×min(实际,应上) + 日薪×超出天数 + 课时×单价。</p>';
+  h+='<p class="muted">「按月导出」在汇总页和设置页都能进：可选本月、近三个月、今年或任意月份区间，导出的 CSV 里先是月度汇总（一个月一行，可直接对比），再是每日明细，Excel / WPS 双击就能开。设过数据目录的话，文件会直接写进那个目录，不用再去下载文件夹里翻。</p>';
+  h+='<p class="muted">数据到底在哪：按年份分文件夹、按月分文件存在你选的文件夹里 —— <code>2026/考勤数据_2026-10.json</code>、<code>2027/考勤数据_2027-01.json</code>，外加根目录的 <code>考勤数据_设置.json</code> 存工资参数与课程表；没设目录时暂存在浏览器存储区。带月份的文件都是缩进排版的多行明文：<code>days</code> 下面每个日期一块，<code>am</code> / <code>pm</code> 是上下午状态，<code>lessons</code> 是当天节数，<code>note</code> 是备注。记事本能打开、能直接复制；一个学年结束，把那一年的文件夹整个拷进网盘或 U 盘就是一份完整归档。</p>';
+  h+='</div>';
+
+  $("view-set").innerHTML=h;
+
+  $("setBase").addEventListener("change",function(){
+    var v=parseFloat(this.value);DB.settings.baseSalary=isNaN(v)?0:v;
+    persist().then(function(){toast("已保存");});
+  });
+  $("setRate").addEventListener("change",function(){
+    var v=parseFloat(this.value);DB.settings.rate=isNaN(v)?0:v;
+    DB.settings.rates[0].price=DB.settings.rate;
+    persist().then(function(){toast("已保存");});
+  });
+  $("setStart").addEventListener("change",function(){
+    var v=this.value||"";
+    if(v&&!/^\d{4}-\d{2}-\d{2}$/.test(v)){toast("日期格式不对");return;}
+    DB.settings.startDate=v;
+    var old=[];
+    if(v)Object.keys(DB.days).forEach(function(k){if(k<v)old.push(k);});
+    if(old.length&&confirm("起算日之前有 "+old.length+" 天记录，一并删除吗？\n\n选「确定」删掉（本来就不计工资）；选「取消」保留，但同样不计入出勤和工资。")){
+      old.forEach(function(k){delete DB.days[k];});
+    }
+    persist().then(function(){
+      toast(v?("已设为 "+v+" 起算"):"已取消起算日");
+      renderCal();
+      if(!$("view-sum").hidden)renderSum();
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#view-set .switch"),function(sw){
+    sw.addEventListener("click",function(){
+      var k=this.dataset.k;
+      DB.settings[k]=!DB.settings[k];
+      this.classList.toggle("on",DB.settings[k]);
+      persist().then(function(){renderCal();});
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#view-set .wp"),function(sel){
+    sel.addEventListener("change",function(){
+      var w=parseInt(this.dataset.w,10),v=parseFloat(this.value);
+      DB.settings.weekPattern[w]=(v===0.5)?0.5:(v?1:0);
+      persist().then(function(){renderCal();toast("已保存");});
+    });
+  });
+  $("wgRun").addEventListener("click",function(){
+    var sw=Math.max(1,parseInt($("wgSw").value,10)||1);
+    var ew=Math.max(sw,parseInt($("wgEw").value,10)||16);
+    var add=[];
+    Array.prototype.forEach.call(document.querySelectorAll("#view-set .wg"),function(inp){
+      var v=Math.max(0,parseInt(inp.value,10)||0);
+      if(v>0)add.push({id:"c"+Date.now()+Math.random().toString(36).slice(2,5),name:"",
+        weekday:parseInt(inp.dataset.w,10),lessons:v,startWeek:sw,endWeek:ew,parity:"all"});
+    });
+    if(!add.length){alert("七格里都是 0，没有可生成的课程。");return;}
+    if(!DB.term.start){alert("先在下面填「第 1 教学周的周一」，否则周次换算不出来。");return;}
+    if(DB.courses.length&&!confirm("将用这 "+add.length+" 行替换现有的 "+DB.courses.length+" 行课程，确定？"))return;
+    DB.courses=add;
+    DB.term.defaultWeeks=ew;
+    persist().then(function(){renderSet();toast("已生成 "+add.length+" 行课程");});
+  });
+  $("applyToCur").addEventListener("click",function(){
+    var p=monthP(CUR);
+    p.base=DB.settings.baseSalary;p.rate=DB.settings.rate;
+    var q=ymd(CUR+"-01");p.workdays=autoWorkdays(q[0],q[1]);
+    persist().then(function(){toast("已同步到 "+CUR);renderCal();if(!$("view-sum").hidden)renderSum();});
+  });
+  $("termStart").addEventListener("change",function(){
+    DB.term.start=this.value;
+    persist().then(function(){$("coursePreview").textContent=coursePreviewText();toast("已保存");});
+  });
+  var list=$("courseList");
+  list.addEventListener("change",function(e){
+    var row=e.target.closest(".course-row");if(!row)return;
+    syncCourse(row);
+    persist().then(function(){$("coursePreview").textContent=coursePreviewText();});
+  });
+  list.addEventListener("input",function(e){
+    var row=e.target.closest(".course-row");if(!row)return;
+    syncCourse(row);
+    $("coursePreview").textContent=coursePreviewText();
+  });
+  list.addEventListener("click",function(e){
+    if(!e.target.classList.contains("del"))return;
+    var row=e.target.closest(".course-row");if(!row)return;
+    DB.courses.splice(parseInt(row.dataset.i,10),1);
+    persist().then(function(){renderSet();});
+  });
+  $("addCourse").addEventListener("click",function(){
+    DB.courses.push({id:"c"+Date.now(),name:"",weekday:1,lessons:2,startWeek:1,endWeek:16,parity:"all"});
+    persist().then(function(){renderSet();});
+  });
+  $("backupNow").addEventListener("click",backupToDisk);
+  var pk=$("peekFile");if(pk)pk.addEventListener("click",peekFile);
+  $("dlJson").addEventListener("click",downloadJson);
+  $("pickDir").addEventListener("click",pickDataDir);
+  $("writeNow").addEventListener("click",writeNow);
+  var dd=$("dropDir");if(dd)dd.addEventListener("click",dropDir);
+  var rd=$("reloadDir");if(rd)rd.addEventListener("click",reloadFromDir);
+  $("setFileName").addEventListener("change",function(){
+    var v=this.value.replace(/[\\/:*?"<>|]/g,"").replace(/\.json$/i,"").trim();
+    if(!v){this.value=baseName();toast("前缀不能是空的");return;}
+    DB.settings.fileBase=v;
+    this.value=v;
+    LASTRAW={};                                  /* 前缀变了，缓存作废，按新名字全部重写 */
+    persist().then(function(){
+      toast("以后的月份文件叫「年份/"+baseName()+"_年-月.json」，旧文件不会自动删除");
+      renderSet();
+    });
+  });
+  $("setExport").addEventListener("click",function(){openExport("cur");});
+  $("expJson").addEventListener("click",function(){
+    serialize().then(function(raw){saveOut(baseName()+"-整库备份-"+todayKey()+".json",raw,"application/json");});
+  });
+  $("expPlain").addEventListener("click",function(){
+    if(!confirm("明文备份任何人都能直接打开查看，请存放在自己信得过的地方。继续导出？"))return;
+    DB.savedAt=Date.now();
+    saveOut(baseName()+"-整库明文备份-"+todayKey()+".json",JSON.stringify(DB,null,2),"application/json");
+  });
+  $("impJson").addEventListener("click",importJson);
+  $("setPass").addEventListener("click",askSetPass);
+  var cp=$("clearPass");if(cp)cp.addEventListener("click",function(){
+    if(!confirm("关闭口令后，数据将以明文存放在本机。确定？"))return;
+    META={pass:false,salt:""};PASS=null;
+    persist().then(function(){toast("已关闭口令");renderSet();});
+  });
+
+  var total=dayCount(DB);
+  var size=0;try{size=(localStorage.getItem(DB_KEY)||"").length;}catch(e){}
+  $("statLine").textContent="浏览器里有内容的日期 "+total+" 天 / "+localMonthKeys().length+" 个月 · 缓存约 "+(size/1024).toFixed(1)+" KB · 最近写入 "
+    +(DB.savedAt?new Date(DB.savedAt).toLocaleString("zh-CN"):"尚未保存")
+    +(DIR?" · 数据目录「"+DIR.name+"」":"");
+  renderFileState();
+}
+
+/* ---------- 浏览器 / 硬盘 对照 ---------- */
+function localKeys(){
+  return Object.keys(DB.days||{}).filter(function(k){
+    var r=DB.days[k];return r&&(r.am||r.pm||r.lessons||r.note);
+  }).sort();
+}
+function daysRange(keys){
+  if(!keys||!keys.length)return "";
+  var a=keys[0],b=keys[keys.length-1];
+  return a===b?a:b;
+}
+/* 把「浏览器里有多少天」和「硬盘上月文件里有多少天」并排列出来，差几天就说差几天 */
+function renderFileState(){
+  var fl=$("fileLine");
+  if(!fl)return;
+  var lk=localKeys(),ln=lk.length;
+  var lv=ln?ln+" 天":'<span class="fl-n">还没有记录</span>';
+  var head='<div class="fl-row"><span class="fl-k">浏览器缓存</span><span class="fl-v">'+lv+'</span>'
+    +'<span class="fl-n">'+(DB.savedAt?"最近写入 "+new Date(DB.savedAt).toLocaleString("zh-CN"):"尚未保存")+'</span></div>';
+  if(!DIR){
+    fl.dataset.s="warn";
+    fl.innerHTML=head
+      +'<div class="fl-row"><span class="fl-k">硬盘文件</span><span class="fl-v">还没存</span>'
+      +'<span class="fl-n">记录只在浏览器里</span></div>'
+      +'<div class="fl-cmp">点「把浏览器数据存到硬盘」，会按年份建文件夹、按月拆开写成 <code>2026/'+esc(baseName())+'_2026-11.json</code> 这样的文件。'
+      +'想固定位置，先点「选择目录」选一个文件夹。</div>';
+    return;
+  }
+  fl.dataset.s="";
+  fl.innerHTML=head+'<div class="fl-row"><span class="fl-k">硬盘文件</span><span class="fl-v">读取中…</span></div>';
+  dirPerm(false).then(function(ok){
+    var el=$("fileLine");if(!el)return null;
+    var tag=$("dirState");
+    if(tag){tag.className="tag "+(ok?"ok":"warn");tag.textContent=ok?"已授权":"需重新授权";}
+    if(!ok){
+      el.dataset.s="warn";
+      el.innerHTML=head
+        +'<div class="fl-row"><span class="fl-k">硬盘文件</span><span class="fl-v">本次未授权</span>'
+        +'<span class="fl-n">'+esc(DIR.name)+'</span></div>'
+        +'<div class="fl-cmp">浏览器每次重开页面都会收回文件夹权限。点「把浏览器数据存到硬盘」，授权一次就把上面这些记录全部写进各月份文件。</div>';
+      return null;
+    }
+    if(FILE_LOCKED){
+      el.dataset.s="warn";
+      el.innerHTML=head
+        +'<div class="fl-row"><span class="fl-k">硬盘文件</span><span class="fl-v">已加密</span>'
+        +'<span class="fl-n">当前口令读不出</span></div>'
+        +'<div class="fl-cmp">为免把文件写坏，暂时不往里写。用口令打开后，会自动恢复正常写入。</div>';
+      return null;
+    }
+    return dirStat().then(function(info){
+      var el2=$("fileLine");if(!el2)return;
+      if(!info){
+        el2.dataset.s="warn";
+        el2.innerHTML=head
+          +'<div class="fl-row"><span class="fl-k">硬盘文件</span><span class="fl-v">还没有任何文件</span></div>'
+          +'<div class="fl-cmp">点「把浏览器数据存到硬盘」，会按月份逐个建文件。</div>';
+        return;
+      }
+      if(info.locked){
+        el2.dataset.s="warn";
+        el2.innerHTML=head
+          +'<div class="fl-row"><span class="fl-k">硬盘文件</span><span class="fl-v">已加密</span>'
+          +'<span class="fl-n">当前口令读不出</span></div>'
+          +'<div class="fl-cmp">先用口令打开，才能核对天数。</div>';
+        return;
+      }
+      var fn=info.days||0,nm=info.months.length;
+      var yrs=(info.years||[]).length;
+      var when=info.mtime?new Date(info.mtime).toLocaleString("zh-CN"):"—";
+      var state="ok",cmp="";
+      var fv=fn+' 天';
+      var fnote=nm+' 个文件 · '+(yrs?yrs+' 个年份目录 · ':'')+(info.size/1024).toFixed(1)+' KB · 最后写入 '+when;
+      if(fn<ln){state="warn";cmp="文件里比浏览器少 <b>"+(ln-fn)+"</b> 天 —— 点「把浏览器数据存到硬盘」补齐，补齐后两边天数就一样了。";}
+      else if(fn>ln){state="warn";cmp="文件里比浏览器多 <b>"+(fn-ln)+"</b> 天 —— 那些记录在文件里，点「从文件重新载入」可以取回。";}
+      else if(fn===0&&ln===0){state="";cmp="两边都还没有记录，先记一天试试。";}
+      else{cmp="两边一致：浏览器和 "+nm+" 个月份文件里的记录完全相同。";}
+      if(info.first)cmp+='<br>文件覆盖 '+info.first+' 至 '+info.last+'，按年份分文件夹、一个月一个文件。';
+      if(info.flat)cmp+='<br>根目录还留着 <b>'+info.flat+'</b> 个老的平铺月份文件；下次保存会自动迁进年份目录并删掉旧的那份。';
+      if(info.legacy||info.legacyLeft)cmp+='<br>目录里还留着旧版整库单文件 <code>'+esc(dataFileName())+'</code>（记录已按月拆分，它不再更新）；确认月份文件正常后可以删掉它。';
+      el2.dataset.s=state;
+      el2.innerHTML=head
+        +'<div class="fl-row"><span class="fl-k">硬盘文件</span><span class="fl-v">'+fv+'</span>'
+        +'<span class="fl-n">'+fnote+'</span></div>'
+        +'<div class="fl-cmp">'+cmp+'</div>';
+    });
+  }).catch(function(){});
+}
+
+/* ---------- 数据目录 ---------- */
+function pickDataDir(){
+  if(!dirSupported()){
+    alert("当前浏览器不支持绑定目录。请用 Chrome 或 Edge 打开本文件；也可以继续用手动导出。");
+    return;
+  }
+  window.showDirectoryPicker({id:"kqzb-data",mode:"readwrite",startIn:"documents"}).then(function(h){
+    DIR=h;DIRWARNED=false;DIR_STALE=false;
+    DIR_READY=false;LASTRAW={};      /* 换了目录：旧目录的路径与内容缓存全部作废 */
+    refreshDirBadge();
+    /* 句柄存 IndexedDB 以便下次直接可用；存不进去也不影响这次读写 */
+    try{idbSet("dir",h);}catch(e){}
+    return dirPerm(true);
+  }).then(function(ok){
+    if(!ok)throw new Error("permission");
+    return dirStat().then(function(info){
+      if(info&&info.months&&info.months.length){
+        var when=info.mtime?new Date(info.mtime).toLocaleString("zh-CN"):"—";
+        var mine=DB.savedAt?new Date(DB.savedAt).toLocaleString("zh-CN"):"从未保存";
+        if(!confirm("这个文件夹里已经有 "+info.months.length+" 个月份文件（例如 "+info.months[0].name+"）：\n"
+          +"共 "+info.days+" 天 · 约 "+(info.size/1024).toFixed(1)+" KB · 最后写入 "+when+"\n"
+          +"本机 "+mine+"\n\n"
+          +"连接后以较新的一份为准：文件较新就读文件、本机记录被替换；本机较新就把记录写进这个文件夹。继续？")){
+          throw new Error("cancel");
+        }
+      }
+      return hydrateFromDir(false);
+    });
+  }).then(function(st){
+    if(st==="locked"){
+      unlockFile().then(function(ok){
+        if(ok){toast("已用口令打开数据文件，记录已载入");renderAll();}
+        else toast("口令不对或已取消，文件没有改动");
+        renderSet();updateDirNotice();
+      });
+      return;
+    }
+    if(st==="migrated"){
+      toast("已识别旧版整库文件，记录已按月拆成多个文件");
+      renderAll();renderSet();updateDirNotice();
+      return;
+    }
+    if(st==="file"){
+      toast("已连接：本机记录已按月份文件更新");
+      renderAll();renderSet();updateDirNotice();
+      return;
+    }
+    if(st==="local"){
+      toast("已连接：本机记录较新，已写进各月份文件");
+      renderSet();updateDirNotice();
+      return;
+    }
+    /* 没有文件、或两边一致：确保文件存在且是最新的 */
+    writeDbToDir(true).then(function(w){
+      DIR_STALE=!w;
+      toast(w?"已连接。以后按年份建文件夹、每月一个文件，改哪个月只重写那个月":"已连接，但写入被拒绝，检查一下目录权限");
+      renderSet();updateDirNotice();
+    });
+  }).catch(function(e){
+    if(e&&e.name==="AbortError")return;
+    if(e&&e.message==="cancel"){
+      DIR=null;DIRWARNED=false;DIR_STALE=false;
+      try{idbSet("dir",null);}catch(_){}
+      toast("已取消，没有改动文件");
+      renderSet();updateDirNotice();
+      return;
+    }
+    toast("目录没设成，可重试或继续手动导出");
+    renderSet();
+  });
+}
+/* 连接 / 同步：先拿权限，再按文件与本机的新旧决定方向，绝不无脑覆盖 */
+function writeNow(){
+  if(!DIR){alert("还没有选择数据目录");return;}
+  dirPerm(true).then(function(ok){
+    if(!ok){toast("没拿到读写权限");return null;}
+    return dirStat().then(function(info){
+      if(!info||!info.months||!info.months.length){
+        return writeDbToDir(true).then(function(w){return w?"written":false;});
+      }
+      return hydrateFromDir(false);
+    });
+  }).then(function(st){
+    if(st==null)return;
+    if(st==="file"){DIR_STALE=false;renderAll();toast("文件较新，已按月份文件更新本机记录");}
+    else if(st==="local"){DIR_STALE=false;toast("本机较新，已写入各月份文件");}
+    else if(st==="migrated"){DIR_STALE=false;renderAll();toast("已把旧版整库文件拆成月份文件");}
+    else if(st==="written"){DIR_STALE=false;toast("已写入 "+localMonthKeys().length+" 个月份文件到「"+DIR.name+"」");}
+    else if(st==="same"){DIR_STALE=false;toast("文件与本机一致，无需同步");}
+    else if(st==="locked"){
+      unlockFile().then(function(ok){
+        if(ok){toast("已用口令打开数据文件");renderAll();}
+        else toast("口令不对或已取消，文件没有改动");
+        renderSet();
+      });
+      return;
+    }
+    else {DIR_STALE=true;toast("写入失败，检查目录是否还在");}
+    renderSet();
+  }).catch(function(){DIR_STALE=true;refreshDirBadge();toast("同步失败");});
+}
+/* 强制用文件覆盖本机：换电脑、从备份恢复时用 */
+function reloadFromDir(){
+  if(!DIR){alert("先到上面选一个数据目录，才能从文件读回记录。");return;}
+  if(!confirm("用数据文件里的内容覆盖当前记录？\n\n浏览器里的记录会被文件版本替换，替换后不能撤销。建议先「导出备份」再操作。"))return;
+  dirPerm(true).then(function(ok){
+    if(!ok){toast("没拿到读取权限");return null;}
+    return hydrateFromDir(true);
+  }).then(function(st){
+    if(st==="file"){renderAll();toast("已从数据文件重新载入 "+dayCount(DB)+" 天记录");}
+    else if(st==="locked"){
+      unlockFile().then(function(ok){
+        if(ok){toast("已用口令打开数据文件，记录已载入");renderAll();}
+        else toast("口令不对或已取消");
+        renderSet();
+      });
+    }
+    else toast("文件不存在或读不出来");
+  }).catch(function(){toast("读取失败");});
+}
+function dropDir(){
+  if(!confirm("解除后不再读写这个目录，记录只留在浏览器里（之前写出的 JSON 文件还在原处，不会被删）。确定？"))return;
+  DIR=null;DIRWARNED=false;FILE_LOCKED=false;DIR_READY=false;LASTRAW={};
+  try{idbSet("dir",null);}catch(e){}
+  renderSet();updateDirNotice();toast("已解除目录绑定");
+}
+function loadDir(){
+  /* IndexedDB 在某些浏览模式下会一直不给回调，加个兜底，别把界面卡在"读取中" */
+  /* 回填时只在还没绑定目录的情况下生效，避免把刚选好的目录冲掉 */
+  var read=idbGet("dir").then(function(h){if(!DIR)DIR=h||null;}).catch(function(){});
+  var wait=new Promise(function(res){setTimeout(res,1200);});
+  return Promise.race([read,wait]).then(function(){DIRWARNED=false;});
+}
+function updateDirNotice(){
+  var n=$("dirNotice");
+  if(!n)return;
+  n.hidden=!!(DIR||(DB&&DB.settings&&DB.settings.dirTipOff));
+  refreshDirBadge();
+}
+
+function importJson(){
+  var inp=document.createElement("input");
+  inp.type="file";inp.accept=".json,application/json";
+  inp.onchange=function(){
+    var f=inp.files[0];if(!f)return;
+    var rd=new FileReader();
+    rd.onload=function(){
+      var raw=rd.result;
+      var done=function(db){
+        db=normalize(db);
+        var replace=confirm("点「确定」= 用备份完全覆盖当前数据；点「取消」= 与当前数据合并（同一天取较新的那条）。");
+        if(replace){DB=db;}
+        else{
+          Object.keys(db.days).forEach(function(k){
+            var a=DB.days[k],b=db.days[k];
+            if(!a||(b.upd||0)>=(a.upd||0))DB.days[k]=b;
+          });
+          Object.keys(db.months).forEach(function(k){
+            if(!DB.months[k])DB.months[k]=db.months[k];
+          });
+        }
+        persist().then(function(){toast("导入完成");renderCal();renderSet();if(!$("view-sum").hidden)renderSum();});
+      };
+      try{
+        var obj=JSON.parse(raw);
+        if(obj&&obj.enc){
+          var pass=prompt("这份备份是加密的，请输入当时的口令：");
+          if(!pass)return;
+          decryptText(raw,META.salt||"",pass).then(function(txt){done(JSON.parse(txt));})
+            .catch(function(){alert("口令不对，或文件已损坏");});
+        }else done(obj);
+      }catch(e){alert("文件格式不对，无法导入");}
+    };
+    rd.readAsText(f);
+  };
+  inp.click();
+}
+
+function askSetPass(){
+  if(!hasCrypto()){alert("当前浏览器不支持本地加密，请改用 Chrome 或 Edge 打开本文件，再设置口令。");return;}
+  var p=prompt("设置打开口令（建议 6 位以上）。\n注意：忘记口令将无法解密数据，只能靠明文备份恢复。","");
+  if(p==null)return;
+  p=p.trim();
+  if(p.length<4){alert("口令太短，至少 4 位");return;}
+  var p2=prompt("再输一次确认：","");
+  if(p2!==p){alert("两次输入不一致");return;}
+  var salt=b64(crypto.getRandomValues(new Uint8Array(16)));
+  META={pass:true,salt:salt};PASS=p;
+  persist().then(function(){toast("口令已开启");renderSet();});
+}
+
+/* ---------- 启动 ---------- */
+function showApp(){
+  $("lockScreen").hidden=true;
+  $("app").hidden=false;
+  var t=new Date();
+  CUR=t.getFullYear()+"-"+pad(t.getMonth()+1);
+  renderCal();renderSum();
+  bindEvents();
+  refreshDirBadge();updateDirNotice();
+  /* 以数据文件为准：有目录就尝试读一次，文件更新则采用 */
+  loadDir().then(function(){
+    renderSet();updateDirNotice();refreshDirBadge();
+    return hydrateFromDir(false);
+  }).then(function(st){
+    if(st==="file"){
+      renderAll();
+      toast("已从数据文件读取 "+dayCount(DB)+" 天记录");
+    }else if(st==="local"){
+      /* 浏览器里比文件新：上面的保存链路已经写回去了 */
+      DIR_STALE=false;
+      refreshDirBadge();
+      toast("各月份文件已按浏览器里的记录更新（"+dayCount(DB)+" 天）");
+    }else if(st==="migrated"){
+      toast("旧版整库文件已按月拆成多个文件");
+      renderSet();updateDirNotice();
+    }else if(st==="locked"){
+      if(dayCount(DB)===0){
+        /* 本机没有记录、文件又是加密的：多半是换了电脑，直接问一次口令 */
+        unlockFile().then(function(ok){
+          if(ok){renderAll();toast("已用口令打开数据文件，记录已载入");}
+          else renderSet();
+        });
+      }else{
+        toast("数据文件是加密的，本机口令读不出，已暂停写入该文件");
+        renderSet();
+      }
+    }else if(DIR&&!FILE_LOCKED){
+      /* 有目录、文件读不到或还没建：把状态摆到标题栏，别让它悄悄不同步 */
+      dirPerm(false).then(function(ok){
+        if(!ok){DIR_STALE=true;refreshDirBadge();hookPermOnce();return;}
+        return dirStat().then(function(info){
+          DIR_STALE=!info;
+          refreshDirBadge();
+        });
+      }).catch(function(){});
+    }
+  }).catch(function(){});
+}
+function boot(){
+  var raw=loadRaw();
+  if(!raw){DB=blankDB();showApp();return;}
+  if(META.pass&&META.salt){
+    $("lockScreen").hidden=false;
+    $("lockBtn").addEventListener("click",tryUnlock);
+    $("lockPass").addEventListener("keydown",function(e){if(e.key==="Enter")tryUnlock();});
+    setTimeout(function(){$("lockPass").focus();},80);
+  }else{
+    try{DB=normalize(JSON.parse(raw));}catch(e){DB=blankDB();}
+    showApp();
+  }
+}
+function tryUnlock(){
+  var p=$("lockPass").value;
+  if(!p){$("lockErr").textContent="请输入口令";return;}
+  $("lockErr").textContent="";
+  var raw=localStorage.getItem(DB_KEY);
+  decryptText(raw,META.salt,p).then(function(txt){
+    DB=normalize(JSON.parse(txt));PASS=p;
+    showApp();
+  }).catch(function(){$("lockErr").textContent="口令不对";});
+}
+
+function setView(v){
+  VIEW=v;
+  Array.prototype.forEach.call(document.querySelectorAll(".tab"),function(x){x.classList.toggle("active",x.dataset.view===v);});
+  $("view-cal").hidden=v!=="cal";
+  $("view-sum").hidden=v!=="sum";
+  $("view-set").hidden=v!=="set";
+  if(v==="cal")renderCal();
+  if(v==="sum")renderSum();
+  if(v==="set")renderSet();
+  updateDirNotice();
+}
+
+function bindEvents(){
+  $("prevM").addEventListener("click",function(){shiftMonth(-1);});
+  $("nextM").addEventListener("click",function(){shiftMonth(1);});
+  $("toNow").addEventListener("click",function(){
+    var t=new Date();CUR=t.getFullYear()+"-"+pad(t.getMonth()+1);renderCal();
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".tab"),function(b){
+    b.addEventListener("click",function(){setView(this.dataset.view);});
+  });
+  $("noticeSet").addEventListener("click",function(){setView("set");});
+  $("noticeDl").addEventListener("click",downloadJson);
+  $("noticeHide").addEventListener("click",function(){
+    DB.settings.dirTipOff=true;
+    persist().then(function(){updateDirNotice();});
+  });
+  $("dirPill").addEventListener("click",function(){
+    if(!DIR&&dayCount(DB)===0){toast("还没有记录可以保存，先记几天再看");return;}
+    backupToDisk();
+  });
+
+  $("cal").addEventListener("click",function(e){
+    if(SUPPRESS_CLICK)return;
+    var half=e.target.closest("[data-half]");
+    if(half){e.stopPropagation();cycleHalf(half.dataset.d,half.dataset.half);return;}
+    var cell=e.target.closest(".cell");
+    if(cell&&!cell.classList.contains("blank")&&cell.dataset.d){openEditor(cell.dataset.d);}
+  });
+
+  /* 拖选：按住移动超过一格才开始选，单击仍是原来的切换半天 */
+  $("cal").addEventListener("pointerdown",function(e){
+    if(e.button!==undefined&&e.button!==0)return;
+    var cell=e.target.closest(".cell[data-d]");
+    if(!cell)return;
+    DRAG.on=true;DRAG.moved=false;DRAG.sx=e.clientX;DRAG.sy=e.clientY;DRAG.startKey=cell.dataset.d;
+  });
+  document.addEventListener("pointermove",function(e){
+    if(!DRAG.on)return;
+    if(!DRAG.moved){
+      if(Math.abs(e.clientX-DRAG.sx)<7&&Math.abs(e.clientY-DRAG.sy)<7)return;
+      DRAG.moved=true;document.body.classList.add("dragging");
+    }
+    e.preventDefault();
+    var el=document.elementFromPoint(e.clientX,e.clientY);
+    var cell=el&&el.closest?el.closest(".cell[data-d]"):null;
+    if(cell)setSel(rectKeys(DRAG.startKey,cell.dataset.d));
+  });
+  document.addEventListener("pointerup",function(e){
+    if(!DRAG.on)return;
+    DRAG.on=false;
+    document.body.classList.remove("dragging");
+    if(DRAG.moved){
+      SUPPRESS_CLICK=true;
+      setTimeout(function(){SUPPRESS_CLICK=false;},80);
+      showSelBar();
+    }else{
+      clearSel();
+    }
+  });
+  $("selbar").addEventListener("click",function(e){
+    var b=e.target.closest("[data-set]");
+    if(b){applySelection(b.dataset.set);return;}
+    if(e.target.closest("#selCancel"))clearSel();
+  });
+  $("undoBtn").addEventListener("click",undoApply);
+  $("undoX").addEventListener("click",hideUndo);
+
+  /* 批量设置 */
+  $("bkState").addEventListener("click",function(e){
+    var b=e.target.closest("[data-st]");if(!b)return;
+    e.stopPropagation();
+    BK.state=b.dataset.st;
+    Array.prototype.forEach.call($("bkState").children,function(c){c.classList.toggle("active",c===b);});
+    $("bkClearLes").checked=(BK.state==="leave"||BK.state==="empty");
+  });
+  $("bkWd").addEventListener("click",function(e){
+    var b=e.target.closest("[data-wd]");if(!b)return;
+    e.stopPropagation();
+    var w=b.dataset.wd;
+    BK.wd[w]=!BK.wd[w];
+    b.classList.toggle("active",BK.wd[w]);
+    updateBkPreview();
+  });
+  $("bkFrom").addEventListener("change",updateBkPreview);
+  $("bkTo").addEventListener("change",updateBkPreview);
+  $("bkCancel").addEventListener("click",function(){$("bulkModal").classList.remove("show");});
+  $("bulkModal").addEventListener("click",function(e){if(e.target===this)this.classList.remove("show");});
+  $("bkApply").addEventListener("click",function(){
+    var keys=bulkKeys();
+    if(!keys.length){alert("这个范围内没有符合条件的日子，检查一下日期和星期。");return;}
+    var m=SETMAP[BK.state]||SETMAP.work;
+    if(applyKeys(keys,m[0],m[1],$("bkClearLes").checked)){
+      $("bulkModal").classList.remove("show");
+    }
+  });
+
+  $("modal").addEventListener("click",function(e){
+    if(e.target===this){saveEditor(true);}
+  });
+  document.addEventListener("click",function(e){
+    var opt=e.target.closest(".opt");
+    if(opt){
+      var box=opt.parentNode;
+      Array.prototype.forEach.call(box.children,function(c){c.classList.remove("active");});
+      opt.classList.add("active");
+    }
+  });
+  $("mPlus").addEventListener("click",function(){
+    var v=parseInt($("mLessons").textContent,10)||0;$("mLessons").textContent=v+1;
+  });
+  $("mMinus").addEventListener("click",function(){
+    var v=parseInt($("mLessons").textContent,10)||0;$("mLessons").textContent=Math.max(0,v-1);
+  });
+  $("mDone").addEventListener("click",function(){saveEditor(true);});
+  $("mPrev").addEventListener("click",function(){stepDay(-1);});
+  $("mNext").addEventListener("click",function(){stepDay(1);});
+
+  /* 按月导出 */
+  $("expQuick").addEventListener("click",function(e){
+    var b=e.target.closest("[data-r]");if(!b)return;
+    expApplyRange(b.dataset.r);
+  });
+  $("expFrom").addEventListener("change",function(){
+    if(this.value&&$("expTo").value&&this.value>$("expTo").value)$("expTo").value=this.value;
+    EXP.from=this.value;updateExpPreview();
+  });
+  $("expTo").addEventListener("change",function(){
+    if(this.value&&$("expFrom").value&&this.value<$("expFrom").value)$("expFrom").value=this.value;
+    EXP.to=this.value;updateExpPreview();
+  });
+  $("expSum").addEventListener("change",updateExpPreview);
+  $("expDay").addEventListener("change",updateExpPreview);
+  $("expCancel").addEventListener("click",function(){$("expModal").classList.remove("show");});
+  $("expModal").addEventListener("click",function(e){if(e.target===this)this.classList.remove("show");});
+  $("expRun").addEventListener("click",runExport);
+
+  $("bulkSet").addEventListener("click",openBulk);
+  $("fillCourse").addEventListener("click",function(){
+    if(!DB.term.start){alert("请先到「设置 → 课程表与教学周」填写第 1 教学周的周一。");return;}
+    if(!DB.courses.length){alert("课程表还是空的，先到设置里添加课程。");return;}
+    var p=monthP(CUR);
+    if(p.checked&&!confirm("本月已标记核对，仍要填充吗？"))return;
+    var q=ymd(CUR+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate();
+    var filled=0,skipped=0,hol=0;
+    for(var d=1;d<=n;d++){
+      var k=dk(y,m,d);
+      if(isHoliday(k)){hol++;continue;}
+      var v=lessonsFor(k);
+      if(v<=0)continue;
+      var ex=peek(k);
+      if(ex&&(ex.off||ex.am==="leave"||ex.pm==="leave")){skipped++;continue;}
+      if(ex&&(ex.lset||(parseInt(ex.lessons,10)||0)>0)){skipped++;continue;}
+      var a0=effHalf(k,"am"),b0=effHalf(k,"pm");
+      var r=rec(k);
+      /* 新建的记录必须带上当天"原本会默认上班"的状态，否则空的上下午会盖掉默认出勤 */
+      if(!r.am)r.am=a0||"";
+      if(!r.pm)r.pm=b0||"";
+      r.lessons=v;r.lset=true;r.upd=Date.now();filled++;
+    }
+    persist().then(function(){
+      toast("已填 "+filled+" 天课时"+(skipped?"，跳过 "+skipped+" 天已有记录":"")+(hol?"，法定节假日 "+hol+" 天不填":""));
+      renderCal();
+    });
+  });
+  $("fillWork").addEventListener("click",function(){
+    if(!DB.settings.autoWork){toast("默认出勤是关闭的，请先在设置里打开「法定工作日默认算全天上班」");return;}
+    var p=monthP(CUR);
+    if(p.checked&&!confirm("本月已标记核对，仍要恢复默认出勤？"))return;
+    var q=ymd(CUR+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate(),cnt=0,snap={};
+    for(var d=1;d<=n;d++){
+      var k=dk(y,m,d),r=peek(k);
+      if(!r||!r.off)continue;
+      if(!defaultHalf(k,"am")&&!defaultHalf(k,"pm"))continue;
+      snap[k]=JSON.parse(JSON.stringify(r));
+      if(!r.am&&!r.pm&&!r.lessons&&!r.note)delete DB.days[k];
+      else{r.off=false;r.upd=Date.now();}
+      cnt++;
+    }
+    if(!cnt){toast("本月没有需要恢复的日子");return;}
+    showUndo("已恢复默认出勤 "+cnt+" 天",snap);
+    persist().then(function(){toast("已恢复 "+cnt+" 天默认出勤");renderCal();});
+  });
+  $("clearM").addEventListener("click",function(){
+    var p=monthP(CUR);
+    if(p.checked&&!confirm("本月已标记核对，仍要清空？"))return;
+    if(!confirm("清空 "+CUR+" 的全部记录？\n\n清空后：出勤 0 天、课时 0 节、应发 ¥0，默认出勤也一并清掉。\n误操作可在 5 秒内点「撤销」；想让法定工作日重新自动算回来，点「恢复默认出勤」。"))return;
+    var q=ymd(CUR+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate(),snap={};
+    for(var d=1;d<=n;d++){
+      var k=dk(y,m,d),r=peek(k);
+      snap[k]=r?JSON.parse(JSON.stringify(r)):null;
+      /* 本来会默认上班的日子，留一个"明确不上班"的墓碑，否则清空后默认值又会顶回来 */
+      if(defaultHalf(k,"am")||defaultHalf(k,"pm")){
+        DB.days[k]={am:"",pm:"",lessons:0,note:"",off:true,lset:false,upd:Date.now()};
+      }else{
+        delete DB.days[k];
+      }
+    }
+    p.checked=false;
+    showUndo("已清空 "+CUR,snap);
+    persist().then(function(){toast("已清空，出勤归 0");renderCal();});
+  });
+}
+
+boot();
+})();
+</script>
+</body>
+</html>

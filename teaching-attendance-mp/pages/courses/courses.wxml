@@ -1,0 +1,103 @@
+<view class="page">
+  <view class="card">
+    <text class="card-title">教学周基准</text>
+    <view class="row">
+      <view class="col">
+        <text class="row-label">第 1 教学周的周一</text>
+        <text class="sub">{{termStartText}}</text>
+      </view>
+      <picker mode="date" value="{{termStart}}" bindchange="pickTerm">
+        <view class="pick-btn">{{termStart ? '改' : '选'}}</view>
+      </picker>
+    </view>
+    <view class="param-note" wx:if="{{termStart}}" bindtap="clearTerm">清除基准日</view>
+    <view class="preview">{{preview}}</view>
+  </view>
+
+  <view class="card">
+    <text class="card-title">课程</text>
+    <view class="empty" wx:if="{{!courses.length}}">
+      <text class="empty-t">还没有课程</text>
+      <text class="empty-s">添加之后，记账页就能一键把整月课时填好。</text>
+    </view>
+    <view class="course" wx:for="{{courses}}" wx:key="id" data-id="{{item.id}}" bindtap="editCourse">
+      <view class="course-main">
+        <text class="course-name">{{item.name}}</text>
+        <text class="course-desc">{{item.desc}}</text>
+      </view>
+      <text class="arrow">›</text>
+    </view>
+    <view class="btn primary add" bindtap="addCourse">+ 添加课程</view>
+  </view>
+
+  <view class="tips">
+    <text>填充时按「日期 → 第几教学周 → 星期几 → 是否在这门课的周次范围内」逐条匹配，单双周也会一起判断。法定节假日不填课时，请假或已标记休息的日子会跳过。</text>
+  </view>
+</view>
+
+<view class="mask" wx:if="{{editing}}" bindtap="closeEdit" catchtouchmove="noop"></view>
+
+<view class="sheet" wx:if="{{editing}}">
+  <view class="sheet-head">
+    <text class="sheet-title">{{editing.title}}</text>
+    <view class="sheet-x" bindtap="closeEdit">✕</view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">课程名称</text>
+    <input class="txt" value="{{editing.name}}" placeholder="如「高一 3 班语文」" maxlength="16" bindinput="onName" />
+  </view>
+
+  <view class="field">
+    <text class="field-label">星期几</text>
+    <view class="segs">
+      <view class="seg sm {{editing.weekday === item ? 'on' : ''}}" wx:for="{{weekdayOpts}}" wx:key="*this"
+            data-v="{{item}}" bindtap="setWeekday">{{item}}</view>
+    </view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">每次节数</text>
+    <view class="stepper">
+      <view class="step" data-d="-1" bindtap="stepLessons">−</view>
+      <text class="step-val">{{editing.lessons}}</text>
+      <view class="step" data-d="1" bindtap="stepLessons">＋</view>
+    </view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">周次范围</text>
+    <view class="week-range">
+      <view class="wr">
+        <text class="wr-l">起始</text>
+        <view class="stepper mini">
+          <view class="step" data-w="startWeek" data-d="-1" bindtap="stepWeek">−</view>
+          <text class="step-val sm-v">{{editing.startWeek}}</text>
+          <view class="step" data-w="startWeek" data-d="1" bindtap="stepWeek">＋</view>
+        </view>
+      </view>
+      <view class="wr">
+        <text class="wr-l">结束</text>
+        <view class="stepper mini">
+          <view class="step" data-w="endWeek" data-d="-1" bindtap="stepWeek">−</view>
+          <text class="step-val sm-v">{{editing.endWeek}}</text>
+          <view class="step" data-w="endWeek" data-d="1" bindtap="stepWeek">＋</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">单双周</text>
+    <view class="segs">
+      <view class="seg {{editing.parity === item.v ? 'on-t' : ''}}" wx:for="{{parityOpts}}" wx:key="v"
+            data-v="{{item.v}}" bindtap="setParity">{{item.label}}</view>
+    </view>
+  </view>
+
+  <view class="sheet-actions">
+    <view class="btn danger" wx:if="{{editing.id}}" bindtap="deleteCourse">删除</view>
+    <view class="btn primary" bindtap="saveCourse">保存</view>
+  </view>
+  <view class="safe"></view>
+</view>

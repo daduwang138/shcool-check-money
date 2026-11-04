@@ -1,0 +1,120 @@
+<view class="page">
+  <view class="card">
+    <text class="card-title">工资参数</text>
+
+    <view class="row">
+      <text class="row-label">姓名</text>
+      <input class="txt-in" value="{{owner}}" placeholder="可不填" maxlength="12" bindblur="setOwner" />
+    </view>
+
+    <view class="row">
+      <view class="col">
+        <text class="row-label">基本工资（元/月）</text>
+        <text class="sub">按法定工作日折算成日薪</text>
+      </view>
+      <switch checked="{{enableBase}}" data-key="enableBase" bindchange="toggle" color="#1B5E9B" />
+    </view>
+    <view class="row">
+      <text class="row-label">金额</text>
+      <input class="num-in" type="digit" value="{{baseSalary}}" bindblur="setSalary" />
+    </view>
+
+    <view class="row">
+      <view class="col">
+        <text class="row-label">课时费（元/节）</text>
+        <text class="sub">按当月实际课时计</text>
+      </view>
+      <switch checked="{{enableLesson}}" data-key="enableLesson" bindchange="toggle" color="#1B5E9B" />
+    </view>
+    <view class="row">
+      <text class="row-label">单价</text>
+      <input class="num-in" type="digit" value="{{rate}}" bindblur="setRate" />
+    </view>
+
+    <view class="row">
+      <view class="col">
+        <text class="row-label">监考计入出勤</text>
+        <text class="sub">半天监考折 0.5 天，与上班同价</text>
+      </view>
+      <switch checked="{{enableInv}}" data-key="enableInv" bindchange="toggle" color="#1B5E9B" />
+    </view>
+
+    <view class="row">
+      <view class="col">
+        <text class="row-label">加班计入出勤</text>
+        <text class="sub">含休息日加班，不限应上班天数上限</text>
+      </view>
+      <switch checked="{{enableOt}}" data-key="enableOt" bindchange="toggle" color="#1B5E9B" />
+    </view>
+  </view>
+
+  <view class="card">
+    <text class="card-title">出勤规则</text>
+
+    <view class="row">
+      <view class="col">
+        <text class="row-label">法定工作日默认算上班</text>
+        <text class="sub">打开后，没填的日子自动按上班计，10 月只需补监考和课时</text>
+      </view>
+      <switch checked="{{autoWork}}" data-key="autoWork" bindchange="toggle" color="#1B5E9B" />
+    </view>
+
+    <view class="week-block">
+      <text class="row-label">常规一周</text>
+      <text class="sub">法定节假日与调休优先，这里只在普通日子生效。点格子切换：班 → 半 → 休</text>
+      <view class="week">
+        <view class="wd {{item.on ? 'on' : (item.half ? 'half' : '')}}" wx:for="{{weekPattern}}" wx:key="i"
+              data-i="{{item.i}}" bindtap="cycleWeek">
+          <text class="wd-l">{{item.label}}</text>
+          <text class="wd-v">{{item.txt}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="row">
+      <view class="col">
+        <text class="row-label">入职起算日</text>
+        <text class="sub">{{startDateText}}</text>
+      </view>
+      <picker mode="date" value="{{startDate}}" bindchange="pickStart">
+        <view class="pick-btn">{{startDate ? '改' : '选'}}</view>
+      </picker>
+    </view>
+    <view class="param-note" wx:if="{{startDate}}" bindtap="clearStart">清除起算日</view>
+  </view>
+
+  <view class="card">
+    <text class="card-title">课程表与教学周</text>
+    <view class="row" bindtap="gotoCourses">
+      <view class="col">
+        <text class="row-label">课程表</text>
+        <text class="sub">第 1 教学周：{{termStart}} · 共 {{courseCount}} 门课</text>
+      </view>
+      <text class="arrow">›</text>
+    </view>
+  </view>
+
+  <view class="card">
+    <text class="card-title">数据</text>
+    <view class="row">
+      <text class="row-label">本机记录</text>
+      <text class="row-value">{{dayCount}} 天</text>
+    </view>
+    <view class="row">
+      <text class="row-label">存放位置</text>
+      <text class="row-value">本机微信存储</text>
+    </view>
+    <view class="data-tips">
+      <text>小程序的数据存在这台设备上，不上传服务器。换设备或换人用，靠下面的导出 / 导入搬一次；电脑端也可以直接用 HTML 版，两边 JSON 格式相同。</text>
+    </view>
+    <view class="data-actions">
+      <view class="btn primary" bindtap="exportBackup">导出备份 JSON</view>
+      <view class="btn" bindtap="importBackup">从聊天导入</view>
+    </view>
+    <view class="btn danger full" bindtap="clearAll">清空全部数据</view>
+  </view>
+
+  <view class="tips">
+    <text>导出的 JSON 可以发给「文件传输助手」，在电脑上打开、或用 HTML 版导入。手机端导出会生成文件并转为发送给聊天；电脑端会直接弹出保存位置。</text>
+  </view>
+</view>

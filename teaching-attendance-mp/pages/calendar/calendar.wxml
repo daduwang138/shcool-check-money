@@ -1,0 +1,115 @@
+<view class="page">
+  <view class="topbar">
+    <view class="nav" bindtap="prevMonth" hover-class="nav-hover">‹</view>
+    <picker mode="date" fields="month" value="{{ym}}" bindchange="pickMonth">
+      <view class="mon">{{monLabel}}<text class="caret">▾</text></view>
+    </picker>
+    <view class="nav" bindtap="nextMonth" hover-class="nav-hover">›</view>
+    <view class="go-today" bindtap="goToday">今天</view>
+  </view>
+
+  <view class="chips">
+    <view class="chip" wx:for="{{chips}}" wx:key="k">
+      <text class="chip-k">{{item.k}}</text>
+      <text class="chip-v">{{item.v}}</text>
+    </view>
+  </view>
+
+  <view class="legend">
+    <view class="lg" wx:for="{{legend}}" wx:key="k">
+      <view class="sw {{item.k}}"></view>
+      <text class="lg-t">{{item.label}}</text>
+    </view>
+  </view>
+
+  <view class="weekhead">
+    <text class="wh" wx:for="{{weekHead}}" wx:key="*this">{{item}}</text>
+  </view>
+
+  <view class="grid">
+    <view wx:for="{{cells}}" wx:key="id" class="{{item.blank ? 'cell blank' : item.cls}}" data-key="{{item.key}}" bindtap="tapCell">
+      <block wx:if="{{!item.blank}}">
+        <view class="dnum">
+          <text class="dn">{{item.d}}</text>
+          <text class="cd cd-{{item.tagCls}}" wx:if="{{item.tag}}">{{item.tag}}</text>
+        </view>
+        <view class="halves">
+          <view class="half {{item.amCls}}"></view>
+          <view class="half {{item.pmCls}}"></view>
+        </view>
+        <text class="les {{item.lesCls}}">{{item.lesText}}</text>
+      </block>
+    </view>
+  </view>
+
+  <view class="notes" wx:if="{{notes.length}}">
+    <text class="note-item" wx:for="{{notes}}" wx:key="*this">{{item}}</text>
+  </view>
+
+  <view class="tools">
+    <view class="btn primary" bindtap="fillCourse">按课程表填课时</view>
+    <view class="btn" bindtap="restoreDefault">恢复默认出勤</view>
+    <view class="btn danger" bindtap="clearMonth">清空本月</view>
+  </view>
+
+  <view class="tips">
+    <text>点格子改当天状态与课时。琥珀色虚线格表示开了「默认出勤」但还没核实的日子。</text>
+  </view>
+</view>
+
+<view class="mask" wx:if="{{sheet}}" bindtap="closeSheet" catchtouchmove="noop"></view>
+
+<view class="sheet" wx:if="{{sheet}}">
+  <view class="sheet-head">
+    <view class="sheet-title-wrap">
+      <text class="sheet-title">{{sheet.title}}</text>
+      <text class="sheet-sub">{{sheet.sub}}</text>
+    </view>
+    <view class="sheet-x" bindtap="closeSheet">✕</view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">上午</text>
+    <view class="segs">
+      <view wx:for="{{opts}}" wx:key="k" class="seg {{item.cls}} {{sheet.am === item.k ? 'on' : ''}}"
+            data-which="am" data-v="{{item.k}}" bindtap="pickHalf">{{item.label}}</view>
+    </view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">下午</text>
+    <view class="segs">
+      <view wx:for="{{opts}}" wx:key="k" class="seg {{item.cls}} {{sheet.pm === item.k ? 'on' : ''}}"
+            data-which="pm" data-v="{{item.k}}" bindtap="pickHalf">{{item.label}}</view>
+    </view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">课时</text>
+    <view class="stepper">
+      <view class="step" data-d="-1" bindtap="stepLesson">−</view>
+      <text class="step-val">{{sheet.lessons}}</text>
+      <view class="step" data-d="1" bindtap="stepLesson">＋</view>
+      <text class="sched" wx:if="{{sheet.exp > 0}}" bindtap="useSchedule">课程表 {{sheet.exp}} 节，点此采用</text>
+    </view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">备注</text>
+    <input class="note-input" value="{{sheet.note}}" placeholder="可选，如「期中监考」" maxlength="60" bindinput="onNote" />
+  </view>
+
+  <view class="sheet-actions">
+    <view class="btn ghost" bindtap="clearSheet">清空这天</view>
+    <view class="btn primary" bindtap="saveSheet">完成</view>
+  </view>
+  <view class="safe"></view>
+</view>
+
+<view class="undo" wx:if="{{undo}}">
+  <text class="undo-t">{{undo.label}}</text>
+  <view class="undo-right">
+    <text class="undo-act" bindtap="doUndo">撤销</text>
+    <text class="undo-x" catchtap="hideUndo">×</text>
+  </view>
+</view>
