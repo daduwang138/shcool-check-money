@@ -161,3 +161,50 @@
   font-size: 21rpx;
   line-height: 1.75;
 }
+
+/* ---------- 课时档位 ---------- */
+.rate-row {
+  display: flex;
+  align-items: center;
+  padding: 6rpx 0;
+}
+
+.rate-name-in {
+  width: 250rpx;
+  margin-right: 14rpx;
+  flex-shrink: 0;
+}
+
+.rate-row .num-in {
+  width: 180rpx;
+  flex-shrink: 0;
+}
+
+.rate-hint {
+  flex: 1;
+  padding-right: 16rpx;
+  line-height: 1.55;
+}
+
+.row .btn.sm {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.rate-x {
+  width: 56rpx;
+  height: 56rpx;
+  margin-left: 12rpx;
+  border-radius: 50%;
+  background: #F3F1EA;
+  color: #8A8E96;
+  font-size: 24rpx;
+  line-height: 56rpx;
+  text-align: center;
+}
+
+.btn.sm {
+  height: 58rpx;
+  padding: 0 22rpx;
+  font-size: 23rpx;
+}

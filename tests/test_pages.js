@@ -11,7 +11,7 @@ function ok(cond, name, extra) {
 
 /* ---------- wx 桩 ---------- */
 const mem = {};
-let toasts = [], modals = [], nextSheetPick = 0;
+let toasts = [], modals = [], nextSheetPick = 0, clips = [];
 let relaunched = [];
 /* 跳转与返回、导航栏标题：口令相关的页面用它 */
 let navigated = [], backCount = 0, titles = [];
@@ -25,6 +25,7 @@ global.wx = {
     if (o.success) { o.success({ confirm: true, cancel: false }); }
   },
   showActionSheet: o => { if (o.success) { o.success({ tapIndex: nextSheetPick }); } },
+  setClipboardData: o => { clips.push(o.data); if (o.success) { o.success(); } },
   getDeviceInfo: () => ({ platform: 'ios' }),
   env: { USER_DATA_PATH: '/tmp' },
   getFileSystemManager: () => ({
@@ -193,6 +194,37 @@ cal.clearMonth();
 ok(modals.some(m => /已标记核对/.test(m || '')), '已核对的月份清空前先确认', modals.join(' / '));
 ok(cal.db.months[cal.data.ym].checked === false, '清空后核对标记一并去掉');
 cal.hideUndo();   /* 收掉撤销条的 5 秒计时器，别让进程空等 */
+
+/* ================= 记账面板的课时档位 ================= */
+reset();
+const rdb = seedDb();
+rdb.settings.rates.push({ id: 'eve', name: '晚自习', price: 80 });
+mem['kqzb_db_v1'] = JSON.stringify(rdb);
+const rcal = makePage('calendar');
+rcal.onLoad();
+const rkey = '2026-11-04';
+rcal.openSheet(rkey);
+ok(rcal.data.rates.length === 2, '面板带出两档单价', rcal.data.rates.length);
+ok(rcal.data.sheet.rid === 'default', '没记过档位的日子默认正课');
+rcal.pickRate({ currentTarget: { dataset: { id: 'eve' } } });
+ok(rcal.data.sheet.rid === 'eve', '可以选晚自习');
+rcal.setData({ 'sheet.lessons': 3 });
+rcal.saveSheet();
+ok(current().days[rkey].rid === 'eve', '档位随记录一起落盘');
+ok(current().days[rkey].lessons === 3, '课时也记下了');
+ok(core.computeMonth(current(), '2026-11').byRate.some(r => r.id === 'eve' && r.lessons === 3),
+  '工资按晚自习档累加');
+/* 改回正课后应该把 rid 字段去掉，不留下无效档 */
+rcal.openSheet(rkey);
+rcal.pickRate({ currentTarget: { dataset: { id: 'default' } } });
+rcal.saveSheet();
+ok(!current().days[rkey].rid, '改回正课时不写 rid，老结构不变');
+/* 课时清零后档位区不显示，也不该留档位 */
+rcal.openSheet(rkey);
+rcal.pickRate({ currentTarget: { dataset: { id: 'eve' } } });
+rcal.setData({ 'sheet.lessons': 0 });
+rcal.saveSheet();
+ok(!(current().days[rkey] || {}).rid, '没课时不留档位');
 
 /* ================= 滑动选择 + 批量套用 ================= */
 reset();
@@ -396,6 +428,60 @@ slide(bcal2, '2026-11-12', 6 * 48, 0);
 ok(bcal2.data.selKeys.length > 0 && bcal2.data.selKeys.every(k => k >= '2026-11-16'),
   '滑动连选会自动跳过起算日前的日期', bcal2.data.selKeys.join(',') || '空');
 
+/* 批量设置：日期范围 + 星期，可跨月 */
+reset();
+seedDb();
+const bcal3 = makePage('calendar');
+bcal3.onLoad();
+bcal3.setData({ ym: '2026-09' });
+bcal3.render();
+bcal3.openBulk();
+ok(bcal3.data.bulk.from === '2026-09-01' && bcal3.data.bulk.to === '2026-09-30',
+  '批量·默认填当前整月', bcal3.data.bulk.from + '~' + bcal3.data.bulk.to);
+ok(bcal3.data.bulk.count > 0, '批量·打开就算出影响天数', bcal3.data.bulk.count);
+
+bcal3.setData({
+  bulk: Object.assign({}, bcal3.data.bulk, {
+    from: '2026-09-01', to: '2026-10-31', wd: [3], st: 'ot', clearLes: true
+  })
+});
+bcal3._bulkRefresh(bcal3.data.bulk);
+ok(bcal3.data.bulkWd.filter(x => x.on).length === 1 &&
+  bcal3.data.bulkWd.filter(x => x.on)[0].v === 3, '批量·星期多选只亮周三');
+
+const bkeys = bcal3._bulkKeys();
+ok(bkeys.every(k => core.dowOf(k) === 3), '批量·只挑周三', bkeys.join(','));
+ok(bkeys[0] === '2026-09-23' && bkeys.length === 6,
+  '批量·跳过起算日之前、跨月算满', bkeys[0] + ' 共 ' + bkeys.length + ' 天');
+
+bcal3.applyBulk();
+const bdb = core.normalize(current());
+ok(bdb.days['2026-09-23'] && bdb.days['2026-09-23'].am === 'ot' && bdb.days['2026-09-23'].pm === 'ot',
+  '批量·跨月写进周三');
+ok(!bdb.days['2026-09-22'], '批量·非周三不动');
+ok(!bdb.days['2026-09-02'], '批量·起算日之前不写');
+ok(bcal3.data.bulk === null, '批量·应用后关掉面板');
+
+bcal3.doUndo();
+const budb = core.normalize(current());
+ok(!budb.days['2026-09-23'], '批量·跨月改动也能撤销');
+
+/* 只上午：下午清空 */
+reset();
+seedDb();
+const bcal4 = makePage('calendar');
+bcal4.onLoad();
+bcal4.openBulk();
+bcal4.setData({
+  bulk: Object.assign({}, bcal4.data.bulk, {
+    from: '2026-11-02', to: '2026-11-02', wd: [1], st: 'am'
+  })
+});
+bcal4.applyBulk();
+const bdb4 = core.normalize(current());
+ok(bdb4.days['2026-11-02'].am === 'work' && bdb4.days['2026-11-02'].pm === '',
+  '批量·只上午只改上午');
+
 /* 汇总页 */
 reset();
 seedDb();
@@ -434,6 +520,48 @@ stF.save(sumF.db);
 sumF.render();
 ok(sumF.data.p.base === '12000', '记过的月份不受之后改设置影响', sumF.data.p.base);
 
+/* 复制核对单 + 导出范围 */
+reset();
+seedDb({
+  days: {
+    '2026-09-22': { am: 'work', pm: 'work', lessons: 2, note: '', upd: 1 },
+    '2026-11-03': { am: 'work', pm: 'inv', lessons: 3, note: '', upd: 2 }
+  }
+});
+const sumC = makePage('summary');
+sumC.onLoad();
+clips.length = 0;
+sumC.copySum();
+ok(clips.length === 1 &&
+  clips[0] === core.sumText(core.computeMonth(core.normalize(current()), sumC.data.ym)),
+  '复制核对单与内核文本逐字一致');
+
+const origExportCsv = stF.exportCsv;
+let gotMonths = null;
+stF.exportCsv = (db, months) => { gotMonths = months.slice(); return Promise.resolve('ok'); };
+
+nextSheetPick = 0; sumC.exportPick();
+ok(gotMonths && gotMonths.length === 1 && gotMonths[0] === sumC.data.ym, '导出范围·本月只出当月');
+nextSheetPick = 1; sumC.exportPick();
+ok(gotMonths && gotMonths.length === 3 && gotMonths[2] === core.todayKey().slice(0, 7),
+  '导出范围·近三个月含当月并往前推两个月', gotMonths && gotMonths.join(','));
+nextSheetPick = 2; sumC.exportPick();
+ok(gotMonths && gotMonths[0].slice(5) === '01' && gotMonths[gotMonths.length - 1] === core.todayKey().slice(0, 7),
+  '导出范围·今年从 1 月到当月', gotMonths && (gotMonths[0] + '~' + gotMonths[gotMonths.length - 1]));
+nextSheetPick = 3; sumC.exportPick();
+const allKeys = core.monthKeysOf(core.normalize(current()));
+ok(gotMonths && gotMonths.length === allKeys.length && gotMonths.every(m => allKeys.indexOf(m) >= 0),
+  '导出范围·全部只含有记录的月份', gotMonths && gotMonths.join(','));
+stF.exportCsv = origExportCsv;
+
+/* 没记录的月份不该给出空核对单 */
+sumC.setData({ ym: '2025-01' });
+sumC.render();
+clips.length = 0;
+sumC.copySum();
+ok(clips.length === 0 && toasts[toasts.length - 1] === '这个月还没有记录',
+  '空月份不复制核对单', toasts[toasts.length - 1]);
+
 /* 设置页 */
 reset();
 seedDb();
@@ -451,6 +579,29 @@ set.toggle({ currentTarget: { dataset: { key: 'autoWork' } }, detail: { value: f
 ok(current().settings.autoWork === false, '默认出勤开关可关');
 set.pickStart({ detail: { value: '2026-10-08' } });
 ok(current().settings.startDate === '2026-10-08', '入职起算日可改');
+
+/* 多档课时单价：加档、改名、改价、空名字不覆盖、删除 */
+set.addRate();
+let extra = current().settings.rates.filter(r => r.id !== 'default');
+ok(extra.length === 1, '可以加一档', extra.length);
+ok(set.data.rates.length === 1, '新档位立刻显示在界面上');
+const rid0 = extra[0].id;
+set.setRateName({ currentTarget: { dataset: { id: rid0 } }, detail: { value: '晚自习' } });
+ok(current().settings.rates.filter(r => r.id === rid0)[0].name === '晚自习', '档位可改名');
+set.setRatePrice({ currentTarget: { dataset: { id: rid0 } }, detail: { value: '80' } });
+ok(current().settings.rates.filter(r => r.id === rid0)[0].price === 80, '档位可改价');
+set.setRateName({ currentTarget: { dataset: { id: rid0 } }, detail: { value: '   ' } });
+ok(current().settings.rates.filter(r => r.id === rid0)[0].name === '晚自习', '名字留空不覆盖原值');
+set.setRatePrice({ currentTarget: { dataset: { id: rid0 } }, detail: { value: '-5' } });
+ok(current().settings.rates.filter(r => r.id === rid0)[0].price === 80, '负单价不接受');
+set.delRate({ currentTarget: { dataset: { id: rid0 } } });
+ok(current().settings.rates.filter(r => r.id === rid0).length === 0, '档位可删除');
+ok(current().settings.rates.filter(r => r.id === 'default').length === 1, '默认档删不掉');
+/* 删掉后重新加一档，留给后面的记账面板测试用 */
+set.addRate();
+const rid1 = current().settings.rates.filter(r => r.id !== 'default')[0].id;
+set.setRateName({ currentTarget: { dataset: { id: rid1 } }, detail: { value: '晚自习' } });
+set.setRatePrice({ currentTarget: { dataset: { id: rid1 } }, detail: { value: '80' } });
 
 /* 课程表页 */
 reset();

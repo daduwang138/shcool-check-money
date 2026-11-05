@@ -31,6 +31,17 @@
       <input class="num-in" type="digit" value="{{rate}}" bindblur="setRate" />
     </view>
 
+    <view class="rate-row" wx:for="{{rates}}" wx:key="id">
+      <input class="txt-in rate-name-in" value="{{item.name}}" data-id="{{item.id}}" bindblur="setRateName"
+        maxlength="8" placeholder="档位名，如晚自习" />
+      <input class="num-in" type="digit" value="{{item.price}}" data-id="{{item.id}}" bindblur="setRatePrice" />
+      <view class="rate-x" data-id="{{item.id}}" bindtap="delRate">✕</view>
+    </view>
+    <view class="row">
+      <text class="sub rate-hint">晚自习、代课单价不一样就加一档；记账时选了哪档按哪档算</text>
+      <view class="btn sm" bindtap="addRate">＋ 加档</view>
+    </view>
+
     <view class="row">
       <view class="col">
         <text class="row-label">监考计入出勤</text>

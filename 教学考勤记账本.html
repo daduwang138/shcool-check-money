@@ -238,6 +238,14 @@ tr.hi:hover td{background:#F4F8FC}
 .hol-del{height:22px!important;padding:0 8px!important;font-size:13px;line-height:1}
 .hol-add{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0 2px}
 .hol-add input[type=date]{width:150px}
+/* 课时档位 */
+.rate-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.rate-row .rate-name{width:150px}
+.rate-row .rate-price{width:104px}
+.rate-row .btn{margin-left:4px}
+/* 档位按钮没有状态类，选中态单独给一版 */
+.rate-opts .opt.active{background:linear-gradient(180deg,#2265A3,#1A578F);border-color:#174C7C;color:#fff}
+.rate-opts .opt.active span{opacity:.8}
 .hol-net{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:2px 0 2px}
 .hol-pv{margin:8px 0 4px;padding:10px 12px 8px;border:1px solid var(--line);border-radius:12px;background:#FCFBF7}
 .hol-pv .pv-hd{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px}
@@ -479,6 +487,10 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
         <span class="faint" style="margin-left:6px">节</span>
       </div>
       <div class="sug" id="mSug" style="display:none"></div>
+      <div id="mRateBox" style="display:none">
+        <div class="lb" style="margin-top:12px">按哪档计价</div>
+        <div class="opts rate-opts" id="mRate"></div>
+      </div>
     </div>
     <div class="sect">
       <div class="lb">备注（可选）</div>
@@ -952,19 +964,24 @@ function isGhost(key){
   return isGhostHalf(key,"am")||isGhostHalf(key,"pm");
 }
 /* 写一天的记录；清空时若该日法定上班，留一个"明确不上班"的墓碑，避免又被默认值顶回来 */
-function setRecord(key,am,pm,lessons,note,lset){
+function setRecord(key,am,pm,lessons,note,lset,rid){
   var prev=DB.days[key];
   var kept=(lset===undefined)?(prev?!!prev.lset:((parseInt(lessons,10)||0)>0)):!!lset;
+  /* 档位只有非默认档才落盘，默认档不写字段——这样老数据、老备份读进来结构还是一样的 */
+  /* 档位只对「有课时」有意义，0 节的日子不必留个空档位 */
+  var useRid=(rid&&rid!=="default"&&(parseInt(lessons,10)||0)>0)?rid:"";
   if(!am&&!pm&&!lessons&&!note){
     /* 这天本来就默认上班（法定工作日或常规周），要留一个"明确不上班"的墓碑，
        否则清空后默认值又会把它顶回来 */
     if(defaultHalf(key,"am")||defaultHalf(key,"pm")){
       DB.days[key]={am:"",pm:"",lessons:0,note:"",off:true,lset:kept,upd:Date.now()};
+      if(useRid)DB.days[key].rid=useRid;
     }else{
       delete DB.days[key];
     }
   }else{
     DB.days[key]={am:am,pm:pm,lessons:lessons,note:note,off:false,lset:kept,upd:Date.now()};
+    if(useRid)DB.days[key].rid=useRid;
   }
 }
 /* 这月有没有经手过：落过任意一条日记录，或标记过已核对。
@@ -989,15 +1006,47 @@ function monthP(ym){
      用 == null 判断：手动把某月工资改成 0 也算已冻结，不能因为 0 是 falsy 又跟回设置值。 */
   if(p.base==null&&monthTouched(ym))p.base=DB.settings.baseSalary;
   if(p.rate==null&&monthTouched(ym))p.rate=DB.settings.rate;
+  /* 附加档位（晚自习之类）的价格也一样冻：记过账的月份不能因为后来调价而变钱 */
+  if(p.rates==null&&monthTouched(ym)){
+    var snap={};
+    ratesOf(DB).forEach(function(r){if(r.id!=="default")snap[r.id]=r.price;});
+    p.rates=snap;
+  }
   return p;
 }
 /* 本月实际生效的基数与单价：有冻结值用冻结值，没有就跟当前设置 */
 function monthBase(ym){var p=DB.months[ym];return (p&&p.base!=null)?p.base:DB.settings.baseSalary;}
 function monthRate(ym){var p=DB.months[ym];return (p&&p.rate!=null)?p.rate:DB.settings.rate;}
+
+/* 课时档位：默认档（正课）的价格仍由 settings.rate 管，其余档放 settings.rates。
+   两版都从这一个函数取，避免「界面显示 120、算出来 100」这类对不上。 */
+function ratesOf(db){
+  var out=[{id:"default",name:"正课",price:parseFloat(db.settings.rate)||0}];
+  var list=(db.settings.rates||[]);
+  list.forEach(function(r){
+    if(!r||!r.id||r.id==="default")return;
+    out.push({id:r.id,name:r.name||"档位",price:parseFloat(r.price)||0});
+  });
+  return out;
+}
+function rateName(db,rid){
+  var l=ratesOf(db);
+  for(var i=0;i<l.length;i++){if(l[i].id===rid)return l[i].name;}
+  return l[0].name;
+}
+/* 某天某档的单价：默认档走月度冻结价，附加档走月度快照，没快照才用设置里的现价 */
+function priceOf(db,ym,rid){
+  if(!rid||rid==="default")return monthRate(ym);
+  var p=DB.months[ym];
+  if(p&&p.rates&&p.rates[rid]!=null)return p.rates[rid];
+  var l=ratesOf(db);
+  for(var i=0;i<l.length;i++){if(l[i].id===rid)return l[i].price;}
+  return monthRate(ym);
+}
 function computeMonth(ym){
   var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
   var n=new Date(y,m,0).getDate();
-  var half=0,lessons=0,filledDays=0,counted={work:0,inv:0,ot:0,leave:0};
+  var half=0,lessons=0,filledDays=0,byMap={},counted={work:0,inv:0,ot:0,leave:0};
   for(var d=1;d<=n;d++){
     var k=dk(y,m,d), rec0=peek(k);
     if(preStart(k))continue;                 // 入职前的日子整个跳过
@@ -1007,7 +1056,16 @@ function computeMonth(ym){
     if(b==="work"||b==="inv"||b==="ot"){half++;counted[b]++;}
     else if(b==="leave"){counted.leave++;}
     if(rec0){
-      lessons+=rec0.lessons||0;
+      var ln=parseInt(rec0.lessons,10)||0;
+      lessons+=ln;
+      /* 多档单价：按当天记的档位分别累加，没记档位算默认档 */
+      if(ln>0){
+        var rid=rec0.rid||"default";
+        var pr=priceOf(DB,ym,rid);
+        if(!byMap[rid])byMap[rid]={id:rid,name:rateName(DB,rid),lessons:0,price:pr,fee:0};
+        byMap[rid].lessons+=ln;
+        byMap[rid].fee+=ln*pr;
+      }
       if(rec0.am||rec0.pm||rec0.lessons||rec0.note)filledDays++;
     }
   }
@@ -1021,14 +1079,46 @@ function computeMonth(ym){
   var extra=Math.max(actual-workdays,0);
   var basePart=round2(dailyRate*capped);
   var extraPart=round2(dailyRate*extra);
-  var lessonFee=round2(lessons*rate);
+  var byRate=[],lessonFee=0;
+  if(DB.settings.enableLesson){
+    ratesOf(DB).forEach(function(r){if(byMap[r.id])byRate.push(byMap[r.id]);});
+    Object.keys(byMap).forEach(function(id){
+      var hit=false;
+      byRate.forEach(function(r){if(r.id===id)hit=true;});
+      if(!hit)byRate.push(byMap[id]);
+    });
+    byRate.forEach(function(r){lessonFee+=r.fee;});
+    lessonFee=round2(lessonFee);
+  }
   return {
     ym:ym,workdays:workdays,actual:actual,half:half,lessons:lessons,filledDays:filledDays,
-    dailyRate:dailyRate,base:base,rate:rate,
+    dailyRate:dailyRate,base:base,rate:rate,byRate:byRate,
     capped:capped,extra:extra,basePart:basePart,extraPart:extraPart,lessonFee:lessonFee,
     total:round2(basePart+extraPart+lessonFee),counted:counted,checked:!!p.checked,
     start:DB.settings.startDate||""
   };
+}
+
+/* 核对单文本：电脑版复制到剪贴板、小程序复制到微信，两版必须逐字一致 */
+function sumText(c){
+  var p=ymd(c.ym+"-01");
+  var L=[];
+  L.push(p[0]+" 年 "+p[1]+" 月 工资核对");
+  L.push("————————————————");
+  L.push("法定工作日："+c.workdays+" 天");
+  L.push("实际出勤："+fmtShort(c.actual)+" 天（上班 "+c.counted.work+" / 监考 "+c.counted.inv+" / 加班 "+c.counted.ot+" 半天，请假 "+c.counted.leave+" 半天）");
+  L.push("课时合计："+c.lessons+" 节");
+  /* 用了多档单价才列明细，只有一档时不必多一行 */
+  if(c.byRate&&c.byRate.length>1){
+    L.push("课时明细："+c.byRate.map(function(r){return r.name+" "+r.lessons+" 节 × "+fmtShort(r.price)+" = "+fmt(r.fee)+" 元";}).join("；"));
+  }
+  L.push("————————————————");
+  L.push("折算日薪："+fmt(c.dailyRate)+" 元");
+  L.push("① 基本工资部分："+fmt(c.basePart)+" 元");
+  L.push("② 超出天数部分："+fmt(c.extraPart)+" 元");
+  L.push("③ 课时费："+fmt(c.lessonFee)+" 元");
+  L.push("应发合计："+fmt(c.total)+" 元");
+  return L.join("\n");
 }
 
 /* ---------- 加密 ---------- */
@@ -1858,7 +1948,7 @@ function applyKeys(keys,am,pm,clearLes,quiet){
     snap[k]=r?JSON.parse(JSON.stringify(r)):null;
     var les=clearLes?0:(r?(parseInt(r.lessons,10)||0):0);
     var note=r?(r.note||""):"";
-    setRecord(k,am,pm,les,note,clearLes?true:(r?!!r.lset:false));
+    setRecord(k,am,pm,les,note,clearLes?true:(r?!!r.lset:false),clearLes?"":(r?r.rid:""));
   });
   showUndo("已修改 "+keys.length+" 天",snap);
   persist().then(function(){
@@ -1981,11 +2071,12 @@ function openEditor(key){
   buildOpts("mPm",pm,"pm");
   $("mLessons").textContent=les;
   $("mNote").value=r0?(r0.note||""):"";
+  buildRateOpts(r0&&r0.rid?r0.rid:"default", les);
   var sug=lessonsFor(key), box=$("mSug");
   if(sug>0&&!(r0&&r0.lset)){
     box.style.display="";
     box.innerHTML='<span>课程表上是 '+sug+' 节</span><button class="btn sm" id="mUseSug">用 '+sug+' 节</button>';
-    box.querySelector("#mUseSug").onclick=function(){$("mLessons").textContent=sug;box.style.display="none";};
+    box.querySelector("#mUseSug").onclick=function(){$("mLessons").textContent=sug;box.style.display="none";syncRateBox();};
   }else{
     box.style.display="none"; box.innerHTML="";
   }
@@ -2002,14 +2093,44 @@ function buildOpts(id,cur,which){
   });
   box.innerHTML=html;
 }
+function buildRateOpts(cur,les){
+  var box=$("mRateBox"), list=$("mRate");
+  if(!box||!list)return;
+  var rs=ratesOf(DB);
+  /* 只有一档（就是默认单价）时不必问，课时为 0 时也不问 */
+  if(!les||rs.length<2){box.style.display="none";list.innerHTML="";return;}
+  box.style.display="";
+  var hit=false;
+  list.innerHTML=rs.map(function(r){
+    if(r.id===cur)hit=true;
+    return '<button class="opt'+(r.id===cur?' active':'')+'" data-r="'+esc(r.id)+'">'
+      +esc(r.name)+' <span style="opacity:.6">'+fmtShort(r.price)+'</span></button>';
+  }).join("");
+  /* 老记录的档位后来被删了，退回默认档，别让面板空着 */
+  if(!hit&&list.firstChild)list.firstChild.classList.add("active");
+  Array.prototype.forEach.call(list.children,function(b){
+    b.addEventListener("click",function(){
+      Array.prototype.forEach.call(list.children,function(x){x.classList.remove("active");});
+      b.classList.add("active");
+    });
+  });
+}
+/* 课时数变了，档位区跟着显示/隐藏，并保住已经选中的档 */
+function syncRateBox(){
+  var on=$("mRate")?$("mRate").querySelector(".opt.active"):null;
+  var cur=(on&&on.dataset&&on.dataset.r)?on.dataset.r:"default";
+  buildRateOpts(cur, parseInt($("mLessons").textContent,10)||0);
+}
 function saveEditor(close){
   if(!EDIT)return;
   var key=EDIT, ym=key.slice(0,7), mp=monthP(ym);
   var am=$("mAm").querySelector(".opt.active"), pm=$("mPm").querySelector(".opt.active");
   var lessons=parseInt($("mLessons").textContent,10)||0;
   var note=$("mNote").value.trim();
+  var rb=$("mRate");
+  var rid=(lessons>0&&rb&&rb.querySelector(".opt.active"))?rb.querySelector(".opt.active").getAttribute("data-r"):"";
   if(mp.checked&&!confirm("本月已标记核对，仍要修改吗？"))return;
-  setRecord(key, am?am.dataset.v:"", pm?pm.dataset.v:"", lessons, note, true);
+  setRecord(key, am?am.dataset.v:"", pm?pm.dataset.v:"", lessons, note, true, rid);
   persist().then(function(){
     renderCal();
     if($("view-sum").hidden===false)renderSum();
@@ -2104,22 +2225,7 @@ function renderSum(){
   });
 }
 
-function summaryText(c){
-  var p=ymd(c.ym+"-01");
-  var L=[];
-  L.push(p[0]+" 年 "+p[1]+" 月 工资核对");
-  L.push("————————————————");
-  L.push("法定工作日："+c.workdays+" 天");
-  L.push("实际出勤："+fmtShort(c.actual)+" 天（上班 "+c.counted.work+" / 监考 "+c.counted.inv+" / 加班 "+c.counted.ot+" 半天，请假 "+c.counted.leave+" 半天）");
-  L.push("课时合计："+c.lessons+" 节");
-  L.push("————————————————");
-  L.push("折算日薪："+fmt(c.dailyRate)+" 元");
-  L.push("① 基本工资部分："+fmt(c.basePart)+" 元");
-  L.push("② 超出天数部分："+fmt(c.extraPart)+" 元");
-  L.push("③ 课时费："+fmt(c.lessonFee)+" 元");
-  L.push("应发合计："+fmt(c.total)+" 元");
-  return L.join("\n");
-}
+function summaryText(c){return sumText(c);}
 function copySummary(c){
   var txt=summaryText(c);
   if(navigator.clipboard&&navigator.clipboard.writeText){
@@ -2171,7 +2277,8 @@ function buildExportCsv(months,incSum,incDay){
   L.push(csvRow(["考勤统计",months[0]+" 至 "+months[months.length-1]]));
   L.push(csvRow(["导出时间",new Date().toLocaleString("zh-CN")]));
   if(DB.settings.startDate)L.push(csvRow(["入职起算日",DB.settings.startDate]));
-  L.push(csvRow(["计薪参数","基本工资 "+fmtShort(DB.settings.baseSalary)+" 元/月；课时单价 "+fmtShort(DB.settings.rate)+" 元/节"]));
+  var rateTxt=ratesOf(DB).map(function(r){return r.name+" "+fmtShort(r.price)+" 元/节";}).join("；");
+  L.push(csvRow(["计薪参数","基本工资 "+fmtShort(DB.settings.baseSalary)+" 元/月；课时单价 "+rateTxt]));
   L.push("");
   var tot={actual:0,les:0,base:0,extra:0,fee:0,all:0};
   if(incSum){
@@ -2192,7 +2299,7 @@ function buildExportCsv(months,incSum,incDay){
   }
   if(incDay){
     L.push(csvRow(["每日明细"]));
-    L.push(csvRow(["月份","日期","星期","上午","下午","课时","备注"]));
+    L.push(csvRow(["月份","日期","星期","上午","下午","课时","档位","备注"]));
     months.forEach(function(ym){
       var p=ymd(ym+"-01"),y=p[0],m=p[1],n=new Date(y,m,0).getDate();
       for(var d=1;d<=n;d++){
@@ -2202,7 +2309,9 @@ function buildExportCsv(months,incSum,incDay){
         var les=r?(parseInt(r.lessons,10)||0):0, note=r?(r.note||""):"";
         if(!a&&!b&&!les&&!note)continue;
         var wd=["日","一","二","三","四","五","六"][new Date(y,m-1,d).getDay()];
-        L.push(csvRow([ym,k,"周"+wd,a?sl(a).label:"",b?sl(b).label:"",les,note]));
+        /* 档位只在真有课时才写，空的写了反而像“这天是正课” */
+        var rn=les>0?rateName(DB,(r&&r.rid)||"default"):"";
+        L.push(csvRow([ym,k,"周"+wd,a?sl(a).label:"",b?sl(b).label:"",les,rn,note]));
       }
     });
     L.push("");
@@ -2544,8 +2653,23 @@ function renderSet(){
   h+='<div class="card"><h2>计薪参数</h2>';
   h+='<div class="fields">';
   h+='<div class="field"><div><label>基本工资（元/月）</label><div class="desc">用于按出勤天数折算</div></div><input type="number" id="setBase" min="0" step="0.01" value="'+(s.baseSalary||0)+'"></div>';
-  h+='<div class="field"><div><label>课时单价（元/节）</label><div class="desc">统一单价；多档位已在数据结构中预留，暂不开放</div></div><input type="number" id="setRate" min="0" step="0.01" value="'+(s.rate||0)+'"></div>';
+  h+='<div class="field"><div><label>课时单价（元/节）</label><div class="desc">正课这类默认单价；晚自习、代课等另加档位</div></div><input type="number" id="setRate" min="0" step="0.01" value="'+(s.rate||0)+'"></div>';
   h+='</div>';
+  /* ---------- 多档课时单价 ---------- */
+  var extraRates=(s.rates||[]).filter(function(r){return r&&r.id&&r.id!=="default";});
+  h+='<h3>课时档位</h3>';
+  h+='<p class="muted" style="margin-bottom:8px">不同课单价不一样时在这儿加档。记账面板里选了哪档就按哪档算，不选按上面的统一单价；已经记过账的月份按当时的价格冻住，后来调价不影响旧账。</p>';
+  extraRates.forEach(function(r){
+    h+='<div class="rate-row" data-rid="'+esc(r.id)+'">'
+      +'<input class="rate-name" value="'+esc(r.name||"")+'" placeholder="档位名，如晚自习" maxlength="8">'
+      +'<input class="rate-price" type="number" min="0" step="0.01" value="'+(r.price||0)+'">'
+      +'<span class="faint">元/节</span>'
+      +'<button class="btn sm rate-del" data-del="'+esc(r.id)+'">删除</button></div>';
+  });
+  if(!extraRates.length){
+    h+='<p class="faint" style="margin:2px 0 8px">还没加别的档位，现在全部按 '+(s.rate||0)+' 元/节算。</p>';
+  }
+  h+='<button class="btn sm" id="rateAdd">＋ 加一档</button>';
   h+='<h3>出勤默认值</h3>';
   h+='<div class="fields">';
   h+='<div class="field"><div><label>法定工作日默认算全天上班</label><div class="desc">开着就不用逐天勾选，只有请假、调休、监考这些例外才需要改</div></div><div class="switch'+(s.autoWork?" on":"")+'" data-k="autoWork"></div></div>';
@@ -2644,6 +2768,58 @@ function renderSet(){
     var v=parseFloat(this.value);DB.settings.rate=isNaN(v)?0:v;
     DB.settings.rates[0].price=DB.settings.rate;
     persist().then(function(){toast("已保存");});
+  });
+  /* 多档单价：改名、改价、加档、删档 */
+  function rateRowOf(el){var r=el.closest(".rate-row");return r?r.getAttribute("data-rid"):"";}
+  function rateById(id){
+    var l=DB.settings.rates||[];
+    for(var i=0;i<l.length;i++){if(l[i].id===id)return l[i];}
+    return null;
+  }
+  Array.prototype.forEach.call($("view-set").querySelectorAll(".rate-name"),function(inp){
+    inp.addEventListener("change",function(){
+      var r=rateById(rateRowOf(this)), v=this.value.trim();
+      if(!r)return;
+      if(!v){toast("档位名不能空着");renderSet();return;}
+      r.name=v;
+      persist().then(function(){renderSet();toast("已保存");});
+    });
+  });
+  Array.prototype.forEach.call($("view-set").querySelectorAll(".rate-price"),function(inp){
+    inp.addEventListener("change",function(){
+      var r=rateById(rateRowOf(this)), v=parseFloat(this.value);
+      if(!r)return;
+      r.price=isNaN(v)?0:Math.max(0,v);
+      persist().then(function(){renderSet();toast("已保存");});
+    });
+  });
+  Array.prototype.forEach.call($("view-set").querySelectorAll(".rate-del"),function(btn){
+    btn.addEventListener("click",function(){
+      var id=this.getAttribute("data-del"), r=rateById(id);
+      if(!r)return;
+      var used=0;
+      Object.keys(DB.days).forEach(function(k){if(DB.days[k]&&DB.days[k].rid===id)used++;});
+      var msg="删掉「"+r.name+"」这一档？";
+      if(used)msg+="\n\n有 "+used+" 天记录用的是这一档，删掉后这些天改按默认单价（"+(DB.settings.rate||0)+" 元/节）算，工资会跟着变。";
+      if(!confirm(msg))return;
+      DB.settings.rates=(DB.settings.rates||[]).filter(function(x){return x.id!==id;});
+      persist().then(function(){renderSet();toast("已删除");});
+    });
+  });
+  var rateAddBtn=$("rateAdd");
+  if(rateAddBtn)rateAddBtn.addEventListener("click",function(){
+    var l=DB.settings.rates||[];
+    var id="r"+(Date.now().toString(36));
+    while(rateById(id))id+="x";
+    l.push({id:id,name:"新课档",price:DB.settings.rate||0});
+    DB.settings.rates=l;
+    persist().then(function(){
+      renderSet();
+      var rows=$("view-set").querySelectorAll(".rate-row");
+      var last=rows[rows.length-1];
+      if(last){var inp=last.querySelector(".rate-name");if(inp){inp.focus();inp.select();}}
+      toast("已加一档，改个名字和单价");
+    });
   });
   $("setStart").addEventListener("change",function(){
     var v=this.value||"";
@@ -3245,10 +3421,10 @@ function bindEvents(){
     }
   });
   $("mPlus").addEventListener("click",function(){
-    var v=parseInt($("mLessons").textContent,10)||0;$("mLessons").textContent=v+1;
+    var v=parseInt($("mLessons").textContent,10)||0;$("mLessons").textContent=v+1;syncRateBox();
   });
   $("mMinus").addEventListener("click",function(){
-    var v=parseInt($("mLessons").textContent,10)||0;$("mLessons").textContent=Math.max(0,v-1);
+    var v=parseInt($("mLessons").textContent,10)||0;$("mLessons").textContent=Math.max(0,v-1);syncRateBox();
   });
   $("mDone").addEventListener("click",function(){saveEditor(true);});
   $("mPrev").addEventListener("click",function(){stepDay(-1);});

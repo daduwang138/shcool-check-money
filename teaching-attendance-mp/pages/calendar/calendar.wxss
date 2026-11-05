@@ -738,3 +738,123 @@
 .grid.no-scroll {
   touch-action: none;
 }
+
+/* ---------- 批量设置（日期范围 + 星期） ---------- */
+.bulk-dates {
+  display: flex;
+  align-items: center;
+}
+
+.bulk-date {
+  min-width: 226rpx;
+  height: 74rpx;
+  padding: 0 18rpx;
+  border: 1rpx solid #E4E1D8;
+  border-radius: 12rpx;
+  background: #FCFBF8;
+  color: #191C20;
+  font-size: 26rpx;
+  line-height: 72rpx;
+  text-align: center;
+}
+
+.bulk-tilde {
+  margin: 0 14rpx;
+  color: #8A8E96;
+  font-size: 23rpx;
+}
+
+.bulk-chips {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.bulk-chip {
+  height: 66rpx;
+  margin: 0 10rpx 10rpx 0;
+  padding: 0 22rpx;
+  border: 1rpx solid #E4E1D8;
+  border-radius: 12rpx;
+  background: #FCFBF8;
+  color: #8A8E96;
+  font-size: 24rpx;
+  line-height: 64rpx;
+}
+
+.bulk-chip.on {
+  border-color: #1B5E9B;
+  background: #EAF2FA;
+  color: #1B5E9B;
+  font-weight: 500;
+}
+
+.bulk-chk {
+  display: flex;
+  align-items: center;
+  color: #4C5057;
+  font-size: 24rpx;
+}
+
+.bulk-box {
+  width: 34rpx;
+  height: 34rpx;
+  margin-right: 12rpx;
+  border: 1rpx solid #C9C6BC;
+  border-radius: 8rpx;
+  background: #FCFBF8;
+  color: #FFFFFF;
+  font-size: 22rpx;
+  line-height: 32rpx;
+  text-align: center;
+}
+
+.bulk-box.on {
+  border-color: #1B5E9B;
+  background: #1B5E9B;
+}
+
+.bulk-pv {
+  display: block;
+  margin-top: 16rpx;
+  color: #666B73;
+  font-size: 23rpx;
+}
+
+.bulk-num {
+  color: #1B5E9B;
+  font-weight: 600;
+}
+
+/* ---------- 记账面板里的课时档位 ---------- */
+.rate-seg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10rpx 8rpx;
+  line-height: 1.3;
+}
+
+.rate-seg-name {
+  font-size: 23rpx;
+}
+
+.rate-seg-price {
+  margin-top: 2rpx;
+  font-size: 19rpx;
+  opacity: 0.68;
+}
+
+/* 档位块没有状态类，选中态单独给一版 */
+.seg.on.rate-seg {
+  height: auto;
+  min-height: 74rpx;
+  border-color: #174C7C;
+  background: #2265A3;
+  color: #FFFFFF;
+}
+
+.seg.on.rate-seg .rate-seg-price {
+  color: #EAF2FA;
+  opacity: 0.9;
+}

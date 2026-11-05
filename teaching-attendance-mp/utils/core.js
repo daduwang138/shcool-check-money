@@ -432,17 +432,22 @@ function isGhostHalf(db, key, which) {
 function isGhost(db, key) {
   return isGhostHalf(db, key, 'am') || isGhostHalf(db, key, 'pm');
 }
-function setRecord(db, key, am, pm, lessons, note, lset) {
+function setRecord(db, key, am, pm, lessons, note, lset, rid) {
   var prev = db.days[key];
   var kept = (lset === undefined) ? (prev ? !!prev.lset : ((parseInt(lessons, 10) || 0) > 0)) : !!lset;
+  /* 档位只有非默认档才落盘，默认档不写字段——这样老数据、老备份读进来结构还是一样的 */
+  /* 档位只对「有课时」有意义，0 节的日子不必留个空档位 */
+  var useRid = (rid && rid !== 'default' && (parseInt(lessons, 10) || 0) > 0) ? rid : '';
   if (!am && !pm && !lessons && !note) {
     if (defaultHalf(db, key, 'am') || defaultHalf(db, key, 'pm')) {
       db.days[key] = { am: '', pm: '', lessons: 0, note: '', off: true, lset: kept, upd: Date.now() };
+      if (useRid) { db.days[key].rid = useRid; }
     } else {
       delete db.days[key];
     }
   } else {
     db.days[key] = { am: am, pm: pm, lessons: lessons, note: note, off: false, lset: kept, upd: Date.now() };
+    if (useRid) { db.days[key].rid = useRid; }
   }
 }
 /* 按课程表填本月课时。
@@ -499,6 +504,12 @@ function monthP(db, ym) {
      用 == null 判断：手动把某月工资改成 0 也算已冻结，不能因为 0 是 falsy 又跟回设置值。 */
   if (p.base == null && monthTouched(db, ym)) { p.base = db.settings.baseSalary; }
   if (p.rate == null && monthTouched(db, ym)) { p.rate = db.settings.rate; }
+  /* 附加档位（晚自习之类）的价格也一样冻：记过账的月份不能因为后来调价而变钱 */
+  if (p.rates == null && monthTouched(db, ym)) {
+    var snap = {};
+    ratesOf(db).forEach(function (r) { if (r.id !== 'default') { snap[r.id] = r.price; } });
+    p.rates = snap;
+  }
   return p;
 }
 
@@ -511,11 +522,37 @@ function monthRate(db, ym) {
   var p = db.months[ym];
   return (p && p.rate != null) ? p.rate : db.settings.rate;
 }
+
+/* 课时档位：默认档（正课）的价格仍由 settings.rate 管，其余档放 settings.rates。
+   两版都从这一个函数取，避免「界面显示 120、算出来 100」这类对不上。 */
+function ratesOf(db) {
+  var out = [{ id: 'default', name: '正课', price: parseFloat(db.settings.rate) || 0 }];
+  var list = (db.settings.rates || []);
+  list.forEach(function (r) {
+    if (!r || !r.id || r.id === 'default') { return; }
+    out.push({ id: r.id, name: r.name || '档位', price: parseFloat(r.price) || 0 });
+  });
+  return out;
+}
+function rateName(db, rid) {
+  var l = ratesOf(db);
+  for (var i = 0; i < l.length; i++) { if (l[i].id === rid) { return l[i].name; } }
+  return l[0].name;
+}
+/* 某天某档的单价：默认档走月度冻结价，附加档走月度快照，没快照才用设置里的现价 */
+function priceOf(db, ym, rid) {
+  if (!rid || rid === 'default') { return monthRate(db, ym); }
+  var p = db.months[ym];
+  if (p && p.rates && p.rates[rid] != null) { return p.rates[rid]; }
+  var l = ratesOf(db);
+  for (var i = 0; i < l.length; i++) { if (l[i].id === rid) { return l[i].price; } }
+  return monthRate(db, ym);
+}
 /* 三段式：①日薪×min(实际,应上) + ②日薪×超出天数 + ③课时×单价 */
 function computeMonth(db, ym) {
   var q = ymd(ym + '-01'), y = q[0], m = q[1];
   var n = new Date(y, m, 0).getDate();
-  var half = 0, lessons = 0, filledDays = 0;
+  var half = 0, lessons = 0, filledDays = 0, byMap = {};
   var counted = { work: 0, inv: 0, ot: 0, leave: 0 };
   for (var d = 1; d <= n; d++) {
     var k = dk(y, m, d), rec0 = peek(db, k);
@@ -526,7 +563,16 @@ function computeMonth(db, ym) {
     if (b === 'work' || b === 'inv' || b === 'ot') { half++; counted[b]++; }
     else if (b === 'leave') { counted.leave++; }
     if (rec0) {
-      lessons += rec0.lessons || 0;
+      var ln = parseInt(rec0.lessons, 10) || 0;
+      lessons += ln;
+      /* 多档单价：按当天记的档位分别累加，没记档位算默认档 */
+      if (ln > 0) {
+        var rid = rec0.rid || 'default';
+        var pr = priceOf(db, ym, rid);
+        if (!byMap[rid]) { byMap[rid] = { id: rid, name: rateName(db, rid), lessons: 0, price: pr, fee: 0 }; }
+        byMap[rid].lessons += ln;
+        byMap[rid].fee += ln * pr;
+      }
       if (rec0.am || rec0.pm || rec0.lessons || rec0.note) filledDays++;
     }
   }
@@ -540,14 +586,46 @@ function computeMonth(db, ym) {
   var extra = Math.max(actual - workdays, 0);
   var basePart = round2(dailyRate * capped);
   var extraPart = round2(dailyRate * extra);
-  var lessonFee = round2(lessons * rate);
+  var byRate = [], lessonFee = 0;
+  if (db.settings.enableLesson) {
+    ratesOf(db).forEach(function (r) { if (byMap[r.id]) { byRate.push(byMap[r.id]); } });
+    Object.keys(byMap).forEach(function (id) {
+      var hit = false;
+      byRate.forEach(function (r) { if (r.id === id) { hit = true; } });
+      if (!hit) { byRate.push(byMap[id]); }
+    });
+    byRate.forEach(function (r) { lessonFee += r.fee; });
+    lessonFee = round2(lessonFee);
+  }
   return {
     ym: ym, workdays: workdays, actual: actual, half: half, lessons: lessons, filledDays: filledDays,
-    dailyRate: dailyRate, base: base, rate: rate,
+    dailyRate: dailyRate, base: base, rate: rate, byRate: byRate,
     capped: capped, extra: extra, basePart: basePart, extraPart: extraPart, lessonFee: lessonFee,
     total: round2(basePart + extraPart + lessonFee), counted: counted, checked: !!p.checked,
     start: db.settings.startDate || ''
   };
+}
+
+/* 核对单文本：电脑版复制到剪贴板、小程序复制到微信，两版必须逐字一致 */
+function sumText(c){
+  var p=ymd(c.ym+"-01");
+  var L=[];
+  L.push(p[0]+" 年 "+p[1]+" 月 工资核对");
+  L.push("————————————————");
+  L.push("法定工作日："+c.workdays+" 天");
+  L.push("实际出勤："+fmtShort(c.actual)+" 天（上班 "+c.counted.work+" / 监考 "+c.counted.inv+" / 加班 "+c.counted.ot+" 半天，请假 "+c.counted.leave+" 半天）");
+  L.push("课时合计："+c.lessons+" 节");
+  /* 用了多档单价才列明细，只有一档时不必多一行 */
+  if(c.byRate&&c.byRate.length>1){
+    L.push("课时明细："+c.byRate.map(function(r){return r.name+" "+r.lessons+" 节 × "+fmtShort(r.price)+" = "+fmt(r.fee)+" 元";}).join("；"));
+  }
+  L.push("————————————————");
+  L.push("折算日薪："+fmt(c.dailyRate)+" 元");
+  L.push("① 基本工资部分："+fmt(c.basePart)+" 元");
+  L.push("② 超出天数部分："+fmt(c.extraPart)+" 元");
+  L.push("③ 课时费："+fmt(c.lessonFee)+" 元");
+  L.push("应发合计："+fmt(c.total)+" 元");
+  return L.join("\n");
 }
 
 /* ---------- 月份工具 ---------- */
@@ -590,7 +668,8 @@ function buildExportCsv(db, months, incSum, incDay) {
   L.push(csvRow(['考勤统计', months[0] + ' 至 ' + months[months.length - 1]]));
   L.push(csvRow(['导出时间', new Date().toLocaleString()]));
   if (db.settings.startDate) L.push(csvRow(['入职起算日', db.settings.startDate]));
-  L.push(csvRow(['计薪参数', '基本工资 ' + fmtShort(db.settings.baseSalary) + ' 元/月；课时单价 ' + fmtShort(db.settings.rate) + ' 元/节']));
+  var rateTxt = ratesOf(db).map(function (r) { return r.name + ' ' + fmtShort(r.price) + ' 元/节'; }).join('；');
+  L.push(csvRow(['计薪参数', '基本工资 ' + fmtShort(db.settings.baseSalary) + ' 元/月；课时单价 ' + rateTxt]));
   L.push('');
   var tot = { actual: 0, les: 0, base: 0, extra: 0, fee: 0, all: 0 };
   if (incSum) {
@@ -611,7 +690,7 @@ function buildExportCsv(db, months, incSum, incDay) {
   }
   if (incDay) {
     L.push(csvRow(['每日明细']));
-    L.push(csvRow(['月份', '日期', '星期', '上午', '下午', '课时', '备注']));
+    L.push(csvRow(['月份', '日期', '星期', '上午', '下午', '课时', '档位', '备注']));
     months.forEach(function (ym) {
       var q = ymd(ym + '-01'), y = q[0], m = q[1], n = new Date(y, m, 0).getDate();
       for (var d = 1; d <= n; d++) {
@@ -620,7 +699,9 @@ function buildExportCsv(db, months, incSum, incDay) {
         var r = peek(db, k), a = effHalf(db, k, 'am'), b = effHalf(db, k, 'pm');
         var les = r ? (parseInt(r.lessons, 10) || 0) : 0, note = r ? (r.note || '') : '';
         if (!a && !b && !les && !note) continue;
-        L.push(csvRow([ym, k, '周' + dowLabel(k), a ? sl(a).label : '', b ? sl(b).label : '', les, note]));
+        /* 档位只在真有课时才写，空的写了反而像“这天是正课” */
+        var rn = les > 0 ? rateName(db, (r && r.rid) || 'default') : '';
+        L.push(csvRow([ym, k, '周' + dowLabel(k), a ? sl(a).label : '', b ? sl(b).label : '', les, rn, note]));
       }
     });
     L.push('');
@@ -641,6 +722,7 @@ module.exports = {
   blankDB: blankDB, normalize: normalize, peek: peek, hasContent: hasContent, dayCount: dayCount,
   defaultHalf: defaultHalf, effHalf: effHalf, isGhostHalf: isGhostHalf, isGhost: isGhost,
   setRecord: setRecord, monthP: monthP, computeMonth: computeMonth,
+  sumText: sumText, ratesOf: ratesOf, rateName: rateName, priceOf: priceOf,
   monthTouched: monthTouched, monthBase: monthBase, monthRate: monthRate,
   fillLessonsFromCourses: fillLessonsFromCourses,
   ymOf: ymOf, isYm: isYm, addMonths: addMonths, monthsBetween: monthsBetween,

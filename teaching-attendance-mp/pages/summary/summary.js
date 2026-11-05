@@ -123,26 +123,64 @@ Page({
     wx.showToast({ title: '已回到默认参数（应上班 ' + q.workdays + ' 天）', icon: 'none' });
   },
 
-  exportMonth: function () {
-    var that = this, ym = this.data.ym;
-    /* 核对过的月份，导出前再确认一次口径 */
-    store.exportCsv(this.db, [ym], true, true).then(function (msg) {
-      wx.showToast({ title: msg, icon: 'none' });
-    }).catch(function (err) {
-      wx.showToast({ title: (err && err.message) || '导出失败', icon: 'none' });
+  /* 复制核对单：和电脑版拼的是同一个函数（core.sumText），两边复制出来一字不差 */
+  copySum: function () {
+    var c = core.computeMonth(this.db, this.data.ym);
+    if (!c.filledDays) {
+      wx.showToast({ title: '这个月还没有记录', icon: 'none' });
+      return;
+    }
+    wx.setClipboardData({
+      data: core.sumText(c),
+      success: function () {
+        wx.showToast({ title: '已复制，可粘给财务', icon: 'none' });
+      },
+      fail: function () {
+        wx.showToast({ title: '复制失败，请重试', icon: 'none' });
+      }
     });
   },
 
-  exportAll: function () {
-    var db = this.db;
-    var keys = core.monthKeysOf(db);
-    if (!keys.length) {
-      wx.showToast({ title: '还没有任何记录', icon: 'none' });
+  /* 导出范围：口径与电脑版「导出多月统计」一致 */
+  exportPick: function () {
+    var that = this;
+    wx.showActionSheet({
+      itemList: ['本月', '近三个月', '今年', '全部记录'],
+      success: function (res) { that.doExport(res.tapIndex); }
+    });
+  },
+
+  doExport: function (kind) {
+    this._export(kind);
+  },
+
+  exportMonth: function () { this._export(0); },
+  exportAll: function () { this._export(3); },
+
+  _export: function (kind) {
+    var db = this.db, ym = this.data.ym;
+    var now = core.todayKey().slice(0, 7);
+    var cy = now.slice(0, 4);
+    var months = [];
+    if (kind === 0) {
+      months = [ym];
+    } else if (kind === 1) {
+      months = core.monthsBetween(core.addMonths(now, -2), now);
+    } else if (kind === 2) {
+      months = core.monthsBetween(cy + '-01', now);
+    } else {
+      var keys = core.monthKeysOf(db);
+      if (!keys.length) {
+        wx.showToast({ title: '还没有任何记录', icon: 'none' });
+        return;
+      }
+      /* 中间没记录的月份不必导出，只保留有记录的月份，避免整月空行 */
+      months = keys.slice();
+    }
+    if (!months.length) {
+      wx.showToast({ title: '这个范围里没有月份', icon: 'none' });
       return;
     }
-    var months = core.monthsBetween(keys[0], keys[keys.length - 1]);
-    /* 中间没记录的月份不必导出，只保留首尾之间的有记录月份，避免空行 */
-    months = months.filter(function (ym) { return keys.indexOf(ym) >= 0; });
     store.exportCsv(db, months, true, true).then(function (msg) {
       wx.showToast({ title: msg, icon: 'none' });
     }).catch(function (err) {

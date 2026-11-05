@@ -87,7 +87,20 @@ function mkCustom() {
   return db;
 }
 
-const cases = [['空库', mkEmpty()], ['典型', mkLegacy()], ['半天周', mkAuto()], ['自定义假期', mkCustom()]];
+/* 多档课时单价：正课 120 / 晚自习 80，10 月里有两天记的是晚自习 */
+function mkRates() {
+  const db = mkLegacy();
+  db.settings.rates = [
+    { id: 'default', name: '正课', price: 120 },
+    { id: 'eve', name: '晚自习', price: 80 }
+  ];
+  db.days['2026-10-08'].rid = 'eve';
+  db.days['2026-10-10'].rid = 'eve';
+  return db;
+}
+
+const cases = [['空库', mkEmpty()], ['典型', mkLegacy()], ['半天周', mkAuto()],
+  ['自定义假期', mkCustom()], ['多档单价', mkRates()]];
 
 /* 1. 逐日判定：2025-01 ~ 2027-12 每一天 */
 let dayChecked = 0;
@@ -125,6 +138,35 @@ for (const [label, raw] of cases) {
       eq(label + '·computeMonth ' + ym, ctx.computeMonth(ym), core.computeMonth(cdb, ym));
     }
   }
+
+  /* 2.5 核对单文本：电脑版与小程序拼出来的字必须逐字一样 */
+  for (const ym of ['2025-03', '2026-10', '2027-01']) {
+    eq(label + '·sumText ' + ym, ctx.sumText(ctx.computeMonth(ym)), core.sumText(core.computeMonth(cdb, ym)));
+  }
+}
+
+/* 2.6 多档单价：分档累加、冻结、两版一致 */
+{
+  const h = ctx.normalize(mkRates());
+  const c = core.normalize(mkRates());
+  ctx.DB = h;
+  const hc = ctx.computeMonth('2026-10');
+  const cc = core.computeMonth(c, '2026-10');
+  eq('多档·两版结果一致', hc, cc);
+  eq('多档·档位顺序默认在前', cc.byRate.map(r => r.id), ['default', 'eve']);
+  const eve = cc.byRate.filter(r => r.id === 'eve')[0];
+  eq('多档·晚自习课时数', eve.lessons, 10);
+  eq('多档·晚自习按 80 计价', eve.fee, 800);
+  /* 10 月记了课时的只有：10-17 正课 2 节、10-08 与 10-10 晚自习 4+6 节 */
+  eq('多档·课时费合计', cc.lessonFee, 2 * 120 + (4 + 6) * 80);
+  eq('多档·总额', cc.total, Math.round((cc.basePart + cc.extraPart + cc.lessonFee) * 100) / 100);
+
+  /* 记过账的月份把附加档价格也冻住 */
+  ctx.computeMonth('2026-10'); core.computeMonth(c, '2026-10');
+  c.settings.rates[1].price = 999; h.settings.rates[1].price = 999;
+  eq('多档·改价不影响记过的月份', core.computeMonth(c, '2026-10').lessonFee, cc.lessonFee);
+  eq('多档·两版冻结一致', ctx.computeMonth('2026-10').lessonFee, core.computeMonth(c, '2026-10').lessonFee);
+  eq('多档·下个月跟新价', core.computeMonth(c, '2026-12').byRate.length, 0);
 }
 
 /* 3. setRecord 的墓碑行为 */

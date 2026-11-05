@@ -54,6 +54,7 @@
 
   <view class="tools tools-main">
     <view class="btn primary" bindtap="fillCourse">按课程表填课时</view>
+    <view class="btn" bindtap="openBulk">批量设置</view>
   </view>
   <view class="tools">
     <view class="btn" bindtap="restoreDefault">恢复默认出勤</view>
@@ -62,6 +63,9 @@
 
   <view class="tips">
     <text>点格子改当天状态与课时。在日期上左右滑动、或按住一会儿，都会进入多选：划过的日期连续选中，周末自动跳过（周末有课可单点补上），选好点下方状态整片套用。</text>
+  </view>
+  <view class="tips">
+    <text>「批量设置」按日期范围加星期一次改多天，可以跨月，比如「9 月 1 日到 10 月 31 日、只改周三」。</text>
   </view>
 </view>
 
@@ -87,6 +91,62 @@
     <view class="sb-b" data-st="empty" bindtap="applySel">空</view>
   </view>
   <text class="sb-hint">{{allowWk ? '含周末已开：周六日也会被划选，法定假期仍跳过' : '左右滑动或长按可连选；周末与起算日前的日期自动跳过，周末可单点补选'}}</text>
+</view>
+
+<view class="mask" wx:if="{{bulk}}" bindtap="closeBulk" catchtouchmove="noop"></view>
+
+<view class="sheet" wx:if="{{bulk}}">
+  <view class="sheet-head">
+    <view class="sheet-title-wrap">
+      <text class="sheet-title">批量设置</text>
+      <text class="sheet-sub">按日期范围加星期，跨月也行</text>
+    </view>
+    <view class="sheet-x" bindtap="closeBulk">✕</view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">日期范围</text>
+    <view class="bulk-dates">
+      <picker mode="date" value="{{bulk.from}}" bindchange="pickBulkFrom">
+        <view class="bulk-date">{{bulk.from}}</view>
+      </picker>
+      <text class="bulk-tilde">至</text>
+      <picker mode="date" value="{{bulk.to}}" bindchange="pickBulkTo">
+        <view class="bulk-date">{{bulk.to}}</view>
+      </picker>
+    </view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">只在以下星期生效</text>
+    <view class="bulk-chips">
+      <view wx:for="{{bulkWd}}" wx:key="v" class="bulk-chip {{item.on ? 'on' : ''}}"
+            data-wd="{{item.v}}" bindtap="toggleBulkWd">{{item.label}}</view>
+    </view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">设为</text>
+    <view class="bulk-chips">
+      <view wx:for="{{bulkSts}}" wx:key="k" class="bulk-chip {{bulk.st === item.k ? 'on' : ''}}"
+            data-st="{{item.k}}" bindtap="pickBulkSt">{{item.label}}</view>
+    </view>
+  </view>
+
+  <view class="field">
+    <view class="bulk-chk" bindtap="toggleBulkClear">
+      <view class="bulk-box {{bulk.clearLes ? 'on' : ''}}">{{bulk.clearLes ? '✓' : ''}}</view>
+      <text>同时把课时清零</text>
+    </view>
+  </view>
+
+  <text class="bulk-pv">将影响 <text class="bulk-num">{{bulk.count}}</text> 天{{bulk.first ? '（' + bulk.first + ' 起）' : ''}}</text>
+
+  <view class="sheet-actions">
+    <view class="btn ghost" bindtap="closeBulk">取消</view>
+    <view class="btn primary" bindtap="applyBulk">应用</view>
+  </view>
+  <view class="safe"></view>
 </view>
 
 <view class="mask" wx:if="{{sheet}}" bindtap="closeSheet" catchtouchmove="noop"></view>
@@ -123,6 +183,17 @@
       <text class="step-val">{{sheet.lessons}}</text>
       <view class="step" data-d="1" bindtap="stepLesson">＋</view>
       <text class="sched" wx:if="{{sheet.exp > 0}}" bindtap="useSchedule">课程表 {{sheet.exp}} 节，点此采用</text>
+    </view>
+  </view>
+
+  <view class="field" wx:if="{{sheet.lessons > 0 && rates.length > 1}}">
+    <text class="field-label">按哪档计价</text>
+    <view class="segs">
+      <view wx:for="{{rates}}" wx:key="id" class="seg rate-seg {{sheet.rid === item.id ? 'on' : ''}}"
+        data-id="{{item.id}}" bindtap="pickRate">
+        <text class="rate-seg-name">{{item.name}}</text>
+        <text class="rate-seg-price">{{item.price}} 元</text>
+      </view>
     </view>
   </view>
 

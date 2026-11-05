@@ -63,11 +63,14 @@
   </view>
 
   <view class="export">
-    <view class="btn primary" bindtap="exportMonth">导出本月 CSV</view>
-    <view class="btn" bindtap="exportAll">导出全部月份</view>
+    <view class="btn primary" bindtap="copySum">复制工资核对单</view>
+    <view class="btn" bindtap="exportPick">导出统计表</view>
   </view>
 
   <view class="tips">
-    <text>CSV 用 Excel / WPS 直接打开，含月度汇总与每日明细两段。手机端点导出会生成文件并转为「发送给聊天」，存到文件传输助手后可在电脑上使用。</text>
+    <text>「复制工资核对单」把出勤、课时、应发拼成一段话，可直接粘给财务或发给自己，和电脑版复制的内容一字不差。</text>
+  </view>
+  <view class="tips">
+    <text>导出的 CSV 用 Excel / WPS 直接打开，含月度汇总与每日明细两段；可选本月、近三个月、今年或全部记录。手机端会生成文件并转为「发送给聊天」，存到文件传输助手后可在电脑上使用。</text>
   </view>
 </view>

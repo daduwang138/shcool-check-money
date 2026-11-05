@@ -28,6 +28,7 @@ Page({
     owner: '',
     baseSalary: '',
     rate: '',
+    rates: [],
     enableBase: true,
     enableLesson: true,
     enableInv: true,
@@ -66,6 +67,9 @@ Page({
       owner: s.owner || '',
       baseSalary: String(s.baseSalary || 0),
       rate: String(s.rate || 0),
+      /* 默认档由上面的「单价」管，这里只列附加档位 */
+      rates: (s.rates || []).filter(function (r) { return r && r.id && r.id !== 'default'; })
+        .map(function (r) { return { id: r.id, name: r.name || '档位', price: String(r.price || 0) }; }),
       enableBase: !!s.enableBase,
       enableLesson: !!s.enableLesson,
       enableInv: !!s.enableInv,
@@ -102,6 +106,79 @@ Page({
     this.db.settings.rate = v;
     store.save(this.db);
     this.render();
+  },
+
+  /* ---------- 课时档位 ---------- */
+  rateById: function (id) {
+    var l = this.db.settings.rates || [];
+    for (var i = 0; i < l.length; i++) { if (l[i].id === id) { return l[i]; } }
+    return null;
+  },
+
+  setRateName: function (e) {
+    var r = this.rateById(e.currentTarget.dataset.id);
+    if (!r) { return; }
+    var v = (e.detail.value || '').trim();
+    if (!v) {
+      wx.showToast({ title: '档位名不能空着', icon: 'none' });
+      this.render();
+      return;
+    }
+    r.name = v;
+    store.save(this.db);
+    this.render();
+  },
+
+  setRatePrice: function (e) {
+    var r = this.rateById(e.currentTarget.dataset.id);
+    if (!r) { return; }
+    var v = parseFloat(e.detail.value);
+    if (isNaN(v) || v < 0) {
+      wx.showToast({ title: '单价不对', icon: 'none' });
+      this.render();
+      return;
+    }
+    r.price = v;
+    store.save(this.db);
+    this.render();
+  },
+
+  addRate: function () {
+    var l = this.db.settings.rates || [];
+    var id = 'r' + Date.now().toString(36);
+    while (this.rateById(id)) { id += 'x'; }
+    l.push({ id: id, name: '新档位', price: this.db.settings.rate || 0 });
+    this.db.settings.rates = l;
+    store.save(this.db);
+    this.render();
+    wx.showToast({ title: '改个名字和单价', icon: 'none' });
+  },
+
+  delRate: function (e) {
+    var that = this, id = e.currentTarget.dataset.id, r = this.rateById(id);
+    if (!r) { return; }
+    var used = 0;
+    Object.keys(this.db.days).forEach(function (k) {
+      if (that.db.days[k] && that.db.days[k].rid === id) { used++; }
+    });
+    var content = '删掉「' + (r.name || '档位') + '」这一档？';
+    if (used) {
+      content += '有 ' + used + ' 天记录用的是这一档，删掉后这些天改按 ' +
+        (this.db.settings.rate || 0) + ' 元/节算，工资会跟着变。';
+    }
+    wx.showModal({
+      title: '删除档位',
+      content: content,
+      confirmText: '删除',
+      confirmColor: '#B3261E',
+      success: function (res) {
+        if (!res.confirm) { return; }
+        that.db.settings.rates = (that.db.settings.rates || []).filter(function (x) { return x.id !== id; });
+        store.save(that.db);
+        that.render();
+        wx.showToast({ title: '已删除', icon: 'none' });
+      }
+    });
   },
 
   toggle: function (e) {

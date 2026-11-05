@@ -10,6 +10,18 @@ var OPTIONS = [
   { k: 'leave', label: '请假', cls: 's-leave' }
 ];
 
+/* 批量设置：星期用 JS 的 getDay() 取值，周日是 0 */
+var BULK_WD = [
+  { v: 1, label: '周一' }, { v: 2, label: '周二' }, { v: 3, label: '周三' },
+  { v: 4, label: '周四' }, { v: 5, label: '周五' }, { v: 6, label: '周六' },
+  { v: 0, label: '周日' }
+];
+var BULK_ST = [
+  { k: 'work', label: '上班' }, { k: 'inv', label: '监考' }, { k: 'ot', label: '加班' },
+  { k: 'leave', label: '请假' }, { k: 'empty', label: '空' },
+  { k: 'am', label: '只上午' }, { k: 'pm', label: '只下午' }
+];
+
 Page({
   data: {
     ym: '',
@@ -20,7 +32,11 @@ Page({
     notes: [],
     legend: [],
     opts: OPTIONS,
+    rates: [],
     sheet: null,
+    bulk: null,
+    bulkWd: [],
+    bulkSts: BULK_ST,
     undo: null,
     sel: false,
     selKeys: [],
@@ -426,6 +442,89 @@ Page({
     if (changed) { this.setData(patch); }
   },
 
+  /* ---------- 按日期范围 + 星期批量（电脑版「批量设置」同款，跨月也能用） ---------- */
+  openBulk: function () {
+    var ym = this.data.ym;
+    var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
+    var b = {
+      from: core.dk(y, m, 1),
+      to: core.dk(y, m, core.daysInMonth(ym)),
+      wd: [0, 1, 2, 3, 4, 5, 6],
+      st: 'work',
+      clearLes: false,
+      count: 0,
+      first: ''
+    };
+    this.setData({ bulk: b });
+    this._bulkRefresh(b);
+  },
+
+  closeBulk: function () { this.setData({ bulk: null }); },
+
+  pickBulkFrom: function (e) { this._bulkPatch({ from: e.detail.value }); },
+  pickBulkTo: function (e) { this._bulkPatch({ to: e.detail.value }); },
+  pickBulkSt: function (e) { this._bulkPatch({ st: e.currentTarget.dataset.st }); },
+  toggleBulkClear: function () { this._bulkPatch({ clearLes: !this.data.bulk.clearLes }); },
+
+  toggleBulkWd: function (e) {
+    var w = parseInt(e.currentTarget.dataset.wd, 10);
+    var wd = this.data.bulk.wd.slice();
+    var i = wd.indexOf(w);
+    if (i >= 0) { wd.splice(i, 1); } else { wd.push(w); }
+    if (!wd.length) {
+      wx.showToast({ title: '至少留一个星期', icon: 'none' });
+      return;
+    }
+    this._bulkPatch({ wd: wd });
+  },
+
+  _bulkPatch: function (patch) {
+    var b = Object.assign({}, this.data.bulk, patch);
+    this.setData({ bulk: b });
+    this._bulkRefresh(b);
+  },
+
+  _bulkRefresh: function (b) {
+    var keys = this._bulkKeys(b);
+    var on = {};
+    b.wd.forEach(function (w) { on[w] = 1; });
+    this.setData({
+      bulkWd: BULK_WD.map(function (x) { return { v: x.v, label: x.label, on: !!on[x.v] }; }),
+      'bulk.count': keys.length,
+      'bulk.first': keys.length ? keys[0] : ''
+    });
+  },
+
+  /* 范围的每一天先过星期筛，再过入职起算日；跨月不特殊处理，日期连续就行 */
+  _bulkKeys: function (b) {
+    b = b || this.data.bulk;
+    if (!b || !b.from || !b.to || b.to < b.from) { return []; }
+    var keys = [], that = this, guard = 0;
+    var t = new Date(b.from.replace(/-/g, '/'));
+    var end = new Date(b.to.replace(/-/g, '/'));
+    while (t <= end && guard++ < 800) {
+      if (b.wd.indexOf(t.getDay()) >= 0) {
+        var k = core.dk(t.getFullYear(), t.getMonth() + 1, t.getDate());
+        if (!core.preStart(that.db, k)) { keys.push(k); }
+      }
+      t.setDate(t.getDate() + 1);
+    }
+    return keys;
+  },
+
+  applyBulk: function () {
+    var b = this.data.bulk;
+    if (!b) { return; }
+    var keys = this._bulkKeys(b);
+    if (!keys.length) {
+      wx.showToast({ title: '这个范围里没有可改的日期', icon: 'none' });
+      return;
+    }
+    var scope = b.st === 'am' ? 'am' : (b.st === 'pm' ? 'pm' : 'both');
+    this.setData({ bulk: null });
+    this.applyToKeys(keys, b.st, scope, b.clearLes);
+  },
+
   applySel: function (e) {
     var st = e.currentTarget.dataset.st;
     var keys = this.data.selKeys.slice();
@@ -465,7 +564,9 @@ Page({
         else if (scope === 'am') { am = st; pm = ''; }
         else if (scope === 'pm') { am = ''; pm = st; }
         else { am = st; pm = st; }
-        core.setRecord(db, k, am, pm, les, note, clearLes ? true : (r ? !!r.lset : false));
+        /* 批量只改状态时，原来记的课还是那个档位；勾了清空课时，档位一起清掉 */
+        core.setRecord(db, k, am, pm, les, note, clearLes ? true : (r ? !!r.lset : false),
+          clearLes ? '' : (r ? r.rid : ''));
       });
       that._undo = { msg: that.data.ym, snap: snap };
       store.save(db);
@@ -505,11 +606,14 @@ Page({
 
     this._note = undefined;
     this.setData({
+      /* 档位随设置页变动，每次点开重算一遍，别缓存到页面 data 里 */
+      rates: core.ratesOf(db).map(function (r) { return { id: r.id, name: r.name, price: r.price }; }),
       sheet: {
         key: k,
         title: parseInt(k.slice(5, 7), 10) + ' 月 ' + parseInt(k.slice(8), 10) + ' 日',
         sub: sub,
         am: am, pm: pm, lessons: les, note: note, exp: exp,
+        rid: (r && r.rid) ? r.rid : 'default',
         checked: p.checked
       }
     });
@@ -559,8 +663,14 @@ Page({
     this._note = e.detail.value;
   },
 
+  /* 选了哪档课就记在哪天，没选算默认档 */
+  pickRate: function (e) {
+    var id = e.currentTarget.dataset.id || 'default';
+    this.setData({ 'sheet.rid': id });
+  },
+
   clearSheet: function () {
-    this.setData({ 'sheet.am': '', 'sheet.pm': '', 'sheet.lessons': 0, 'sheet.note': '' });
+    this.setData({ 'sheet.am': '', 'sheet.pm': '', 'sheet.lessons': 0, 'sheet.note': '', 'sheet.rid': 'default' });
     this._note = '';
   },
 
@@ -584,7 +694,7 @@ Page({
     var s = this.data.sheet;
     var note = (this._note === undefined ? s.note : this._note) || '';
     this._beginUndo();
-    core.setRecord(this.db, s.key, s.am, s.pm, s.lessons, note);
+    core.setRecord(this.db, s.key, s.am, s.pm, s.lessons, note, undefined, s.rid);
     store.save(this.db);
     this.setData({ sheet: null });
     this._note = undefined;
