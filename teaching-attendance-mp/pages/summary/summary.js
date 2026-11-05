@@ -74,9 +74,11 @@ Page({
       rows: rows,
       heroSubs: rows.slice(0, 3),
       halfRows: halfRows,
-      /* 只读：档位价和晚修价在设置里改，这里给一眼核对用 */
+      /* 只读：档位价和晚修价在设置里改，这里给一眼核对用。
+         档位价必须取本月实际生效的价（记过账的月份冻着旧价），
+         否则回看旧月份时，参数卡写 100、③ 课时明细里却是 80，自己跟自己对不上 */
       otherRates: core.ratesOf(db).filter(function (r) { return r.id !== 'default'; })
-        .map(function (r) { return r.name + ' ¥' + core.fmtShort(r.price) + '/节'; }).join(' · '),
+        .map(function (r) { return r.name + ' ¥' + core.fmtShort(core.priceOf(db, ym, r.id)) + '/节'; }).join(' · '),
       nightEach: (c.nightFeeEach > 0 || c.nightCount > 0)
         ? ('每次 ' + core.fmtShort(c.nightHoursEach) + ' 小时 · ¥' + core.fmtShort(c.nightFeeEach))
         : '',

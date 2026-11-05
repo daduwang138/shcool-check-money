@@ -53,7 +53,7 @@
       <text class="row-label">晚修监考</text>
       <text class="row-value param-ro">{{nightEach}}</text>
     </view>
-    <view class="param-note" bindtap="resetParams">改过之后点这里，恢复成设置里的默认值</view>
+    <view class="param-note" bindtap="resetParams">恢复成设置默认值；已记账月份的档位价、晚修价保留不动</view>
   </view>
 
   <view class="card">

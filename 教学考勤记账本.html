@@ -2257,10 +2257,12 @@ function renderSum(){
   html+='<tr><td>上班 / 监考 / 加班</td><td class="num">'+c.counted.work+' / '+c.counted.inv+' / '+c.counted.ot+' 半天</td></tr>';
   html+='<tr><td>请假</td><td class="num">'+c.counted.leave+' 半天</td></tr>';
   html+='<tr><td>课时合计</td><td class="num">'+c.lessons+' 节</td></tr>';
-  /* 只读：档位价和晚修价在设置里改，这里给一眼核对用，免得为了看一眼价格来回切页 */
+  /* 只读：档位价和晚修价在设置里改，这里给一眼核对用，免得为了看一眼价格来回切页。
+     必须取「本月实际用的价」，不能取设置里的现价——回看旧月份时两个价会不一样，
+     同一屏上「其他档位 ¥100」和 ③ 里的「晚自习 10 节 × ¥80」会自相矛盾。 */
   var otherRates=ratesOf(DB).filter(function(r){return r.id!=="default";});
   if(otherRates.length){
-    html+='<tr><td>其他档位</td><td class="num faint">'+otherRates.map(function(r){return esc(r.name)+' ¥'+fmtShort(r.price)+'/节';}).join(' · ')+'</td></tr>';
+    html+='<tr><td>其他档位</td><td class="num faint">'+otherRates.map(function(r){return esc(r.name)+' ¥'+fmtShort(priceOf(DB,CUR,r.id))+'/节';}).join(' · ')+'</td></tr>';
   }
   if(c.nightCount>0||c.nightFeeEach>0){
     html+='<tr><td>晚修监考</td><td class="num faint">每次 '+fmtShort(c.nightHoursEach)+' 小时 · ¥'+fmtShort(c.nightFeeEach)+'</td></tr>';
@@ -2292,7 +2294,7 @@ function renderSum(){
   html+='<button class="btn" id="sumExport">导出多月统计</button>';
   html+='<button class="btn" id="sumToggleCheck">'+(c.checked?"取消已核对":"标记已核对")+'</button>';
   html+='</div>';
-  html+='<p class="hint">这是个人记账工具，结果不作为与学校结算的正式依据。拿到工资条后请核对三项：出勤天数、课时数、单价。</p>';
+  html+='<p class="hint">这是个人记账工具，结果不作为与学校结算的正式依据。拿到工资条后请核对：出勤天数、各档课时数与单价、晚修监考次数。</p>';
   html+='</div>';
 
   html+='<div class="card"><h2>每日明细</h2>';
@@ -2381,7 +2383,20 @@ function buildExportCsv(months,incSum,incDay){
   var nightTxt=DB.settings.nightFee>0
     ?"；晚修监考 "+fmtShort(DB.settings.nightHours)+" 小时 "+fmtShort(DB.settings.nightFee)+" 元/次"
     :"";
-  L.push(csvRow(["计薪参数","基本工资 "+fmtShort(DB.settings.baseSalary)+" 元/月；课时单价 "+rateTxt+nightTxt]));
+  L.push(csvRow(["计薪参数（当前设置）","基本工资 "+fmtShort(DB.settings.baseSalary)+" 元/月；课时单价 "+rateTxt+nightTxt]));
+  /* 上面那行只是「现在设置里填的价」。跨月导出时，记过账的月份用的是当月冻结价，
+     两者可能不一样；财务拿这份表对账，得看得见每个月到底按哪个价算出来的。
+     开关关掉的项仍列出参数值（那是记录里的值），只是不计入金额。 */
+  var rlist=ratesOf(DB);
+  L.push(csvRow(["各月实际采用的参数（记过账的月份按当时价格冻结）"]));
+  L.push(csvRow(["月份","基本工资(元/月)"].concat(rlist.map(function(r){return r.name+"(元/节)";}))
+    .concat(["晚修每次(小时)","晚修每次(元)"])));
+  months.forEach(function(ym){
+    var np=nightOf(DB,ym);
+    L.push(csvRow([ym,num2(monthBase(ym))].concat(rlist.map(function(r){
+      return num2(priceOf(DB,ym,r.id));
+    })).concat([fmtShort(np.hours),num2(np.fee)])));
+  });
   L.push("");
   var tot={actual:0,les:0,base:0,extra:0,fee:0,night:0,nfee:0,all:0};
   if(incSum){
@@ -2776,10 +2791,10 @@ function renderSet(){
   }
   h+='<button class="btn sm" id="rateAdd">＋ 加一档</button>';
   h+='<h3>晚修监考</h3>';
-  h+='<p class="muted" style="margin-bottom:8px">晚上加班监考按次给钱，不算课时、也不占出勤半天。记账面板里填「几次」，这里填一次算几小时、给多少钱。</p>';
+  h+='<p class="muted" style="margin-bottom:8px">晚上加班监考按次给钱，不算课时、也不占出勤半天。白天照常记出勤，晚上这场只在记账面板填「几次」；<b>同一场别再勾一次「加班」半天</b>，会重复算钱。这里填一次算几小时、给多少钱。</p>';
   h+='<div class="fields">';
   h+='<div class="field"><div><label>每次时长（小时）</label><div class="desc">只影响核对单上的时长，不影响金额</div></div><input type="number" id="setNightHours" min="0" step="0.5" value="'+(s.nightHours||0)+'"></div>';
-  h+='<div class="field"><div><label>每次金额（元）</label><div class="desc">填 0 就不显示这一项</div></div><input type="number" id="setNightFee" min="0" step="0.01" value="'+(s.nightFee||0)+'"></div>';
+  h+='<div class="field"><div><label>每次金额（元）</label><div class="desc">填 0 后新记录不再显示；已记账的月份仍按当时价格算</div></div><input type="number" id="setNightFee" min="0" step="0.01" value="'+(s.nightFee||0)+'"></div>';
   h+='</div>';
   h+='<h3>出勤默认值</h3>';
   h+='<div class="fields">';
@@ -2795,9 +2810,10 @@ function renderSet(){
     return '<div><div class="lb">周'+WD[w]+'</div><select class="wp" data-w="'+w+'">'+opt(1,"全天")+opt(0.5,"半天")+opt(0,"不上")+'</select></div>';
   }).join("")+'</div>';
   h+='<h3>计薪项目</h3>';
+  h+='<p class="muted" style="margin-bottom:8px">「监考」「加班」这两个开关只管记账面板里有没有对应状态；<b>以前记过的记录照常计入</b>，不会被开关抹掉。</p>';
   h+='<div class="fields">';
-  h+='<div class="field"><div><label>基本工资按出勤折算</label><div class="desc">关闭后只算课时费</div></div><div class="switch'+(s.enableBase?" on":"")+'" data-k="enableBase"></div></div>';
-  h+='<div class="field"><div><label>课时费</label><div class="desc">按课时数 × 单价计入</div></div><div class="switch'+(s.enableLesson?" on":"")+'" data-k="enableLesson"></div></div>';
+  h+='<div class="field"><div><label>基本工资按出勤折算</label><div class="desc">关闭后不计 ①②，课时费与晚修补贴照算</div></div><div class="switch'+(s.enableBase?" on":"")+'" data-k="enableBase"></div></div>';
+  h+='<div class="field"><div><label>课时费</label><div class="desc">按课时数 × 单价计入；关掉不影响晚修监考这项独立补贴</div></div><div class="switch'+(s.enableLesson?" on":"")+'" data-k="enableLesson"></div></div>';
   h+='<div class="field"><div><label>监考</label><div class="desc">与出勤同价，计入实际出勤天数</div></div><div class="switch'+(s.enableInv?" on":"")+'" data-k="enableInv"></div></div>';
   h+='<div class="field"><div><label>加班</label><div class="desc">与出勤同价，计入实际出勤天数</div></div><div class="switch'+(s.enableOt?" on":"")+'" data-k="enableOt"></div></div>';
   h+='</div>';
@@ -3553,7 +3569,9 @@ function bindEvents(){
     var v=parseInt($("mLessons").textContent,10)||0;$("mLessons").textContent=Math.max(0,v-1);syncRateBox();
   });
   $("mNightPlus").addEventListener("click",function(){
-    var v=parseInt($("mNight").textContent,10)||0;$("mNight").textContent=Math.min(4,v+1);
+    var v=parseInt($("mNight").textContent,10)||0;
+    if(v>=4){toast("一天最多记 4 次");return;}
+    $("mNight").textContent=v+1;
   });
   $("mNightMinus").addEventListener("click",function(){
     var v=parseInt($("mNight").textContent,10)||0;$("mNight").textContent=Math.max(0,v-1);

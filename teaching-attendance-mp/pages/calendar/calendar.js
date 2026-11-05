@@ -665,7 +665,11 @@ Page({
     var d = parseInt(e.currentTarget.dataset.d, 10);
     var v = (parseInt(this.data.sheet.night, 10) || 0) + d;
     if (v < 0) { v = 0; }
-    if (v > 4) { v = 4; }
+    /* 到顶了给个响，不然连点没反应会被当成按钮坏了 */
+    if (v > 4) {
+      v = 4;
+      if (d > 0) { wx.showToast({ title: '一天最多记 4 次', icon: 'none' }); }
+    }
     this._patchSheet({ 'sheet.night': v });
   },
 

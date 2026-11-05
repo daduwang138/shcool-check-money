@@ -45,7 +45,7 @@
     <view class="row">
       <view class="col">
         <text class="row-label">晚修监考</text>
-        <text class="sub">晚上加班监考按次给钱，不算课时、也不占出勤半天；金额填 0 就不显示</text>
+        <text class="sub">按次给钱，不算课时也不占出勤半天；金额填 0 后不再录入，已记账月份仍按原价</text>
       </view>
     </view>
     <view class="row">
@@ -55,6 +55,10 @@
     <view class="row">
       <text class="row-label">每次金额（元）</text>
       <input class="num-in" type="digit" value="{{nightFee}}" bindblur="setNightFee" />
+    </view>
+
+    <view class="row">
+      <text class="sub rate-hint">白天照常记出勤，晚上这场只填「几次」；同一场别再勾「加班」半天，会重复算钱。开关只管面板里有没有对应状态，以前记过的记录照算。</text>
     </view>
 
     <view class="row">

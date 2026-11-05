@@ -251,6 +251,7 @@ ncal.openSheet(nkey);
 ok(ncal.data.sheet.night === 2, '重新打开面板带出已记的次数');
 for (let i = 0; i < 5; i++) { ncal.stepNight({ currentTarget: { dataset: { d: 1 } } }); }
 ok(ncal.data.sheet.night === 4, '一天最多 4 次，防手滑');
+ok(toasts.some(t => /最多记 4 次/.test(t)), '到顶给提示，不会被当成按钮坏了', toasts.join('/'));
 ncal.stepNight({ currentTarget: { dataset: { d: -1 } } });
 ncal.stepNight({ currentTarget: { dataset: { d: -1 } } });
 ok(ncal.data.sheet.night === 2, '可以减回去');
@@ -646,6 +647,33 @@ require(path.join(ROOT, 'utils/store.js')).save(sumN.db);
 sumN.render();
 ok(sumN.data.otherRates.indexOf('晚自习 ¥80/节') >= 0, '参数卡列出其他档位', sumN.data.otherRates);
 ok(sumN.data.p.rate === '120', '只读行不影响可编辑的单价', sumN.data.p.rate);
+
+/* 参数卡这两行必须取「本月实际生效的价」，不能取设置里的现价：
+   11 月按 80 元/节、10 元/次记过账，后来调价到 150 / 25，回看 11 月还得是旧价，
+   不然同一屏上「其他档位 ¥150」和计算过程里的「× ¥80」会自己打起来。 */
+const ymN = sumN.data.ym;
+sumN.db.settings.rates = [
+  { id: 'default', name: '正课', price: 120 }, { id: 'eve', name: '晚自习', price: 80 }
+];
+sumN.db.settings.nightFee = 10;
+delete sumN.db.months[ymN].rates;
+delete sumN.db.months[ymN].night;
+sumN.render();                                   /* 这一遍把 80 / 10 冻进本月 */
+sumN.db.settings.rates[1].price = 150;
+sumN.db.settings.nightFee = 25;
+sumN.render();
+ok(sumN.data.otherRates.indexOf('晚自习 ¥80/节') >= 0, '档位只读行用当月冻结价', sumN.data.otherRates);
+ok(sumN.data.otherRates.indexOf('¥150') < 0, '档位只读行不跟新设置变', sumN.data.otherRates);
+ok(sumN.data.nightEach === '每次 2 小时 · ¥10', '晚修只读行也用冻结价', sumN.data.nightEach);
+ok(sumN.data.total === core.fmt(core.computeMonth(sumN.db, ymN).total), '金额与参数卡同口径');
+
+/* 恢复默认参数只删三个可手改的值，档位与晚修的快照保留（记过账的月份不因调价变钱） */
+const beforeSnap = JSON.stringify(sumN.db.months[ymN].rates);
+sumN.resetParams();
+ok(sumN.db.months[ymN].rates && JSON.stringify(sumN.db.months[ymN].rates) === beforeSnap,
+  '恢复默认参数保留档位价快照');
+ok(sumN.db.months[ymN].night && sumN.db.months[ymN].night.fee === 10,
+  '恢复默认参数保留晚修价快照');
 
 /* 设置页 */
 reset();

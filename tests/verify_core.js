@@ -24,6 +24,25 @@ vm.createContext(ctx);
 vm.runInContext(slice, ctx);
 vm.runInContext(csvSlice, ctx);
 
+/* 算法切片被「加密 / 存储」段切断，后面还有几个纯函数在两版都有同名实现。
+   单独抽出来一起跑，别让它们悄悄落到测试覆盖之外。 */
+function extractFn(text, mark) {
+  const s = text.indexOf(mark);
+  if (s < 0) { throw new Error('找不到 ' + mark); }
+  const open = text.indexOf('{', s);
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === '{') { depth++; }
+    else if (text[i] === '}') { depth--; if (depth === 0) { return text.slice(s, i + 1); } }
+  }
+  throw new Error('括号不配平 ' + mark);
+}
+const EXTRA_FNS = [
+  'function ymOf(k){', 'function isYm(v){', 'function monthKeysOf(db){',
+  'function hasContent(r){', 'function dayCount(db){', 'function localKeys(){'
+];
+vm.runInContext(EXTRA_FNS.map(m => extractFn(html, m)).join('\n'), ctx);
+
 let pass = 0, fail = 0;
 const bad = [];
 function eq(name, A, B) {
@@ -465,30 +484,142 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   ctx.DB = hk;
   ctx.setRecord('2026-10-08', 'work', 'work', 4, '', true, 'default', 2);
   ctx.setRecord('2026-10-08', 'work', 'work', 3, '补一句');
-  /* dayCount / localKeys 在算法切片之外（属于存储层），单独抽出来跑：
+  /* dayCount / localKeys 在算法切片之外（属于存储层），上面已经单独抽出来注入：
      只记了晚修的日子必须算「有记录」，也必须写进月份文件，否则绑定目录后会丢数据 */
-  function extractFn(text, mark) {
-    const s = text.indexOf(mark);
-    if (s < 0) { throw new Error('找不到 ' + mark); }
-    const open = text.indexOf('{', s);
-    let depth = 0;
-    for (let i = open; i < text.length; i++) {
-      if (text[i] === '{') { depth++; }
-      else if (text[i] === '}') { depth--; if (depth === 0) { return text.slice(s, i + 1); } }
-    }
-    throw new Error('括号不配平 ' + mark);
-  }
-  vm.runInContext([
-    extractFn(html, 'function hasContent(r){'),
-    extractFn(html, 'function dayCount(db){'),
-    extractFn(html, 'function localKeys(){')
-  ].join('\n'), ctx);
   const nightOnly = { days: { '2026-10-21': { am: '', pm: '', lessons: 0, note: '', night: 1 } } };
   ctx.DB = nightOnly;
   eq('晚修·HTML dayCount 与内核同口径', ctx.dayCount(nightOnly), core.dayCount(nightOnly));
   eq('晚修·HTML dayCount 认晚修', ctx.dayCount(nightOnly), 1);
   eq('晚修·写盘清单认晚修', ctx.localKeys(), ['2026-10-21']);
   eq('晚修·hasContent 两版同判', ctx.hasContent(nightOnly.days['2026-10-21']), core.hasContent(nightOnly.days['2026-10-21']));
+}
+
+/* ---------- 10. 跨月对账：CSV 要看得见每个月实际按什么价算的 ----------
+   上面大量断言是「两版一样」，这里钉的是「结果对不对」：
+   10 月按旧价记过账，11 月才调价，导一份跨月 CSV 给财务，
+   参数行如果只写当前设置价，旧月的金额就永远对不上账。 */
+{
+  const mkBoth = () => {
+    const c = core.normalize(mkRates());
+    const h = ctx.normalize(mkRates());
+    [c, h].forEach(function (d) {
+      d.days['2026-10-08'].night = 2;
+      d.days['2026-11-03'].night = 1;
+      d.days['2026-12-03'] = { am: 'work', pm: 'work', lessons: 2, note: '', night: 1 };
+    });
+    return { c, h };
+  };
+  const { c, h } = mkBoth();
+  ctx.DB = h;
+  ['2026-10', '2026-11', '2026-12'].forEach(function (ym) {
+    core.computeMonth(c, ym); ctx.computeMonth(ym);
+  });
+  /* 学校从 11 月起涨价：正课 200、晚自习 150、晚修 3 小时 25 元/次 */
+  [c, h].forEach(function (d) {
+    d.settings.rate = 200;
+    d.settings.rates[1].price = 150;
+    d.settings.nightFee = 25;
+    d.settings.nightHours = 3;
+  });
+  const months = ['2026-10', '2026-11', '2026-12', '2027-02'];
+  const outC = core.buildExportCsv(c, months, true, false);
+  const outH = ctx.buildExportCsv(months, true, false);
+  eq('对账·冻价差异时两版 CSV 一致', stripTime(outH), stripTime(outC));
+
+  const lines = outC.split('\r\n');
+  const i = lines.findIndex(l => l.indexOf('各月实际采用的参数') >= 0);
+  eq('对账·有逐月参数表', i >= 0, true);
+  eq('对账·表头列全', lines[i + 1], '月份,基本工资(元/月),正课(元/节),晚自习(元/节),晚修每次(小时),晚修每次(元)');
+  eq('对账·10 月按冻结的旧价', lines[i + 2], '2026-10,8000.00,120.00,80.00,2,10.00');
+  eq('对账·11 月也按冻结的旧价', lines[i + 3], '2026-11,8000.00,120.00,80.00,2,10.00');
+  eq('对账·12 月也按冻结的旧价', lines[i + 4], '2026-12,8000.00,120.00,80.00,2,10.00');
+  eq('对账·没记过的月份跟新价', lines[i + 5], '2027-02,8000.00,200.00,150.00,3,25.00');
+  eq('对账·当前设置行写的是新价', lines.some(l => l.indexOf('计薪参数（当前设置）') === 0
+    && l.indexOf('晚修监考 3 小时 25 元/次') >= 0), true);
+  eq('对账·10 月晚修补贴按 10 元算', core.computeMonth(c, '2026-10').nightFee, 20);
+  eq('对账·2027-02 没记录不产生晚修费', core.computeMonth(c, '2027-02').nightFee, 0);
+}
+
+/* ---------- 11. 覆盖哨兵：不许新函数悄悄落到测试之外 ----------
+   以前「46564 项通过」只说明「切片里的函数两版一样」，不代表 core.js 全被覆盖：
+   实际有 9 个小程序专属的辅助函数从来没进过比对。这里把清单钉死，
+   以后往 core.js 加函数，要么放进切片一起比，要么在白名单里写明理由并补期望值断言。 */
+{
+  const fnRe = /function\s+([A-Za-z_$][\w$]*)\s*\(/g;
+  const collect = (text) => {
+    const s = new Set(); let m; fnRe.lastIndex = 0;
+    while ((m = fnRe.exec(text))) s.add(m[1]);
+    return s;
+  };
+  const sliced = collect(slice + '\n' + csvSlice);
+  const extra = new Set(['ymOf', 'isYm', 'monthKeysOf', 'hasContent', 'dayCount', 'localKeys']);
+  const coreFns = collect(fs.readFileSync(path.join(MP, 'utils', 'core.js'), 'utf8'));
+  const uncovered = [...coreFns].filter(n => !sliced.has(n) && !extra.has(n)).sort();
+  /* HTML 里是内联等价实现（或小程序页面专属），没法并排比，只能钉死期望值 */
+  const MP_ONLY = ['addHolidaySpan', 'clearHolidayYear', 'daysInMonth', 'delHolidaySpan', 'dowLabel',
+    'fillLessonsFromCourses', 'firstWeekdayOf', 'holidayOf', 'holidayYears'].sort();
+  eq('哨兵·未被双版比对覆盖的函数清单', uncovered, MP_ONLY);
+  eq('哨兵·白名单里的函数确实都导出了',
+    MP_ONLY.filter(n => typeof core[n] !== 'function').length, 0);
+
+  const legacy = core.normalize(mkLegacy());
+  eq('额外抽取·monthKeysOf 两版一致', ctx.monthKeysOf(ctx.normalize(mkLegacy())), core.monthKeysOf(legacy));
+  eq('额外抽取·monthKeysOf 钉死月份', core.monthKeysOf(legacy), ['2026-09', '2026-10', '2026-11', '2027-01']);
+  eq('额外抽取·ymOf', core.ymOf('2026-10-08'), '2026-10');
+  eq('额外抽取·isYm', [core.isYm('2026-10'), core.isYm('2026-10-01'), core.isYm('x')], [true, false, false]);
+  eq('额外抽取·hasContent 两版同判', ctx.hasContent({ night: 1 }), core.hasContent({ night: 1 }));
+  eq('额外抽取·dayCount 两版同数', ctx.dayCount(legacy), core.dayCount(legacy));
+
+  eq('小程序专属·daysInMonth', [core.daysInMonth('2026-02'), core.daysInMonth('2028-02'),
+    core.daysInMonth('2026-10'), core.daysInMonth('2026-11')], [28, 29, 31, 30]);
+  eq('小程序专属·firstWeekdayOf', core.firstWeekdayOf('2026-10'), 4);
+  eq('小程序专属·dowLabel', core.dowLabel('2026-10-21'), '三');
+
+  const hol = core.blankDB();
+  eq('小程序专属·holidayOf 自动建表', core.holidayOf(hol, 2027), { off: [], work: [] });
+  eq('小程序专属·addHolidaySpan 起止颠倒会纠正',
+    (core.addHolidaySpan(hol, 2027, 'off', '2027-02-12', '2027-02-06'), hol.settings.holidays['2027'].off[0]),
+    ['2027-02-06', '2027-02-12']);
+  eq('小程序专属·holidayYears', core.holidayYears(hol), [2027]);
+  eq('小程序专属·delHolidaySpan',
+    [core.delHolidaySpan(hol, 2027, 'off', 0), core.delHolidaySpan(hol, 2027, 'off', 9)], [true, false]);
+  eq('小程序专属·删空后不算自定义年份', core.holidayYears(hol), []);
+  eq('小程序专属·clearHolidayYear',
+    [core.clearHolidayYear(hol, 2027), core.clearHolidayYear(hol, 2027)], [true, false]);
+
+  /* 按课程表填课时：不能覆盖已经手填过的日子，填进去的必须等于课程表推算值 */
+  const fdb = core.normalize(mkLegacy());
+  const kept = fdb.days['2026-10-08'].lessons;
+  const before = new Set(Object.keys(fdb.days));
+  const fr = core.fillLessonsFromCourses(fdb, '2026-10');
+  eq('小程序专属·填课时不覆盖手填记录', fdb.days['2026-10-08'].lessons, kept);
+  eq('小程序专属·确实填了新课时', fr.filled > 0, true);
+  const badFill = Object.keys(fdb.days).filter(function (k) {
+    return !before.has(k) && fdb.days[k].lessons !== core.lessonsFor(fdb, k);
+  });
+  eq('小程序专属·新填的都等于课程表推算值', badFill, []);
+}
+
+/* ---------- 12. 计薪开关：④ 是独立补贴，别被别的开关顺手关掉 ----------
+   设置页文案已经写明「关课时费不影响晚修」「关加班不抹掉已记的记录」，
+   这里把这几句话钉成断言，改文案或改实现时都会有人被提醒。 */
+{
+  const d = core.normalize(mkNight());
+  const base = core.computeMonth(d, '2026-10');
+  d.settings.enableLesson = false;
+  const noLesson = core.computeMonth(d, '2026-10');
+  eq('开关·关课时费③归零', noLesson.lessonFee, 0);
+  eq('开关·关课时费④照给', noLesson.nightFee, base.nightFee);
+  d.settings.enableLesson = true;
+  d.settings.enableBase = false;
+  const noBase = core.computeMonth(d, '2026-10');
+  eq('开关·关基本工资①②归零', [noBase.basePart, noBase.extraPart], [0, 0]);
+  eq('开关·关基本工资④照给', noBase.nightFee, base.nightFee);
+  d.settings.enableBase = true;
+  d.settings.enableOt = false;
+  const noOt = core.computeMonth(d, '2026-10');
+  eq('开关·关加班不抹掉已记的加班半天', noOt.counted.ot, base.counted.ot);
+  eq('开关·关加班不抹掉④', noOt.nightFee, base.nightFee);
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项；逐日核对 ' + dayChecked + ' 天');

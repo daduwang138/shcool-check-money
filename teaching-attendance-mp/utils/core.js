@@ -711,7 +711,20 @@ function buildExportCsv(db, months, incSum, incDay) {
   var nightTxt = db.settings.nightFee > 0
     ? '；晚修监考 ' + fmtShort(db.settings.nightHours) + ' 小时 ' + fmtShort(db.settings.nightFee) + ' 元/次'
     : '';
-  L.push(csvRow(['计薪参数', '基本工资 ' + fmtShort(db.settings.baseSalary) + ' 元/月；课时单价 ' + rateTxt + nightTxt]));
+  L.push(csvRow(['计薪参数（当前设置）', '基本工资 ' + fmtShort(db.settings.baseSalary) + ' 元/月；课时单价 ' + rateTxt + nightTxt]));
+  /* 上面那行只是「现在设置里填的价」。跨月导出时，记过账的月份用的是当月冻结价，
+     两者可能不一样；财务拿这份表对账，得看得见每个月到底按哪个价算出来的。
+     开关关掉的项仍列出参数值（那是记录里的值），只是不计入金额。 */
+  var rlist = ratesOf(db);
+  L.push(csvRow(['各月实际采用的参数（记过账的月份按当时价格冻结）']));
+  L.push(csvRow(['月份', '基本工资(元/月)'].concat(rlist.map(function (r) { return r.name + '(元/节)'; }))
+    .concat(['晚修每次(小时)', '晚修每次(元)'])));
+  months.forEach(function (ym) {
+    var np = nightOf(db, ym);
+    L.push(csvRow([ym, num2(monthBase(db, ym))].concat(rlist.map(function (r) {
+      return num2(priceOf(db, ym, r.id));
+    })).concat([fmtShort(np.hours), num2(np.fee)])));
+  });
   L.push('');
   var tot = { actual: 0, les: 0, base: 0, extra: 0, fee: 0, night: 0, nfee: 0, all: 0 };
   if (incSum) {
