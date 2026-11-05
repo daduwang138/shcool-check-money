@@ -45,6 +45,15 @@ Page({
       { k: '课时合计', v: c.lessons + ' 节', strong: false }
     ];
 
+    /* 分了档就列出每档各多少节、什么价，否则「64 节 ¥7040」这行没人算得出来 */
+    if (c.byRate && c.byRate.length > 1) {
+      rows.push({
+        k: '课时明细',
+        v: c.byRate.map(function (r) { return r.name + ' ' + r.lessons + '×' + core.fmtShort(r.price); }).join(' + '),
+        strong: false
+      });
+    }
+
     var halfRows = [
       { k: '上班', v: c.counted.work, cls: 's-work' },
       { k: '监考', v: c.counted.inv, cls: 's-inv' },

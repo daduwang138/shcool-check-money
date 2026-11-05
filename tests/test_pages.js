@@ -496,6 +496,28 @@ ok(Math.abs(c1.dailyRate - 400) < 1e-9, '日薪随之重算', c1.dailyRate);
 sum.resetParams();
 ok(core.computeMonth(core.normalize(current()), sum.data.ym).workdays !== 20, '恢复默认参数生效');
 
+/* 课时分档后，计算过程要列出每档；只有一档时不该多这一行 */
+reset();
+seedDb();
+const sumR = makePage('summary');
+sumR.onLoad();
+ok(!sumR.data.rows.some(r => r.k === '课时明细'), '只有一档时不多出明细行');
+const ymR = sumR.data.ym;
+sumR.db.settings.rates = [
+  { id: 'default', name: '正课', price: 120 },
+  { id: 'eve', name: '晚自习', price: 80 }
+];
+core.setRecord(sumR.db, ymR + '-05', 'work', 'work', 4, '', true, '');
+core.setRecord(sumR.db, ymR + '-06', 'ot', 'ot', 2, '', true, 'eve');
+require(path.join(ROOT, 'utils/store.js')).save(sumR.db);
+sumR.render();
+const det = sumR.data.rows.find(r => r.k === '课时明细');
+ok(!!det, '多档时列出课时明细');
+ok(det && det.v.indexOf('正课') >= 0 && det.v.indexOf('晚自习') >= 0, '明细里有各档名称', det && det.v);
+ok(det && det.v.indexOf('×') >= 0, '明细里带各档单价', det && det.v);
+const cR = core.computeMonth(core.normalize(current()), ymR);
+ok(cR.byRate.length === 2 && cR.lessonFee === 4 * 120 + 2 * 80, '两档课时费分别累加', cR.lessonFee);
+
 /* 工资参数冻结：记过账的月份冻住，只是翻看过的不冻 */
 reset();
 seedDb();

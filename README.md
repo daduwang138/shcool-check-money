@@ -6,7 +6,7 @@
 
 | 版本 | 位置 | 说明 |
 |---|---|---|
-| 电脑版 | `教学考勤记账本.html` | 单文件，双击用浏览器打开即用，无需安装、无需联网 |
+| 电脑版 | `教学考勤记账本.html` | 单文件，双击用浏览器打开即用，无需安装；只有主动点「联网获取」放假安排时才需要网络 |
 | 小程序版 | `teaching-attendance-mp/` | 微信原生小程序，手机/电脑微信都能用，适合发给同事各自记账 |
 
 ## 功能
@@ -53,7 +53,7 @@ preview/                   生成好的单文件预览 mp-preview.html
 
 ```bash
 node tests/verify_core.js      # 把 HTML 版和 core.js 并排跑，逐字段比对（38791 项）
-node tests/test_pages.js       # 用桩模拟小程序运行时，跑页面逻辑（213 项）
+node tests/test_pages.js       # 用桩模拟小程序运行时，跑页面逻辑（218 项）
 node tests/check_structure.js  # 小程序 wxml/wxss 结构自检：标签闭合、事件方法、样式缺失
 node tools/build_preview.js    # 生成单文件预览 preview/mp-preview.html，双击即可试交互
 ```
