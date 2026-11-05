@@ -17,7 +17,7 @@
 }
 
 .txt-in {
-  width: 260rpx;
+  width: 240rpx;
   height: 64rpx;
   padding: 0 16rpx;
   border: 1rpx solid #E4E1D8;
@@ -29,7 +29,7 @@
 }
 
 .num-in {
-  width: 220rpx;
+  width: 240rpx;
   height: 64rpx;
   padding: 0 16rpx;
   border: 1rpx solid #E4E1D8;
@@ -41,14 +41,21 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 标题和说明各占一行：text 默认 inline，不撑成纵向排列就会挤成一段 */
 .week-block {
+  display: flex;
+  flex-direction: column;
   padding: 18rpx 0 6rpx;
   border-bottom: 1rpx solid #F1EFE8;
 }
 
+.week-block .sub {
+  margin-top: 6rpx;
+}
+
 .week {
   display: flex;
-  margin-top: 16rpx;
+  margin-top: 22rpx;
 }
 
 .wd {

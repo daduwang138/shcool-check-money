@@ -68,17 +68,19 @@
   padding-bottom: 380rpx;
 }
 
+/* 四张卡等分：不按内容宽度自适应，否则金额一长就把前面几张挤窄 */
 .chips {
   display: flex;
-  flex-wrap: wrap;
-  padding: 4rpx 20rpx 0;
+  padding: 4rpx 18rpx 0;
 }
 
 .chip {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  margin: 8rpx 8rpx 0 0;
-  padding: 10rpx 18rpx;
+  min-width: 0;
+  margin: 8rpx 6rpx 0;
+  padding: 10rpx 12rpx;
   border: 1rpx solid #E7E5DD;
   border-radius: 14rpx;
   background: #FFFFFF;
@@ -88,14 +90,21 @@
   color: #8A8E96;
   font-size: 20rpx;
   line-height: 1.4;
+  white-space: nowrap;
 }
 
 .chip-v {
   color: #191C20;
-  font-size: 27rpx;
+  font-size: 26rpx;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* 金额位数最多，多分半成宽度，字号仍和其它卡一致 */
+.chip.chip-wide {
+  flex: 1.15;
 }
 
 .legend {
@@ -330,24 +339,37 @@
   line-height: 1.7;
 }
 
+/* 操作区：一条分割线把它和日历分开，主操作单占一行，重置类两项并排 */
 .tools {
   display: flex;
-  padding: 20rpx 24rpx 0;
+  padding: 12rpx 24rpx 0;
+}
+
+.tools-main {
+  margin-top: 26rpx;
+  padding-top: 26rpx;
+  border-top: 1rpx solid #EAE8E0;
 }
 
 .tools .btn {
   flex: 1;
-  height: 72rpx;
-  margin-right: 10rpx;
-  font-size: 24rpx;
+  height: 84rpx;
+  margin-right: 12rpx;
+  font-size: 26rpx;
 }
 
 .tools .btn:last-child {
   margin-right: 0;
 }
 
+/* 危险操作压成淡红底：仍可辨认，但不和主操作抢注意力 */
+.tools .btn.danger.soft {
+  border-color: #EFD7D2;
+  background: #FDF6F5;
+}
+
 .tips {
-  padding: 16rpx 24rpx 0;
+  padding: 22rpx 24rpx 0;
   color: #8A8E96;
   font-size: 21rpx;
   line-height: 1.7;
@@ -715,11 +737,4 @@
 /* 选择模式下禁掉滚动手势，避免滑动选日期时页面跟着动 */
 .grid.no-scroll {
   touch-action: none;
-}
-
-/* 单个工具按钮不占满整行 */
-.tools .btn.narrow {
-  flex: 0 0 auto;
-  margin-left: auto;
-  padding: 0 44rpx;
 }

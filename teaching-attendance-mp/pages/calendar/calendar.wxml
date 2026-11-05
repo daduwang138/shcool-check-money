@@ -12,7 +12,7 @@
   </view>
 
   <view class="chips">
-    <view class="chip" wx:for="{{chips}}" wx:key="k">
+    <view class="chip {{item.num ? 'chip-wide' : ''}}" wx:for="{{chips}}" wx:key="k">
       <text class="chip-k">{{item.k}}</text>
       <text class="chip-v">{{item.v}}</text>
     </view>
@@ -52,12 +52,12 @@
     <text class="note-item" wx:for="{{notes}}" wx:key="*this">{{item}}</text>
   </view>
 
-  <view class="tools">
+  <view class="tools tools-main">
     <view class="btn primary" bindtap="fillCourse">按课程表填课时</view>
-    <view class="btn" bindtap="restoreDefault">恢复默认出勤</view>
   </view>
   <view class="tools">
-    <view class="btn danger narrow" bindtap="clearMonth">清空本月</view>
+    <view class="btn" bindtap="restoreDefault">恢复默认出勤</view>
+    <view class="btn danger soft" bindtap="clearMonth">清空本月</view>
   </view>
 
   <view class="tips">

@@ -137,7 +137,7 @@ Page({
       { k: '应上班', v: c.workdays + ' 天' },
       { k: '实际出勤', v: core.fmtShort(c.actual) + ' 天' },
       { k: '课时', v: c.lessons + ' 节' },
-      { k: '应发', v: '¥' + core.fmt(c.total) }
+      { k: '应发', v: '¥' + core.fmt(c.total), num: true }
     ];
 
     var notes = [];
