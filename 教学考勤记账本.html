@@ -163,6 +163,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .lessons.ghost{color:#A8A69C;font-weight:400}
 .lessons.ghost::before{content:"";display:inline-block;width:5px;height:5px;border:1px dashed #B4B2A9;
   border-radius:50%;margin-right:5px;vertical-align:1px}
+.lessons.bare{background:transparent;padding:0 0 2px}
+.nighttag{display:inline-block;margin-left:5px;padding:0 5px;border-radius:5px;background:#E7EDF5;
+  color:#3F6080;font-size:9.5px;font-weight:600;line-height:1.7;vertical-align:1px}
 
 /* ---------- 拖选 ---------- */
 .cal .cell{touch-action:none}
@@ -490,6 +493,16 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
       <div id="mRateBox" style="display:none">
         <div class="lb" style="margin-top:12px">按哪档计价</div>
         <div class="opts rate-opts" id="mRate"></div>
+      </div>
+    </div>
+    <div class="sect" id="mNightBox" style="display:none">
+      <div class="lb">晚修监考</div>
+      <div class="stepper">
+        <button id="mNightMinus">−</button>
+        <div class="val" id="mNight">0</div>
+        <button id="mNightPlus">＋</button>
+        <span class="faint" style="margin-left:6px">次</span>
+        <span class="faint" id="mNightHint" style="margin-left:12px"></span>
       </div>
     </div>
     <div class="sect">
@@ -871,6 +884,8 @@ function blankDB(){
   return {
     v:1,savedAt:0,
     settings:{owner:"",baseSalary:0,rate:0,rates:[{id:"default",name:"正课",price:0}],
+      /* 晚修监考：按次计，不算课时也不占出勤半天 */
+      nightHours:2,nightFee:10,
       enableBase:true,enableLesson:true,enableInv:true,enableOt:true,autoWork:true,
       /* 常规周：下标 0=周日 … 6=周六；1=全天，0.5=只上午，0=不上班 */
       weekPattern:[0,1,1,1,1,1,0],
@@ -897,6 +912,9 @@ function normalize(db){
   if(!Array.isArray(wp)||wp.length!==7)db.settings.weekPattern=b.settings.weekPattern.slice();
   else db.settings.weekPattern=wp.map(function(v){v=parseFloat(v);return v===0.5?0.5:(v?1:0);});
   if(typeof db.settings.startDate!=="string")db.settings.startDate="";
+  /* 晚修监考的两个价：存成字符串也认，负数归零 */
+  db.settings.nightHours=Math.max(0,parseFloat(db.settings.nightHours)||0);
+  db.settings.nightFee=Math.max(0,parseFloat(db.settings.nightFee)||0);
   if(typeof db.settings.fileName!=="string"||!db.settings.fileName.trim())db.settings.fileName="考勤数据.json";
   /* 文件前缀：老数据里只有 fileName（整库单文件），从这里推导出前缀 */
   if(typeof db.settings.fileBase!=="string"||!db.settings.fileBase.trim()){
@@ -964,13 +982,16 @@ function isGhost(key){
   return isGhostHalf(key,"am")||isGhostHalf(key,"pm");
 }
 /* 写一天的记录；清空时若该日法定上班，留一个"明确不上班"的墓碑，避免又被默认值顶回来 */
-function setRecord(key,am,pm,lessons,note,lset,rid){
+function setRecord(key,am,pm,lessons,note,lset,rid,night){
   var prev=DB.days[key];
   var kept=(lset===undefined)?(prev?!!prev.lset:((parseInt(lessons,10)||0)>0)):!!lset;
   /* 档位只有非默认档才落盘，默认档不写字段——这样老数据、老备份读进来结构还是一样的 */
   /* 档位只对「有课时」有意义，0 节的日子不必留个空档位 */
   var useRid=(rid&&rid!=="default"&&(parseInt(lessons,10)||0)>0)?rid:"";
-  if(!am&&!pm&&!lessons&&!note){
+  /* 晚修监考次数：不传就沿用原值。批量改出勤、切换上下午都不该顺手把晚修抹掉 */
+  var ni=(night===undefined)?((prev&&parseInt(prev.night,10))||0):(parseInt(night,10)||0);
+  if(ni<0)ni=0;
+  if(!am&&!pm&&!lessons&&!note&&!ni){
     /* 这天本来就默认上班（法定工作日或常规周），要留一个"明确不上班"的墓碑，
        否则清空后默认值又会把它顶回来 */
     if(defaultHalf(key,"am")||defaultHalf(key,"pm")){
@@ -982,6 +1003,8 @@ function setRecord(key,am,pm,lessons,note,lset,rid){
   }else{
     DB.days[key]={am:am,pm:pm,lessons:lessons,note:note,off:false,lset:kept,upd:Date.now()};
     if(useRid)DB.days[key].rid=useRid;
+    /* 0 次不写字段，跟 rid 一个道理：数据能少一个键就少一个 */
+    if(ni>0)DB.days[key].night=ni;
   }
 }
 /* 这月有没有经手过：落过任意一条日记录，或标记过已核对。
@@ -1011,6 +1034,10 @@ function monthP(ym){
     var snap={};
     ratesOf(DB).forEach(function(r){if(r.id!=="default")snap[r.id]=r.price;});
     p.rates=snap;
+  }
+  /* 晚修监考的次数单价同理：学校调价不该追溯改旧账 */
+  if(p.night==null&&monthTouched(ym)){
+    p.night={hours:parseFloat(DB.settings.nightHours)||0,fee:parseFloat(DB.settings.nightFee)||0};
   }
   return p;
 }
@@ -1043,10 +1070,19 @@ function priceOf(db,ym,rid){
   for(var i=0;i<l.length;i++){if(l[i].id===rid)return l[i].price;}
   return monthRate(ym);
 }
+/* 晚修监考：一次算几个小时、给多少钱。月里有快照就用快照 */
+function nightOf(db,ym){
+  var p=DB.months[ym];
+  if(p&&p.night){
+    return {hours:parseFloat(p.night.hours)||0,fee:parseFloat(p.night.fee)||0};
+  }
+  return {hours:parseFloat(db.settings.nightHours)||0,fee:parseFloat(db.settings.nightFee)||0};
+}
+/* 三段式：①日薪×min(实际,应上) + ②日薪×超出天数 + ③课时×单价 + ④晚修监考次数×每次 */
 function computeMonth(ym){
   var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
   var n=new Date(y,m,0).getDate();
-  var half=0,lessons=0,filledDays=0,byMap={},counted={work:0,inv:0,ot:0,leave:0};
+  var half=0,lessons=0,filledDays=0,byMap={},nightCount=0,counted={work:0,inv:0,ot:0,leave:0};
   for(var d=1;d<=n;d++){
     var k=dk(y,m,d), rec0=peek(k);
     if(preStart(k))continue;                 // 入职前的日子整个跳过
@@ -1058,6 +1094,9 @@ function computeMonth(ym){
     if(rec0){
       var ln=parseInt(rec0.lessons,10)||0;
       lessons+=ln;
+      /* 晚修监考按次记，不进课时合计，也不占出勤半天 */
+      var ni=parseInt(rec0.night,10)||0;
+      if(ni>0)nightCount+=ni;
       /* 多档单价：按当天记的档位分别累加，没记档位算默认档 */
       if(ln>0){
         var rid=rec0.rid||"default";
@@ -1066,7 +1105,7 @@ function computeMonth(ym){
         byMap[rid].lessons+=ln;
         byMap[rid].fee+=ln*pr;
       }
-      if(rec0.am||rec0.pm||rec0.lessons||rec0.note)filledDays++;
+      if(rec0.am||rec0.pm||rec0.lessons||rec0.note||rec0.night)filledDays++;
     }
   }
   var p=monthP(ym);
@@ -1090,11 +1129,17 @@ function computeMonth(ym){
     byRate.forEach(function(r){lessonFee+=r.fee;});
     lessonFee=round2(lessonFee);
   }
+  /* 晚修监考：跟课时费一样，关掉课时费不影响这一项，它是独立的补贴 */
+  var np=nightOf(DB,ym);
+  var nightHours=round2(nightCount*np.hours);
+  var nightFee=round2(nightCount*np.fee);
   return {
     ym:ym,workdays:workdays,actual:actual,half:half,lessons:lessons,filledDays:filledDays,
     dailyRate:dailyRate,base:base,rate:rate,byRate:byRate,
     capped:capped,extra:extra,basePart:basePart,extraPart:extraPart,lessonFee:lessonFee,
-    total:round2(basePart+extraPart+lessonFee),counted:counted,checked:!!p.checked,
+    nightCount:nightCount,nightHours:nightHours,nightFee:nightFee,
+    nightHoursEach:np.hours,nightFeeEach:np.fee,
+    total:round2(basePart+extraPart+lessonFee+nightFee),counted:counted,checked:!!p.checked,
     start:DB.settings.startDate||""
   };
 }
@@ -1112,11 +1157,16 @@ function sumText(c){
   if(c.byRate&&c.byRate.length>1){
     L.push("课时明细："+c.byRate.map(function(r){return r.name+" "+r.lessons+" 节 × "+fmtShort(r.price)+" = "+fmt(r.fee)+" 元";}).join("；"));
   }
+  /* 晚修监考单独一行：不进课时合计，财务那边也是两笔 */
+  if(c.nightCount>0){
+    L.push("晚修监考："+c.nightCount+" 次 × "+fmtShort(c.nightHoursEach)+" 小时 × "+fmtShort(c.nightFeeEach)+" 元 = "+fmt(c.nightFee)+" 元");
+  }
   L.push("————————————————");
   L.push("折算日薪："+fmt(c.dailyRate)+" 元");
   L.push("① 基本工资部分："+fmt(c.basePart)+" 元");
   L.push("② 超出天数部分："+fmt(c.extraPart)+" 元");
   L.push("③ 课时费："+fmt(c.lessonFee)+" 元");
+  if(c.nightCount>0){L.push("④ 晚修监考费："+fmt(c.nightFee)+" 元");}
   L.push("应发合计："+fmt(c.total)+" 元");
   return L.join("\n");
 }
@@ -1180,7 +1230,7 @@ function splitPath(p){
 }
 function ymOf(k){return String(k).slice(0,7);}
 function isYm(v){return /^\d{4}-\d{2}$/.test(v);}
-function hasContent(r){return !!(r&&(r.am||r.pm||r.lessons||r.note));}
+function hasContent(r){return !!(r&&(r.am||r.pm||r.lessons||r.note||r.night));}
 function monthKeysOf(db){
   var set={};
   Object.keys((db&&db.days)||{}).forEach(function(k){if(/^\d{4}-\d{2}-\d{2}$/.test(k))set[ymOf(k)]=1;});
@@ -1273,7 +1323,8 @@ function removeDirFile(name){
 }
 function dayCount(db){
   return Object.keys((db&&db.days)||{}).filter(function(k){
-    var r=db.days[k];return r&&(r.am||r.pm||r.lessons||r.note);
+    /* 只记了晚修监考的日子也算一天，别在「本机记录」里凭空少一天 */
+    return hasContent(db.days[k]);
   }).length;
 }
 /* 把文件里有、本机没有的天补进来（本机已有的以本机为准）。返回补了几条 */
@@ -1842,9 +1893,16 @@ function renderCal(){
     html+='<button class="half '+sl(pm).cls+(ghP?" ghost-half":"")+'" data-d="'+k+'" data-half="pm" title="下午：'+(ghP?"默认上班（假期或调休请点开改）":sl(pm).label)+'" aria-label="下午'+(ghP?"默认上班":sl(pm).label)+'">'+sl(pm).ch+'</button>';
     html+='</div>';
     var exp=lessonsFor(k), lset=!!(r&&r.lset);
-    if(les)html+='<div class="lessons">'+les+' 节</div>';
-    else if(exp>0&&lset)html+='<div class="lessons zero" title="课程表上这天是 '+exp+' 节，你已改为 0 节">0 节</div>';
-    else if(exp>0)html+='<div class="lessons zero ghost" title="课程表上这天是 '+exp+' 节，还没填">'+exp+' 节?</div>';
+    var ni=r?(parseInt(r.night,10)||0):0;
+    var lesHtml="", lesCls="", lesTitle="";
+    if(les){lesHtml=les+" 节";}
+    else if(exp>0&&lset){lesHtml="0 节";lesCls=" zero";lesTitle=' title="课程表上这天是 '+exp+' 节，你已改为 0 节"';}
+    else if(exp>0){lesHtml=exp+" 节?";lesCls=" zero ghost";lesTitle=' title="课程表上这天是 '+exp+' 节，还没填"';}
+    /* 晚修监考跟课时挤在同一行：格子窄，多开一行会把日期挤散 */
+    if(lesHtml||ni){
+      html+='<div class="lessons'+lesCls+(lesHtml?"":" bare")+'"'+lesTitle+'>'+lesHtml
+        +(ni?'<span class="nighttag" title="晚修监考 '+ni+' 次">晚 '+ni+'</span>':'')+'</div>';
+    }
     html+='</div>';
   }
   $("cal").innerHTML=html;
@@ -2072,6 +2130,17 @@ function openEditor(key){
   $("mLessons").textContent=les;
   $("mNote").value=r0?(r0.note||""):"";
   buildRateOpts(r0&&r0.rid?r0.rid:"default", les);
+  /* 晚修监考：学校发了这个钱才显示；以前记过、现在单价调成 0 的也显示，好让人把次数清掉 */
+  var ni=r0?(parseInt(r0.night,10)||0):0;
+  var nFee=parseFloat(DB.settings.nightFee)||0;
+  $("mNight").textContent=ni;
+  if(nFee>0||ni>0){
+    $("mNightBox").style.display="";
+    $("mNightHint").textContent="每次 "+fmtShort(DB.settings.nightHours)+" 小时 · "+fmtShort(nFee)+" 元";
+  }else{
+    $("mNightBox").style.display="none";
+    $("mNightHint").textContent="";
+  }
   var sug=lessonsFor(key), box=$("mSug");
   if(sug>0&&!(r0&&r0.lset)){
     box.style.display="";
@@ -2129,8 +2198,9 @@ function saveEditor(close){
   var note=$("mNote").value.trim();
   var rb=$("mRate");
   var rid=(lessons>0&&rb&&rb.querySelector(".opt.active"))?rb.querySelector(".opt.active").getAttribute("data-r"):"";
+  var night=parseInt($("mNight").textContent,10)||0;
   if(mp.checked&&!confirm("本月已标记核对，仍要修改吗？"))return;
-  setRecord(key, am?am.dataset.v:"", pm?pm.dataset.v:"", lessons, note, true, rid);
+  setRecord(key, am?am.dataset.v:"", pm?pm.dataset.v:"", lessons, note, true, rid, night);
   persist().then(function(){
     renderCal();
     if($("view-sum").hidden===false)renderSum();
@@ -2147,6 +2217,8 @@ function stepDay(delta){
 }
 
 /* ---------- 汇总 ---------- */
+/* 明细表「只看有课或有备注」：这是个看表的姿势，不属于数据，不落库 */
+var SUM_ONLY=false;
 function renderSum(){
   var c=computeMonth(CUR), p=monthP(CUR);
   var v=$("view-sum");
@@ -2156,13 +2228,16 @@ function renderSum(){
     var k=dk(y,m,d),r=peek(k);
     if(preStart(k))continue;
     var a=effHalf(k,"am"), b=effHalf(k,"pm"), les=r?(parseInt(r.lessons,10)||0):0;
-    if(!a&&!b&&!les&&!(r&&r.note))continue;
+    var ni=r?(parseInt(r.night,10)||0):0;
+    if(!a&&!b&&!les&&!(r&&r.note)&&!ni)continue;
+    /* 只看有课或有备注：纯出勤（默认上班）的行省掉，一屏能看完整个月 */
+    if(SUM_ONLY&&!les&&!ni&&!(r&&r.note))continue;
     var wd=["日","一","二","三","四","五","六"][new Date(y,m-1,d).getDay()];
     /* 档位只在真有课时才标，跟 CSV 那一列同一口径 */
     var rn=les>0?rateName(DB,(r&&r.rid)||"default"):"";
-    rows+="<tr><td>"+m+"/"+d+" 周"+wd+"</td><td>"+(a?sl(a).label:"—")+"</td><td>"+(b?sl(b).label:"—")+"</td><td class='num'>"+les+"</td><td class='faint'>"+rn+"</td><td class='faint'>"+(r&&r.note?r.note:"")+"</td></tr>";
+    rows+="<tr><td>"+m+"/"+d+" 周"+wd+"</td><td>"+(a?sl(a).label:"—")+"</td><td>"+(b?sl(b).label:"—")+"</td><td class='num'>"+les+"</td><td class='faint'>"+rn+"</td><td class='num'>"+(ni?ni+" 次":"")+"</td><td class='faint'>"+(r&&r.note?r.note:"")+"</td></tr>";
   }
-  if(!rows)rows="<tr><td colspan='6' class='faint'>本月还没有记录</td></tr>";
+  if(!rows)rows="<tr><td colspan='7' class='faint'>"+(SUM_ONLY?"本月没有有课、晚修或有备注的日子":"本月还没有记录")+"</td></tr>";
 
   var html="";
   html+='<div class="card">';
@@ -2182,6 +2257,14 @@ function renderSum(){
   html+='<tr><td>上班 / 监考 / 加班</td><td class="num">'+c.counted.work+' / '+c.counted.inv+' / '+c.counted.ot+' 半天</td></tr>';
   html+='<tr><td>请假</td><td class="num">'+c.counted.leave+' 半天</td></tr>';
   html+='<tr><td>课时合计</td><td class="num">'+c.lessons+' 节</td></tr>';
+  /* 只读：档位价和晚修价在设置里改，这里给一眼核对用，免得为了看一眼价格来回切页 */
+  var otherRates=ratesOf(DB).filter(function(r){return r.id!=="default";});
+  if(otherRates.length){
+    html+='<tr><td>其他档位</td><td class="num faint">'+otherRates.map(function(r){return esc(r.name)+' ¥'+fmtShort(r.price)+'/节';}).join(' · ')+'</td></tr>';
+  }
+  if(c.nightCount>0||c.nightFeeEach>0){
+    html+='<tr><td>晚修监考</td><td class="num faint">每次 '+fmtShort(c.nightHoursEach)+' 小时 · ¥'+fmtShort(c.nightFeeEach)+'</td></tr>';
+  }
   html+='</tbody></table>';
   html+='</div></div>';
   html+='</div>';
@@ -2197,6 +2280,10 @@ function renderSum(){
     ? c.byRate.map(function(r){return r.name+' '+r.lessons+' 节 × ¥'+fmtShort(r.price);}).join(' + ')
     : c.lessons+' 节 × ¥'+fmtShort(c.rate);
   html+='<tr class="hi"><td>③ 课时费<br><span class="faint">'+rateLine+'</span></td><td class="num">¥'+fmt(c.lessonFee)+'</td></tr>';
+  /* 晚修监考没记就不占一行，免得每个月都挂一条 ¥0.00 */
+  if(c.nightCount>0){
+    html+='<tr class="hi"><td>④ 晚修监考费<br><span class="faint">'+c.nightCount+' 次 × '+fmtShort(c.nightHoursEach)+' 小时 × ¥'+fmtShort(c.nightFeeEach)+'</span></td><td class="num">¥'+fmt(c.nightFee)+'</td></tr>';
+  }
   html+='<tr class="total"><td>应发合计</td><td class="num" style="font-size:16px">¥'+fmt(c.total)+'</td></tr>';
   html+='</tbody></table>';
   html+='<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">';
@@ -2208,7 +2295,9 @@ function renderSum(){
   html+='<p class="hint">这是个人记账工具，结果不作为与学校结算的正式依据。拿到工资条后请核对三项：出勤天数、课时数、单价。</p>';
   html+='</div>';
 
-  html+='<div class="card"><h2>每日明细</h2><table class="detail"><thead><tr><th>日期</th><th>上午</th><th>下午</th><th class="num">课时</th><th>档位</th><th>备注</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  html+='<div class="card"><h2>每日明细</h2>';
+  html+='<label class="chk" style="margin:0 0 10px"><input type="checkbox" id="sumOnly"'+(SUM_ONLY?" checked":"")+'> 只看有课、晚修或有备注的日子</label>';
+  html+='<table class="detail"><thead><tr><th>日期</th><th>上午</th><th>下午</th><th class="num">课时</th><th>档位</th><th class="num">晚修</th><th>备注</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   v.innerHTML=html;
 
   $("sumWorkdays").addEventListener("change",function(){
@@ -2229,6 +2318,10 @@ function renderSum(){
   $("sumToggleCheck").addEventListener("click",function(){
     p.checked=!p.checked;
     persist().then(function(){renderSum();renderCal();});
+  });
+  $("sumOnly").addEventListener("change",function(){
+    SUM_ONLY=this.checked;
+    renderSum();
   });
 }
 
@@ -2273,7 +2366,7 @@ function monthsWithData(){
   var set={};
   Object.keys(DB.days).forEach(function(k){
     var r=DB.days[k];if(!r)return;
-    if(r.am||r.pm||r.lessons||r.note)set[k.slice(0,7)]=1;
+    if(r.am||r.pm||r.lessons||r.note||r.night)set[k.slice(0,7)]=1;
   });
   var arr=Object.keys(set).sort();
   if(!arr.length)arr=[CUR];
@@ -2285,28 +2378,32 @@ function buildExportCsv(months,incSum,incDay){
   L.push(csvRow(["导出时间",new Date().toLocaleString("zh-CN")]));
   if(DB.settings.startDate)L.push(csvRow(["入职起算日",DB.settings.startDate]));
   var rateTxt=ratesOf(DB).map(function(r){return r.name+" "+fmtShort(r.price)+" 元/节";}).join("；");
-  L.push(csvRow(["计薪参数","基本工资 "+fmtShort(DB.settings.baseSalary)+" 元/月；课时单价 "+rateTxt]));
+  var nightTxt=DB.settings.nightFee>0
+    ?"；晚修监考 "+fmtShort(DB.settings.nightHours)+" 小时 "+fmtShort(DB.settings.nightFee)+" 元/次"
+    :"";
+  L.push(csvRow(["计薪参数","基本工资 "+fmtShort(DB.settings.baseSalary)+" 元/月；课时单价 "+rateTxt+nightTxt]));
   L.push("");
-  var tot={actual:0,les:0,base:0,extra:0,fee:0,all:0};
+  var tot={actual:0,les:0,base:0,extra:0,fee:0,night:0,nfee:0,all:0};
   if(incSum){
     L.push(csvRow(["月度汇总"]));
     L.push(csvRow(["月份","法定工作日","实际出勤(天)","上班(半天)","监考(半天)","加班(半天)","请假(半天)",
-      "课时(节)","折算日薪","基本工资部分","超出天数部分","课时费","应发合计","状态"]));
+      "课时(节)","折算日薪","基本工资部分","超出天数部分","课时费","晚修(次)","晚修补贴","应发合计","状态"]));
     months.forEach(function(ym){
       var c=computeMonth(ym);
       tot.actual+=c.actual;tot.les+=c.lessons;tot.base+=c.basePart;
-      tot.extra+=c.extraPart;tot.fee+=c.lessonFee;tot.all+=c.total;
+      tot.extra+=c.extraPart;tot.fee+=c.lessonFee;tot.night+=c.nightCount;
+      tot.nfee+=c.nightFee;tot.all+=c.total;
       L.push(csvRow([ym,c.workdays,fmtShort(c.actual),c.counted.work,c.counted.inv,c.counted.ot,
         c.counted.leave,c.lessons,num2(c.dailyRate),num2(c.basePart),num2(c.extraPart),
-        num2(c.lessonFee),num2(c.total),c.checked?"已核对":"未核对"]));
+        num2(c.lessonFee),c.nightCount,num2(c.nightFee),num2(c.total),c.checked?"已核对":"未核对"]));
     });
     L.push(csvRow(["合计",months.length+" 个月",fmtShort(tot.actual),"","","","",tot.les,"",
-      num2(tot.base),num2(tot.extra),num2(tot.fee),num2(tot.all),""]));
+      num2(tot.base),num2(tot.extra),num2(tot.fee),tot.night,num2(tot.nfee),num2(tot.all),""]));
     L.push("");
   }
   if(incDay){
     L.push(csvRow(["每日明细"]));
-    L.push(csvRow(["月份","日期","星期","上午","下午","课时","档位","备注"]));
+    L.push(csvRow(["月份","日期","星期","上午","下午","课时","档位","晚修(次)","备注"]));
     months.forEach(function(ym){
       var p=ymd(ym+"-01"),y=p[0],m=p[1],n=new Date(y,m,0).getDate();
       for(var d=1;d<=n;d++){
@@ -2314,18 +2411,19 @@ function buildExportCsv(months,incSum,incDay){
         if(preStart(k))continue;
         var r=peek(k),a=effHalf(k,"am"),b=effHalf(k,"pm");
         var les=r?(parseInt(r.lessons,10)||0):0, note=r?(r.note||""):"";
-        if(!a&&!b&&!les&&!note)continue;
+        var ni=r?(parseInt(r.night,10)||0):0;
+        if(!a&&!b&&!les&&!note&&!ni)continue;
         var wd=["日","一","二","三","四","五","六"][new Date(y,m-1,d).getDay()];
         /* 档位只在真有课时才写，空的写了反而像“这天是正课” */
         var rn=les>0?rateName(DB,(r&&r.rid)||"default"):"";
-        L.push(csvRow([ym,k,"周"+wd,a?sl(a).label:"",b?sl(b).label:"",les,rn,note]));
+        L.push(csvRow([ym,k,"周"+wd,a?sl(a).label:"",b?sl(b).label:"",les,rn,ni,note]));
       }
     });
     L.push("");
   }
   return "\ufeff"+L.join("\r\n");
 }
-/* 汇总页的「导出 Excel」：当月一份，含汇总 + 明细 */
+/* 汇总页的「导出本月 CSV」：当月一份，含汇总 + 明细 */
 function exportCsv(ym){
   saveOut("考勤统计-"+ym+".csv",buildExportCsv([ym],true,true),"text/csv;charset=utf-8");
 }
@@ -2677,6 +2775,12 @@ function renderSet(){
     h+='<p class="faint" style="margin:2px 0 8px">还没加别的档位，现在全部按 '+(s.rate||0)+' 元/节算。</p>';
   }
   h+='<button class="btn sm" id="rateAdd">＋ 加一档</button>';
+  h+='<h3>晚修监考</h3>';
+  h+='<p class="muted" style="margin-bottom:8px">晚上加班监考按次给钱，不算课时、也不占出勤半天。记账面板里填「几次」，这里填一次算几小时、给多少钱。</p>';
+  h+='<div class="fields">';
+  h+='<div class="field"><div><label>每次时长（小时）</label><div class="desc">只影响核对单上的时长，不影响金额</div></div><input type="number" id="setNightHours" min="0" step="0.5" value="'+(s.nightHours||0)+'"></div>';
+  h+='<div class="field"><div><label>每次金额（元）</label><div class="desc">填 0 就不显示这一项</div></div><input type="number" id="setNightFee" min="0" step="0.01" value="'+(s.nightFee||0)+'"></div>';
+  h+='</div>';
   h+='<h3>出勤默认值</h3>';
   h+='<div class="fields">';
   h+='<div class="field"><div><label>法定工作日默认算全天上班</label><div class="desc">开着就不用逐天勾选，只有请假、调休、监考这些例外才需要改</div></div><div class="switch'+(s.autoWork?" on":"")+'" data-k="autoWork"></div></div>';
@@ -2828,6 +2932,17 @@ function renderSet(){
       toast("已加一档，改个名字和单价");
     });
   });
+  /* 晚修监考的两个价：改完只影响今后的月份，记过账的月份按当时的价格冻着 */
+  var nh=$("setNightHours");
+  if(nh)nh.addEventListener("change",function(){
+    var v=parseFloat(this.value);DB.settings.nightHours=isNaN(v)?0:Math.max(0,v);
+    persist().then(function(){toast("已保存");if(!$("view-sum").hidden)renderSum();});
+  });
+  var nf=$("setNightFee");
+  if(nf)nf.addEventListener("change",function(){
+    var v=parseFloat(this.value);DB.settings.nightFee=isNaN(v)?0:Math.max(0,v);
+    persist().then(function(){toast("已保存");if(!$("view-sum").hidden)renderSum();});
+  });
   $("setStart").addEventListener("change",function(){
     var v=this.value||"";
     if(v&&!/^\d{4}-\d{2}-\d{2}$/.test(v)){toast("日期格式不对");return;}
@@ -2877,6 +2992,9 @@ function renderSet(){
   $("applyToCur").addEventListener("click",function(){
     var p=monthP(CUR);
     p.base=DB.settings.baseSalary;p.rate=DB.settings.rate;
+    /* 两种价快照一并同步，否则「同步到本月」只改了默认单价，附加档与晚修还是旧价 */
+    var snap={};ratesOf(DB).forEach(function(r){if(r.id!=="default")snap[r.id]=r.price;});p.rates=snap;
+    p.night={hours:parseFloat(DB.settings.nightHours)||0,fee:parseFloat(DB.settings.nightFee)||0};
     var q=ymd(CUR+"-01");p.workdays=autoWorkdays(q[0],q[1]);
     persist().then(function(){toast("已同步到 "+CUR);renderCal();if(!$("view-sum").hidden)renderSum();});
   });
@@ -2953,7 +3071,8 @@ function renderSet(){
 /* ---------- 浏览器 / 硬盘 对照 ---------- */
 function localKeys(){
   return Object.keys(DB.days||{}).filter(function(k){
-    var r=DB.days[k];return r&&(r.am||r.pm||r.lessons||r.note);
+    /* 写盘清单必须认晚修监考，否则只记了晚修的那天不会写进月份文件 */
+    return hasContent(DB.days[k]);
   }).sort();
 }
 function daysRange(keys){
@@ -3432,6 +3551,12 @@ function bindEvents(){
   });
   $("mMinus").addEventListener("click",function(){
     var v=parseInt($("mLessons").textContent,10)||0;$("mLessons").textContent=Math.max(0,v-1);syncRateBox();
+  });
+  $("mNightPlus").addEventListener("click",function(){
+    var v=parseInt($("mNight").textContent,10)||0;$("mNight").textContent=Math.min(4,v+1);
+  });
+  $("mNightMinus").addEventListener("click",function(){
+    var v=parseInt($("mNight").textContent,10)||0;$("mNight").textContent=Math.max(0,v-1);
   });
   $("mDone").addEventListener("click",function(){saveEditor(true);});
   $("mPrev").addEventListener("click",function(){stepDay(-1);});

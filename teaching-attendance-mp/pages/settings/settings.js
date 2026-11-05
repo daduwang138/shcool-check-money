@@ -29,6 +29,8 @@ Page({
     baseSalary: '',
     rate: '',
     rates: [],
+    nightHours: '',
+    nightFee: '',
     enableBase: true,
     enableLesson: true,
     enableInv: true,
@@ -70,6 +72,8 @@ Page({
       /* 默认档由上面的「单价」管，这里只列附加档位 */
       rates: (s.rates || []).filter(function (r) { return r && r.id && r.id !== 'default'; })
         .map(function (r) { return { id: r.id, name: r.name || '档位', price: String(r.price || 0) }; }),
+      nightHours: String(s.nightHours || 0),
+      nightFee: String(s.nightFee || 0),
       enableBase: !!s.enableBase,
       enableLesson: !!s.enableLesson,
       enableInv: !!s.enableInv,
@@ -104,6 +108,25 @@ Page({
     var v = parseFloat(e.detail.value);
     if (isNaN(v) || v < 0) { this.render(); return; }
     this.db.settings.rate = v;
+    store.save(this.db);
+    this.render();
+  },
+
+  /* ---------- 晚修监考 ---------- */
+  /* 学校发的是「2 小时 10 元/次」这种按次补贴，不算课时也不占出勤半天。
+     两个价在设置里改，记过账的月份按当时的价冻着，不追溯改旧账。 */
+  setNightHours: function (e) {
+    var v = parseFloat(e.detail.value);
+    if (isNaN(v) || v < 0) { this.render(); return; }
+    this.db.settings.nightHours = v;
+    store.save(this.db);
+    this.render();
+  },
+
+  setNightFee: function (e) {
+    var v = parseFloat(e.detail.value);
+    if (isNaN(v) || v < 0) { this.render(); return; }
+    this.db.settings.nightFee = v;
     store.save(this.db);
     this.render();
   },

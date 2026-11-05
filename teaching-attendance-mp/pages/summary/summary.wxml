@@ -45,6 +45,14 @@
       <text class="row-label">课时单价</text>
       <input class="num-in" type="digit" value="{{p.rate}}" bindblur="setRate" />
     </view>
+    <view class="row" wx:if="{{otherRates}}">
+      <text class="row-label">其他档位</text>
+      <text class="row-value param-ro">{{otherRates}}</text>
+    </view>
+    <view class="row" wx:if="{{nightEach}}">
+      <text class="row-label">晚修监考</text>
+      <text class="row-value param-ro">{{nightEach}}</text>
+    </view>
     <view class="param-note" bindtap="resetParams">改过之后点这里，恢复成设置里的默认值</view>
   </view>
 

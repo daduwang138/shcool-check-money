@@ -354,6 +354,8 @@ function blankDB() {
     settings: {
       owner: '', baseSalary: 0, rate: 0,
       rates: [{ id: 'default', name: '正课', price: 0 }],
+      /* 晚修监考：按次计，不算课时也不占出勤半天 */
+      nightHours: 2, nightFee: 10,
       enableBase: true, enableLesson: true, enableInv: true, enableOt: true, autoWork: true,
       weekPattern: [0, 1, 1, 1, 1, 1, 0],
       startDate: '',
@@ -381,6 +383,9 @@ function normalize(db) {
     });
   }
   if (typeof db.settings.startDate !== 'string') db.settings.startDate = '';
+  /* 晚修监考的两个价：存成字符串也认，负数归零 */
+  db.settings.nightHours = Math.max(0, parseFloat(db.settings.nightHours) || 0);
+  db.settings.nightFee = Math.max(0, parseFloat(db.settings.nightFee) || 0);
   if (!db.months || typeof db.months !== 'object') db.months = {};
   if (!db.days || typeof db.days !== 'object') db.days = {};
   Object.keys(db.days).forEach(function (k) {
@@ -404,7 +409,7 @@ function normalize(db) {
   return db;
 }
 function peek(db, key) { return db.days[key] || null; }
-function hasContent(r) { return !!(r && (r.am || r.pm || r.lessons || r.note)); }
+function hasContent(r) { return !!(r && (r.am || r.pm || r.lessons || r.note || r.night)); }
 function dayCount(db) {
   return Object.keys((db && db.days) || {}).filter(function (k) {
     return hasContent(db.days[k]);
@@ -432,13 +437,16 @@ function isGhostHalf(db, key, which) {
 function isGhost(db, key) {
   return isGhostHalf(db, key, 'am') || isGhostHalf(db, key, 'pm');
 }
-function setRecord(db, key, am, pm, lessons, note, lset, rid) {
+function setRecord(db, key, am, pm, lessons, note, lset, rid, night) {
   var prev = db.days[key];
   var kept = (lset === undefined) ? (prev ? !!prev.lset : ((parseInt(lessons, 10) || 0) > 0)) : !!lset;
   /* 档位只有非默认档才落盘，默认档不写字段——这样老数据、老备份读进来结构还是一样的 */
   /* 档位只对「有课时」有意义，0 节的日子不必留个空档位 */
   var useRid = (rid && rid !== 'default' && (parseInt(lessons, 10) || 0) > 0) ? rid : '';
-  if (!am && !pm && !lessons && !note) {
+  /* 晚修监考次数：不传就沿用原值。批量改出勤、切换上下午都不该顺手把晚修抹掉 */
+  var ni = (night === undefined) ? ((prev && parseInt(prev.night, 10)) || 0) : (parseInt(night, 10) || 0);
+  if (ni < 0) { ni = 0; }
+  if (!am && !pm && !lessons && !note && !ni) {
     if (defaultHalf(db, key, 'am') || defaultHalf(db, key, 'pm')) {
       db.days[key] = { am: '', pm: '', lessons: 0, note: '', off: true, lset: kept, upd: Date.now() };
       if (useRid) { db.days[key].rid = useRid; }
@@ -448,6 +456,8 @@ function setRecord(db, key, am, pm, lessons, note, lset, rid) {
   } else {
     db.days[key] = { am: am, pm: pm, lessons: lessons, note: note, off: false, lset: kept, upd: Date.now() };
     if (useRid) { db.days[key].rid = useRid; }
+    /* 0 次不写字段，跟 rid 一个道理：数据能少一个键就少一个 */
+    if (ni > 0) { db.days[key].night = ni; }
   }
 }
 /* 按课程表填本月课时。
@@ -510,6 +520,10 @@ function monthP(db, ym) {
     ratesOf(db).forEach(function (r) { if (r.id !== 'default') { snap[r.id] = r.price; } });
     p.rates = snap;
   }
+  /* 晚修监考的次数单价同理：学校调价不该追溯改旧账 */
+  if (p.night == null && monthTouched(db, ym)) {
+    p.night = { hours: parseFloat(db.settings.nightHours) || 0, fee: parseFloat(db.settings.nightFee) || 0 };
+  }
   return p;
 }
 
@@ -548,11 +562,22 @@ function priceOf(db, ym, rid) {
   for (var i = 0; i < l.length; i++) { if (l[i].id === rid) { return l[i].price; } }
   return monthRate(db, ym);
 }
-/* 三段式：①日薪×min(实际,应上) + ②日薪×超出天数 + ③课时×单价 */
+/* 晚修监考：一次算几个小时、给多少钱。月里有快照就用快照 */
+function nightOf(db, ym) {
+  var p = db.months[ym];
+  if (p && p.night) {
+    return { hours: parseFloat(p.night.hours) || 0, fee: parseFloat(p.night.fee) || 0 };
+  }
+  return {
+    hours: parseFloat(db.settings.nightHours) || 0,
+    fee: parseFloat(db.settings.nightFee) || 0
+  };
+}
+/* 三段式：①日薪×min(实际,应上) + ②日薪×超出天数 + ③课时×单价 + ④晚修监考次数×每次 */
 function computeMonth(db, ym) {
   var q = ymd(ym + '-01'), y = q[0], m = q[1];
   var n = new Date(y, m, 0).getDate();
-  var half = 0, lessons = 0, filledDays = 0, byMap = {};
+  var half = 0, lessons = 0, filledDays = 0, byMap = {}, nightCount = 0;
   var counted = { work: 0, inv: 0, ot: 0, leave: 0 };
   for (var d = 1; d <= n; d++) {
     var k = dk(y, m, d), rec0 = peek(db, k);
@@ -565,6 +590,9 @@ function computeMonth(db, ym) {
     if (rec0) {
       var ln = parseInt(rec0.lessons, 10) || 0;
       lessons += ln;
+      /* 晚修监考按次记，不进课时合计，也不占出勤半天 */
+      var ni = parseInt(rec0.night, 10) || 0;
+      if (ni > 0) { nightCount += ni; }
       /* 多档单价：按当天记的档位分别累加，没记档位算默认档 */
       if (ln > 0) {
         var rid = rec0.rid || 'default';
@@ -573,7 +601,7 @@ function computeMonth(db, ym) {
         byMap[rid].lessons += ln;
         byMap[rid].fee += ln * pr;
       }
-      if (rec0.am || rec0.pm || rec0.lessons || rec0.note) filledDays++;
+      if (rec0.am || rec0.pm || rec0.lessons || rec0.note || rec0.night) filledDays++;
     }
   }
   var p = monthP(db, ym);
@@ -597,11 +625,17 @@ function computeMonth(db, ym) {
     byRate.forEach(function (r) { lessonFee += r.fee; });
     lessonFee = round2(lessonFee);
   }
+  /* 晚修监考：跟课时费一样，关掉课时费不影响这一项，它是独立的补贴 */
+  var np = nightOf(db, ym);
+  var nightHours = round2(nightCount * np.hours);
+  var nightFee = round2(nightCount * np.fee);
   return {
     ym: ym, workdays: workdays, actual: actual, half: half, lessons: lessons, filledDays: filledDays,
     dailyRate: dailyRate, base: base, rate: rate, byRate: byRate,
     capped: capped, extra: extra, basePart: basePart, extraPart: extraPart, lessonFee: lessonFee,
-    total: round2(basePart + extraPart + lessonFee), counted: counted, checked: !!p.checked,
+    nightCount: nightCount, nightHours: nightHours, nightFee: nightFee,
+    nightHoursEach: np.hours, nightFeeEach: np.fee,
+    total: round2(basePart + extraPart + lessonFee + nightFee), counted: counted, checked: !!p.checked,
     start: db.settings.startDate || ''
   };
 }
@@ -619,11 +653,16 @@ function sumText(c){
   if(c.byRate&&c.byRate.length>1){
     L.push("课时明细："+c.byRate.map(function(r){return r.name+" "+r.lessons+" 节 × "+fmtShort(r.price)+" = "+fmt(r.fee)+" 元";}).join("；"));
   }
+  /* 晚修监考单独一行：不进课时合计，财务那边也是两笔 */
+  if(c.nightCount>0){
+    L.push("晚修监考："+c.nightCount+" 次 × "+fmtShort(c.nightHoursEach)+" 小时 × "+fmtShort(c.nightFeeEach)+" 元 = "+fmt(c.nightFee)+" 元");
+  }
   L.push("————————————————");
   L.push("折算日薪："+fmt(c.dailyRate)+" 元");
   L.push("① 基本工资部分："+fmt(c.basePart)+" 元");
   L.push("② 超出天数部分："+fmt(c.extraPart)+" 元");
   L.push("③ 课时费："+fmt(c.lessonFee)+" 元");
+  if(c.nightCount>0){L.push("④ 晚修监考费："+fmt(c.nightFee)+" 元");}
   L.push("应发合计："+fmt(c.total)+" 元");
   return L.join("\n");
 }
@@ -669,28 +708,32 @@ function buildExportCsv(db, months, incSum, incDay) {
   L.push(csvRow(['导出时间', new Date().toLocaleString()]));
   if (db.settings.startDate) L.push(csvRow(['入职起算日', db.settings.startDate]));
   var rateTxt = ratesOf(db).map(function (r) { return r.name + ' ' + fmtShort(r.price) + ' 元/节'; }).join('；');
-  L.push(csvRow(['计薪参数', '基本工资 ' + fmtShort(db.settings.baseSalary) + ' 元/月；课时单价 ' + rateTxt]));
+  var nightTxt = db.settings.nightFee > 0
+    ? '；晚修监考 ' + fmtShort(db.settings.nightHours) + ' 小时 ' + fmtShort(db.settings.nightFee) + ' 元/次'
+    : '';
+  L.push(csvRow(['计薪参数', '基本工资 ' + fmtShort(db.settings.baseSalary) + ' 元/月；课时单价 ' + rateTxt + nightTxt]));
   L.push('');
-  var tot = { actual: 0, les: 0, base: 0, extra: 0, fee: 0, all: 0 };
+  var tot = { actual: 0, les: 0, base: 0, extra: 0, fee: 0, night: 0, nfee: 0, all: 0 };
   if (incSum) {
     L.push(csvRow(['月度汇总']));
     L.push(csvRow(['月份', '法定工作日', '实际出勤(天)', '上班(半天)', '监考(半天)', '加班(半天)', '请假(半天)',
-      '课时(节)', '折算日薪', '基本工资部分', '超出天数部分', '课时费', '应发合计', '状态']));
+      '课时(节)', '折算日薪', '基本工资部分', '超出天数部分', '课时费', '晚修(次)', '晚修补贴', '应发合计', '状态']));
     months.forEach(function (ym) {
       var c = computeMonth(db, ym);
       tot.actual += c.actual; tot.les += c.lessons; tot.base += c.basePart;
-      tot.extra += c.extraPart; tot.fee += c.lessonFee; tot.all += c.total;
+      tot.extra += c.extraPart; tot.fee += c.lessonFee; tot.night += c.nightCount;
+      tot.nfee += c.nightFee; tot.all += c.total;
       L.push(csvRow([ym, c.workdays, fmtShort(c.actual), c.counted.work, c.counted.inv, c.counted.ot,
         c.counted.leave, c.lessons, num2(c.dailyRate), num2(c.basePart), num2(c.extraPart),
-        num2(c.lessonFee), num2(c.total), c.checked ? '已核对' : '未核对']));
+        num2(c.lessonFee), c.nightCount, num2(c.nightFee), num2(c.total), c.checked ? '已核对' : '未核对']));
     });
     L.push(csvRow(['合计', months.length + ' 个月', fmtShort(tot.actual), '', '', '', '', tot.les, '',
-      num2(tot.base), num2(tot.extra), num2(tot.fee), num2(tot.all), '']));
+      num2(tot.base), num2(tot.extra), num2(tot.fee), tot.night, num2(tot.nfee), num2(tot.all), '']));
     L.push('');
   }
   if (incDay) {
     L.push(csvRow(['每日明细']));
-    L.push(csvRow(['月份', '日期', '星期', '上午', '下午', '课时', '档位', '备注']));
+    L.push(csvRow(['月份', '日期', '星期', '上午', '下午', '课时', '档位', '晚修(次)', '备注']));
     months.forEach(function (ym) {
       var q = ymd(ym + '-01'), y = q[0], m = q[1], n = new Date(y, m, 0).getDate();
       for (var d = 1; d <= n; d++) {
@@ -698,10 +741,11 @@ function buildExportCsv(db, months, incSum, incDay) {
         if (preStart(db, k)) continue;
         var r = peek(db, k), a = effHalf(db, k, 'am'), b = effHalf(db, k, 'pm');
         var les = r ? (parseInt(r.lessons, 10) || 0) : 0, note = r ? (r.note || '') : '';
-        if (!a && !b && !les && !note) continue;
+        var ni = r ? (parseInt(r.night, 10) || 0) : 0;
+        if (!a && !b && !les && !note && !ni) continue;
         /* 档位只在真有课时才写，空的写了反而像“这天是正课” */
         var rn = les > 0 ? rateName(db, (r && r.rid) || 'default') : '';
-        L.push(csvRow([ym, k, '周' + dowLabel(k), a ? sl(a).label : '', b ? sl(b).label : '', les, rn, note]));
+        L.push(csvRow([ym, k, '周' + dowLabel(k), a ? sl(a).label : '', b ? sl(b).label : '', les, rn, ni, note]));
       }
     });
     L.push('');
@@ -722,7 +766,7 @@ module.exports = {
   blankDB: blankDB, normalize: normalize, peek: peek, hasContent: hasContent, dayCount: dayCount,
   defaultHalf: defaultHalf, effHalf: effHalf, isGhostHalf: isGhostHalf, isGhost: isGhost,
   setRecord: setRecord, monthP: monthP, computeMonth: computeMonth,
-  sumText: sumText, ratesOf: ratesOf, rateName: rateName, priceOf: priceOf,
+  sumText: sumText, ratesOf: ratesOf, rateName: rateName, priceOf: priceOf, nightOf: nightOf,
   monthTouched: monthTouched, monthBase: monthBase, monthRate: monthRate,
   fillLessonsFromCourses: fillLessonsFromCourses,
   ymOf: ymOf, isYm: isYm, addMonths: addMonths, monthsBetween: monthsBetween,

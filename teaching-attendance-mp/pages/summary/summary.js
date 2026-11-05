@@ -11,6 +11,8 @@ Page({
     heroSubs: [],
     halfRows: [],
     p: { workdays: '', base: '', rate: '' },
+    otherRates: '',
+    nightEach: '',
     checked: false,
     dayCount: 0,
     hasRecord: false
@@ -41,9 +43,14 @@ Page({
       { k: '折算日薪', v: '¥' + core.fmt(c.dailyRate), strong: false },
       { k: '基本工资部分', v: '¥' + core.fmt(c.basePart), strong: false },
       { k: '超出天数部分', v: '¥' + core.fmt(c.extraPart), strong: false },
-      { k: '课时费', v: '¥' + core.fmt(c.lessonFee), strong: false },
-      { k: '课时合计', v: c.lessons + ' 节', strong: false }
+      { k: '课时费', v: '¥' + core.fmt(c.lessonFee), strong: false }
     ];
+
+    /* 晚修监考没记就不占一行，免得每个月都挂一条 ¥0.00 */
+    if (c.nightCount > 0) {
+      rows.push({ k: '晚修监考费', v: '¥' + core.fmt(c.nightFee) + '（' + c.nightCount + ' 次）', strong: false });
+    }
+    rows.push({ k: '课时合计', v: c.lessons + ' 节', strong: false });
 
     /* 分了档就列出每档各多少节、什么价，否则「64 节 ¥7040」这行没人算得出来 */
     if (c.byRate && c.byRate.length > 1) {
@@ -67,6 +74,12 @@ Page({
       rows: rows,
       heroSubs: rows.slice(0, 3),
       halfRows: halfRows,
+      /* 只读：档位价和晚修价在设置里改，这里给一眼核对用 */
+      otherRates: core.ratesOf(db).filter(function (r) { return r.id !== 'default'; })
+        .map(function (r) { return r.name + ' ¥' + core.fmtShort(r.price) + '/节'; }).join(' · '),
+      nightEach: (c.nightFeeEach > 0 || c.nightCount > 0)
+        ? ('每次 ' + core.fmtShort(c.nightHoursEach) + ' 小时 · ¥' + core.fmtShort(c.nightFeeEach))
+        : '',
       p: {
         workdays: String(p.workdays),
         base: String(core.monthBase(db, ym)),

@@ -226,6 +226,46 @@ rcal.setData({ 'sheet.lessons': 0 });
 rcal.saveSheet();
 ok(!(current().days[rkey] || {}).rid, '没课时不留档位');
 
+/* ================= 记账面板的晚修监考 ================= */
+reset();
+seedDb();
+const ncal = makePage('calendar');
+ncal.onLoad();
+const nkey = '2026-11-06';
+ncal.openSheet(nkey);
+ok(ncal.data.sheet.nightOn === true, '有单价时面板显示晚修监考');
+ok(ncal.data.sheet.night === 0, '没记过的日子是 0 次');
+ok(ncal.data.nightHint === '2 小时 · 10 元', '提示写清每次时长和钱', ncal.data.nightHint);
+ncal.stepNight({ currentTarget: { dataset: { d: 1 } } });
+ncal.stepNight({ currentTarget: { dataset: { d: 1 } } });
+ok(ncal.data.sheet.night === 2, '可以加两次');
+ncal.saveSheet();
+ok(current().days[nkey].night === 2, '晚修次数随记录落盘');
+const nc = core.computeMonth(current(), '2026-11');
+ok([nc.nightCount, nc.nightHours, nc.nightFee].join(',') === '2,4,20', '2 次 = 4 小时 = 20 元',
+  [nc.nightCount, nc.nightHours, nc.nightFee].join(','));
+ok(nc.lessons === 0, '晚修不算课时', String(nc.lessons));
+const ncell = ncal.data.cells.find(c => c.key === nkey);
+ok(ncell && ncell.nightText === '晚2', '日历格子上带晚修标记', ncell && ncell.nightText);
+ncal.openSheet(nkey);
+ok(ncal.data.sheet.night === 2, '重新打开面板带出已记的次数');
+for (let i = 0; i < 5; i++) { ncal.stepNight({ currentTarget: { dataset: { d: 1 } } }); }
+ok(ncal.data.sheet.night === 4, '一天最多 4 次，防手滑');
+ncal.stepNight({ currentTarget: { dataset: { d: -1 } } });
+ncal.stepNight({ currentTarget: { dataset: { d: -1 } } });
+ok(ncal.data.sheet.night === 2, '可以减回去');
+ncal.clearSheet();
+ncal.saveSheet();
+ok(!(current().days[nkey] || {}).night, '清空这天会连晚修一起清掉');
+/* 单价填 0 时面板藏起来；但以前记过的仍要显示，好让人把次数清掉 */
+ncal.db.settings.nightFee = 0;
+require(path.join(ROOT, 'utils/store.js')).save(ncal.db);
+core.setRecord(ncal.db, nkey, 'work', 'work', 0, '', true, '', 1);
+require(path.join(ROOT, 'utils/store.js')).save(ncal.db);
+ncal.openSheet(nkey);
+ok(ncal.data.sheet.nightOn === true, '单价归零但记过次数仍显示');
+ncal.hideUndo();
+
 /* ================= 滑动选择 + 批量套用 ================= */
 reset();
 seedDb();
@@ -584,6 +624,29 @@ sumC.copySum();
 ok(clips.length === 0 && toasts[toasts.length - 1] === '这个月还没有记录',
   '空月份不复制核对单', toasts[toasts.length - 1]);
 
+/* 晚修监考：计算过程带 ④，参数卡带只读价，核对单也带这一笔 */
+reset();
+seedDb({ days: { '2026-11-03': { am: 'work', pm: 'work', lessons: 2, note: '', night: 2, upd: 1 } } });
+const sumN = makePage('summary');
+sumN.onLoad();
+const nrow = sumN.data.rows.find(r => r.k === '晚修监考费');
+ok(!!nrow && nrow.v.indexOf('20.00') >= 0, '计算过程列出晚修监考费', nrow && nrow.v);
+ok(sumN.data.nightEach === '每次 2 小时 · ¥10', '参数卡显示只读的晚修价', sumN.data.nightEach);
+ok(sumN.data.total === core.fmt(core.computeMonth(core.normalize(current()), sumN.data.ym).total),
+  '应发合计把晚修算进去了', sumN.data.total);
+clips.length = 0;
+sumN.copySum();
+ok(clips[0] && clips[0].indexOf('④ 晚修监考费：20.00 元') >= 0, '核对单末尾有第 ④ 项');
+/* 参数卡的「其他档位」也是只读的，用来一眼核对附加档单价 */
+sumN.db.settings.rates = [
+  { id: 'default', name: '正课', price: 120 },
+  { id: 'eve', name: '晚自习', price: 80 }
+];
+require(path.join(ROOT, 'utils/store.js')).save(sumN.db);
+sumN.render();
+ok(sumN.data.otherRates.indexOf('晚自习 ¥80/节') >= 0, '参数卡列出其他档位', sumN.data.otherRates);
+ok(sumN.data.p.rate === '120', '只读行不影响可编辑的单价', sumN.data.p.rate);
+
 /* 设置页 */
 reset();
 seedDb();
@@ -624,6 +687,17 @@ set.addRate();
 const rid1 = current().settings.rates.filter(r => r.id !== 'default')[0].id;
 set.setRateName({ currentTarget: { dataset: { id: rid1 } }, detail: { value: '晚自习' } });
 set.setRatePrice({ currentTarget: { dataset: { id: rid1 } }, detail: { value: '80' } });
+
+/* 晚修监考的两个价：改完存进设置，界面跟着变，负数不接受 */
+ok(set.data.nightHours === '2' && set.data.nightFee === '10', '设置页带出默认 2 小时 10 元',
+  set.data.nightHours + ' / ' + set.data.nightFee);
+set.setNightHours({ detail: { value: '3' } });
+ok(current().settings.nightHours === 3 && set.data.nightHours === '3', '可改每次时长');
+set.setNightFee({ detail: { value: '15' } });
+ok(current().settings.nightFee === 15 && set.data.nightFee === '15', '可改每次金额');
+set.setNightHours({ detail: { value: '-1' } });
+set.setNightFee({ detail: { value: 'abc' } });
+ok(current().settings.nightHours === 3 && current().settings.nightFee === 15, '负数与乱填不改原值');
 
 /* 课程表页 */
 reset();

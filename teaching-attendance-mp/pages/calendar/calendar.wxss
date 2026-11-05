@@ -305,6 +305,14 @@
   background: transparent;
 }
 
+.les-wrap {
+  margin-top: auto;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+}
+
 .les {
   margin-top: auto;
   align-self: flex-start;
@@ -315,6 +323,27 @@
   font-weight: 600;
   line-height: 1.6;
   background: #F1F5FA;
+}
+
+.les-wrap .les {
+  margin-top: 0;
+  align-self: auto;
+}
+
+.les.bare {
+  background: transparent;
+  padding: 0;
+}
+
+.nighttag {
+  margin-left: 4rpx;
+  padding: 0 5rpx;
+  border-radius: 5rpx;
+  background: #E7EDF5;
+  color: #3F6080;
+  font-size: 17rpx;
+  font-weight: 600;
+  line-height: 1.7;
 }
 
 .les.zero {

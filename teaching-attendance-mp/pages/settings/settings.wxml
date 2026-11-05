@@ -44,6 +44,21 @@
 
     <view class="row">
       <view class="col">
+        <text class="row-label">晚修监考</text>
+        <text class="sub">晚上加班监考按次给钱，不算课时、也不占出勤半天；金额填 0 就不显示</text>
+      </view>
+    </view>
+    <view class="row">
+      <text class="row-label">每次时长（小时）</text>
+      <input class="num-in" type="digit" value="{{nightHours}}" bindblur="setNightHours" />
+    </view>
+    <view class="row">
+      <text class="row-label">每次金额（元）</text>
+      <input class="num-in" type="digit" value="{{nightFee}}" bindblur="setNightFee" />
+    </view>
+
+    <view class="row">
+      <view class="col">
         <text class="row-label">监考计入出勤</text>
         <text class="sub">半天监考折 0.5 天，与上班同价</text>
       </view>

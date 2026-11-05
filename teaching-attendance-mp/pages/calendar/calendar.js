@@ -33,6 +33,7 @@ Page({
     legend: [],
     opts: OPTIONS,
     rates: [],
+    nightHint: '',
     sheet: null,
     bulk: null,
     bulkWd: [],
@@ -131,6 +132,8 @@ Page({
       if (les) { lesText = les + '节'; }
       else if (exp > 0 && lset) { lesText = '0节'; lesCls = 'zero'; }
       else if (exp > 0) { lesText = exp + '节?'; lesCls = 'zero ghost'; }
+      /* 晚修监考跟课时挤在同一行：格子窄，多占一行会把日期挤散 */
+      var ni = (pre || !r) ? 0 : (parseInt(r.night, 10) || 0);
 
       var tag = '', tagCls = '';
       if (k === today) { tag = '今'; tagCls = 'now'; }
@@ -144,7 +147,8 @@ Page({
         id: k, key: k, blank: false, d: d, cls: cls, sel: !!selSet[k],
         amCls: core.sl(am).cls + (ghA ? ' ghost' : ''),
         pmCls: core.sl(pm).cls + (ghP ? ' ghost' : ''),
-        lesText: lesText, lesCls: lesCls, tag: tag, tagCls: tagCls
+        lesText: lesText, lesCls: lesCls, nightText: ni ? '晚' + ni : '',
+        tag: tag, tagCls: tagCls
       });
     }
 
@@ -605,15 +609,21 @@ Page({
     var sub = '周' + core.dowLabel(k) + ' · ' + kind + (w > 0 ? ' · 第 ' + w + ' 周' : '');
 
     this._note = undefined;
+    var ni = r ? (parseInt(r.night, 10) || 0) : 0;
+    var nf = parseFloat(db.settings.nightFee) || 0;
+    var nh = parseFloat(db.settings.nightHours) || 0;
     this.setData({
       /* 档位随设置页变动，每次点开重算一遍，别缓存到页面 data 里 */
       rates: core.ratesOf(db).map(function (r) { return { id: r.id, name: r.name, price: r.price }; }),
+      nightHint: core.fmtShort(nh) + ' 小时 · ' + core.fmtShort(nf) + ' 元',
       sheet: {
         key: k,
         title: parseInt(k.slice(5, 7), 10) + ' 月 ' + parseInt(k.slice(8), 10) + ' 日',
         sub: sub,
         am: am, pm: pm, lessons: les, note: note, exp: exp,
         rid: (r && r.rid) ? r.rid : 'default',
+        /* 学校发了这个钱才显示；以前记过、现在单价调成 0 的也显示，好让人把次数清掉 */
+        night: ni, nightOn: (nf > 0 || ni > 0),
         checked: p.checked
       }
     });
@@ -650,6 +660,15 @@ Page({
     this._patchSheet({ 'sheet.lessons': v });
   },
 
+  /* 晚修监考按次记，一天最多 4 次：再多就该看看是不是记错日子了 */
+  stepNight: function (e) {
+    var d = parseInt(e.currentTarget.dataset.d, 10);
+    var v = (parseInt(this.data.sheet.night, 10) || 0) + d;
+    if (v < 0) { v = 0; }
+    if (v > 4) { v = 4; }
+    this._patchSheet({ 'sheet.night': v });
+  },
+
   useSchedule: function () {
     var exp = this.data.sheet.exp;
     if (!exp) {
@@ -670,7 +689,7 @@ Page({
   },
 
   clearSheet: function () {
-    this.setData({ 'sheet.am': '', 'sheet.pm': '', 'sheet.lessons': 0, 'sheet.note': '', 'sheet.rid': 'default' });
+    this.setData({ 'sheet.am': '', 'sheet.pm': '', 'sheet.lessons': 0, 'sheet.note': '', 'sheet.rid': 'default', 'sheet.night': 0 });
     this._note = '';
   },
 
@@ -694,7 +713,7 @@ Page({
     var s = this.data.sheet;
     var note = (this._note === undefined ? s.note : this._note) || '';
     this._beginUndo();
-    core.setRecord(this.db, s.key, s.am, s.pm, s.lessons, note, undefined, s.rid);
+    core.setRecord(this.db, s.key, s.am, s.pm, s.lessons, note, undefined, s.rid, s.night);
     store.save(this.db);
     this.setData({ sheet: null });
     this._note = undefined;

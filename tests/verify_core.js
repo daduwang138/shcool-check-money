@@ -15,7 +15,7 @@ if (a < 0 || b < 0) throw new Error('切片失败 ' + a + ' ' + b);
 const slice = html.slice(a, b);
 
 const csvStart = html.indexOf('function qcsv(');
-const csvEnd = html.indexOf('/* 汇总页的「导出 Excel」');
+const csvEnd = html.indexOf('/* 汇总页的「导出本月 CSV」');
 if (csvStart < 0 || csvEnd < 0) throw new Error('CSV 切片失败');
 const csvSlice = html.slice(csvStart, csvEnd);
 
@@ -99,8 +99,19 @@ function mkRates() {
   return db;
 }
 
+/* 晚修监考：按次给的补贴，不算课时、不占出勤半天 */
+function mkNight() {
+  const db = mkLegacy();
+  db.days['2026-10-08'].night = 2;
+  db.days['2026-10-10'].night = 1;
+  /* 这天本来是默认上班日：从弹窗保存时 am/pm 会带上默认值，
+     所以「只记晚修」不会把当天的出勤抹掉（下面另有专门断言） */
+  db.days['2026-10-21'] = { am: 'work', pm: 'work', lessons: 0, note: '', night: 1 };
+  return db;
+}
+
 const cases = [['空库', mkEmpty()], ['典型', mkLegacy()], ['半天周', mkAuto()],
-  ['自定义假期', mkCustom()], ['多档单价', mkRates()]];
+  ['自定义假期', mkCustom()], ['多档单价', mkRates()], ['晚修监考', mkNight()]];
 
 /* 1. 逐日判定：2025-01 ~ 2027-12 每一天 */
 let dayChecked = 0;
@@ -386,6 +397,98 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('粘贴·导入后补班日算上班', core.isWorkday('2027-02-20', db), true);
   eq('粘贴·导入后 2 月应上班', core.autoWorkdays(2027, 2, db), 16);
   eq('粘贴·没导入时 2 月应上班', core.autoWorkdays(2027, 2, core.blankDB()), 20);
+}
+
+/* ---------- 9. 晚修监考：两版一致之外，还得钉死「2 小时 10 元/次」这个业务口径 ---------- */
+{
+  const h = ctx.normalize(mkNight());
+  const c = core.normalize(mkNight());
+  ctx.DB = h;
+  const plain = core.normalize(mkLegacy());
+  const pc = core.computeMonth(plain, '2026-10');
+  const hc = ctx.computeMonth('2026-10');
+  const cc = core.computeMonth(c, '2026-10');
+
+  eq('晚修·新库默认 2 小时 10 元', [core.blankDB().settings.nightHours, core.blankDB().settings.nightFee], [2, 10]);
+  eq('晚修·老备份补上默认价', [plain.settings.nightHours, plain.settings.nightFee], [2, 10]);
+  eq('晚修·两版逐字段一致', hc, cc);
+  eq('晚修·次数', cc.nightCount, 4);
+  eq('晚修·总时长', cc.nightHours, 8);
+  eq('晚修·补贴金额', cc.nightFee, 40);
+  eq('晚修·单价快照', [cc.nightHoursEach, cc.nightFeeEach], [2, 10]);
+  eq('晚修·不进课时合计', cc.lessons, pc.lessons);
+  eq('晚修·不占出勤半天', [cc.actual, cc.counted.work, cc.counted.inv, cc.counted.ot, cc.counted.leave],
+    [pc.actual, pc.counted.work, pc.counted.inv, pc.counted.ot, pc.counted.leave]);
+  eq('晚修·总额只多这一笔', cc.total, Math.round((pc.total + 40) * 100) / 100);
+  eq('晚修·只记晚修也算有内容', core.hasContent(c.days['2026-10-21']), true);
+  eq('晚修·有记录天数', cc.filledDays, pc.filledDays + 1);
+  eq('晚修·天数与 hasContent 同口径', cc.filledDays,
+    Object.keys(c.days).filter(k => k.slice(0, 7) === '2026-10' && core.hasContent(c.days[k])).length);
+
+  const txt = core.sumText(cc);
+  eq('晚修·核对单明细行', txt.indexOf('晚修监考：4 次 × 2 小时 × 10 元 = 40.00 元') >= 0, true);
+  eq('晚修·核对单有 ④', txt.indexOf('④ 晚修监考费：40.00 元') >= 0, true);
+  eq('晚修·核对单两版一致', ctx.sumText(hc), txt);
+  eq('晚修·没记就不出现 ④', core.sumText(pc).indexOf('④ 晚修监考费'), -1);
+
+  const csv = core.buildExportCsv(c, ['2026-10'], true, true);
+  eq('晚修·CSV 汇总有晚修列', csv.indexOf('晚修(次)') >= 0, true);
+  eq('晚修·CSV 明细带次数', csv.split('\r\n').filter(l => l.indexOf('2026-10-21') >= 0)[0],
+    '2026-10,2026-10-21,周三,上班,上班,0,,1,');
+  eq('晚修·CSV 计薪参数带价格', csv.indexOf('晚修监考 2 小时 10 元/次') >= 0, true);
+  eq('晚修·CSV 两版一致', ctx.buildExportCsv(['2026-10'], true, true)
+    .split('\r\n').filter(l => l.indexOf('导出时间') < 0).join('\r\n'),
+    csv.split('\r\n').filter(l => l.indexOf('导出时间') < 0).join('\r\n'));
+
+  /* 记过账的月份按当时的价冻着，学校后来调价不追溯改旧账 */
+  c.settings.nightFee = 25; h.settings.nightFee = 25;
+  c.settings.nightHours = 3; h.settings.nightHours = 3;
+  eq('晚修·改价不影响记过的月份', [core.computeMonth(c, '2026-10').nightFee, core.computeMonth(c, '2026-10').nightHours], [40, 8]);
+  eq('晚修·两版冻结一致', [ctx.computeMonth('2026-10').nightFee, ctx.computeMonth('2026-10').nightHours], [40, 8]);
+  eq('晚修·没记过的月份跟新价', core.nightOf(plain, '2028-01').fee, 10);
+
+  /* 设置里改价后新建的记录按新价算 */
+  const fresh = core.blankDB();
+  fresh.settings.nightFee = 25;
+  fresh.days['2026-11-03'] = { am: 'work', pm: 'work', lessons: 2, note: '', night: 2 };
+  eq('晚修·新价生效', core.computeMonth(fresh, '2026-11').nightFee, 50);
+  eq('晚修·nightOf 读设置', core.nightOf(fresh, '2026-11'), { hours: 2, fee: 25 });
+
+  /* 改出勤、改课时不该顺手把晚修次数抹掉，只有显式传 0 才清 */
+  const keep = core.blankDB();
+  core.setRecord(keep, '2026-10-08', 'work', 'work', 4, '', true, 'default', 2);
+  core.setRecord(keep, '2026-10-08', 'work', 'work', 3, '补一句');
+  eq('晚修·改出勤沿用旧次数', keep.days['2026-10-08'].night, 2);
+  core.setRecord(keep, '2026-10-08', 'work', 'work', 3, '补一句', true, 'default', 0);
+  eq('晚修·显式传 0 才清掉', keep.days['2026-10-08'].night, undefined);
+  const hk = ctx.normalize(core.blankDB());
+  ctx.DB = hk;
+  ctx.setRecord('2026-10-08', 'work', 'work', 4, '', true, 'default', 2);
+  ctx.setRecord('2026-10-08', 'work', 'work', 3, '补一句');
+  /* dayCount / localKeys 在算法切片之外（属于存储层），单独抽出来跑：
+     只记了晚修的日子必须算「有记录」，也必须写进月份文件，否则绑定目录后会丢数据 */
+  function extractFn(text, mark) {
+    const s = text.indexOf(mark);
+    if (s < 0) { throw new Error('找不到 ' + mark); }
+    const open = text.indexOf('{', s);
+    let depth = 0;
+    for (let i = open; i < text.length; i++) {
+      if (text[i] === '{') { depth++; }
+      else if (text[i] === '}') { depth--; if (depth === 0) { return text.slice(s, i + 1); } }
+    }
+    throw new Error('括号不配平 ' + mark);
+  }
+  vm.runInContext([
+    extractFn(html, 'function hasContent(r){'),
+    extractFn(html, 'function dayCount(db){'),
+    extractFn(html, 'function localKeys(){')
+  ].join('\n'), ctx);
+  const nightOnly = { days: { '2026-10-21': { am: '', pm: '', lessons: 0, note: '', night: 1 } } };
+  ctx.DB = nightOnly;
+  eq('晚修·HTML dayCount 与内核同口径', ctx.dayCount(nightOnly), core.dayCount(nightOnly));
+  eq('晚修·HTML dayCount 认晚修', ctx.dayCount(nightOnly), 1);
+  eq('晚修·写盘清单认晚修', ctx.localKeys(), ['2026-10-21']);
+  eq('晚修·hasContent 两版同判', ctx.hasContent(nightOnly.days['2026-10-21']), core.hasContent(nightOnly.days['2026-10-21']));
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项；逐日核对 ' + dayChecked + ' 天');

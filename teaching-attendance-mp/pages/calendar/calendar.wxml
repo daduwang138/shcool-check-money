@@ -43,7 +43,10 @@
           <view class="half {{item.amCls}}"></view>
           <view class="half {{item.pmCls}}"></view>
         </view>
-        <text class="les {{item.lesCls}}">{{item.lesText}}</text>
+        <view class="les-wrap" wx:if="{{item.lesText || item.nightText}}">
+          <text class="les {{item.lesCls}} {{item.lesText ? '' : 'bare'}}">{{item.lesText}}</text>
+          <text class="nighttag" wx:if="{{item.nightText}}">{{item.nightText}}</text>
+        </view>
       </block>
     </view>
   </view>
@@ -194,6 +197,16 @@
         <text class="rate-seg-name">{{item.name}}</text>
         <text class="rate-seg-price">{{item.price}} 元</text>
       </view>
+    </view>
+  </view>
+
+  <view class="field" wx:if="{{sheet.nightOn}}">
+    <text class="field-label">晚修监考</text>
+    <view class="stepper">
+      <view class="step" data-d="-1" bindtap="stepNight">−</view>
+      <text class="step-val">{{sheet.night}}</text>
+      <view class="step" data-d="1" bindtap="stepNight">＋</view>
+      <text class="sched">每次 {{nightHint}}</text>
     </view>
   </view>
 
