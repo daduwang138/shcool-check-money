@@ -586,7 +586,7 @@ function nightOf(db, ym) {
     fee: parseFloat(db.settings.nightFee) || 0
   };
 }
-/* 三段式：①日薪×min(实际,应上) + ②日薪×超出天数 + ③课时×单价 + ④晚修监考次数×每次 */
+/* 四段式：①日薪×min(实际,应上) + ②日薪×超出天数 + ③课时×单价 + ④晚修监考次数×每次 */
 function computeMonth(db, ym) {
   var q = ymd(ym + '-01'), y = q[0], m = q[1];
   var n = new Date(y, m, 0).getDate();

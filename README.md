@@ -63,7 +63,7 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 |---|---|---|
 | 内核双版比对 | `node tests/verify_core.js` | 从 HTML 切出原始算法，和 core.js 吃同一批数据逐字段比对（46627 项） |
 | 页面逻辑 | `node tests/test_pages.js` | 用桩模拟小程序运行时，跑五个页面的方法（251 项） |
-| 结构自检 | `node tests/check_structure.js` | wxml 标签闭合、事件方法存在、wxss 花括号与 class 样式 |
+| 结构自检 | `node tests/check_structure.js` | wxml 标签闭合、事件方法存在、wxss 花括号与 class 样式，外加两版设置页的文案哨兵 |
 | 连构哈希 | `node tools/build_preview.js` ×2 | 连构两次产物逐字节一致 |
 | 小程序预览冒烟 | `node tests/smoke_preview.js` | 真实浏览器点开预览页，走交互链路（25 条） |
 | 电脑版浏览器冒烟 | `node tests/smoke_html.js` | 真实 DOM：设置改价 → 记账 → 汇总看钱，含冻价回看、2027 内置表与 CDN 空缓存换源（28 条） |

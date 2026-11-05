@@ -1083,7 +1083,7 @@ function nightOf(db,ym){
   }
   return {hours:parseFloat(db.settings.nightHours)||0,fee:parseFloat(db.settings.nightFee)||0};
 }
-/* 三段式：①日薪×min(实际,应上) + ②日薪×超出天数 + ③课时×单价 + ④晚修监考次数×每次 */
+/* 四段式：①日薪×min(实际,应上) + ②日薪×超出天数 + ③课时×单价 + ④晚修监考次数×每次 */
 function computeMonth(ym){
   var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
   var n=new Date(y,m,0).getDate();
@@ -2803,7 +2803,7 @@ function renderSet(){
   h+='<p class="muted" style="margin-bottom:8px">晚上监考 <b>一晚就一场、一次 2 小时、10 元</b>，定死的：不算课时、不占出勤半天，也不按小时乘钱。白天照常记出勤，晚上这场在记账面板点一下记 1 次；<b>同一场别再勾一次「加班」半天</b>，会重复算钱。下面两项是给学校口径变了时留的，平时不用动：时长只写进核对单，金额才参与算钱。</p>';
   h+='<div class="fields">';
   h+='<div class="field"><div><label>每次时长（小时）</label><div class="desc">只影响核对单上的时长，不影响金额</div></div><input type="number" id="setNightHours" min="0" step="0.5" value="'+(s.nightHours||0)+'"></div>';
-  h+='<div class="field"><div><label>每次金额（元）</label><div class="desc">填 0 后新记录不再显示；已记账的月份仍按当时价格算</div></div><input type="number" id="setNightFee" min="0" step="0.01" value="'+(s.nightFee||0)+'"></div>';
+  h+='<div class="field"><div><label>每次金额（元）</label><div class="desc">填 0 后这笔补贴算 0 元，次数照常可记、④ 也会列出；已记账的月份仍按当时价格算</div></div><input type="number" id="setNightFee" min="0" step="0.01" value="'+(s.nightFee||0)+'"></div>';
   h+='</div>';
   h+='<h3>出勤默认值</h3>';
   h+='<div class="fields">';
@@ -2888,8 +2888,8 @@ function renderSet(){
   h+='<div class="card"><h2>说明</h2>';
   h+='<p class="muted">默认出勤的判定顺序：入职起算日之前 → 一律不算；法定工作日 → 整天上班；常规周里设为上班的星期 → 按设置；法定节假日 → 一律休，常规周也越不过它。</p>';
   h+='<p class="muted">课程表按「周几 + 每次节数 + 起止周」记录。第 1 教学周周一填准，周次才不会错；整周放假不顺延，照常算一周。填课时时会自动跳过法定节假日（国庆、春节、中秋等），不会把课算到放假日上。</p>';
-  h+='<p class="muted">法定工作日内置 2026 年（'+HOLIDAYS[2026].note+'），其他年份默认按周一至周五估算。每年 11 月前后国务院公布次年安排，在「放假安排」里点「联网获取」就能拉下来核对入库，不用改代码；小程序不能联网，用那里生成的粘贴码带过去。也可以照学校校历自己填，填了优先于内置。</p>';
-  h+='<p class="muted">计算规则：实际出勤 =（上班+监考+加班 的半天数）÷ 2；折算日薪 = 基本工资 ÷ 当月法定工作日；应发 = 日薪×min(实际,应上) + 日薪×超出天数 + 各档课时分别乘单价再相加（只有一档时就等于课时×单价）。</p>';
+  h+='<p class="muted">法定工作日内置 '+Object.keys(HOLIDAYS).sort().join("、")+' 年（'+Object.keys(HOLIDAYS).sort().map(function(y){return HOLIDAYS[y].note;}).join("；")+'），其他年份默认按周一至周五估算。每年 11 月前后国务院公布次年安排，在「放假安排」里点「联网获取」就能拉下来核对入库，不用改代码；小程序不能联网，用那里生成的粘贴码带过去。也可以照学校校历自己填，填了优先于内置。</p>';
+  h+='<p class="muted">计算规则：实际出勤 =（上班+监考+加班 的半天数）÷ 2；折算日薪 = 基本工资 ÷ 当月法定工作日；应发 = ①日薪×min(实际,应上) + ②日薪×超出天数 + ③各档课时分别乘单价再相加（只有一档时就等于课时×单价） + ④晚修次数×每次金额（一晚 1 次，金额在设置里改；时长只写进核对单、不按小时乘钱）。</p>';
   h+='<p class="muted">「按月导出」在汇总页和设置页都能进：可选本月、近三个月、今年或任意月份区间，导出的 CSV 里先是月度汇总（一个月一行，可直接对比），再是每日明细，Excel / WPS 双击就能开。设过数据目录的话，文件会直接写进那个目录，不用再去下载文件夹里翻。</p>';
   h+='<p class="muted">数据到底在哪：按年份分文件夹、按月分文件存在你选的文件夹里 —— <code>2026/考勤数据_2026-10.json</code>、<code>2027/考勤数据_2027-01.json</code>，外加根目录的 <code>考勤数据_设置.json</code> 存工资参数与课程表；没设目录时暂存在浏览器存储区。带月份的文件都是缩进排版的多行明文：<code>days</code> 下面每个日期一块，<code>am</code> / <code>pm</code> 是上下午状态，<code>lessons</code> 是当天节数，<code>note</code> 是备注。记事本能打开、能直接复制；一个学年结束，把那一年的文件夹整个拷进网盘或 U 盘就是一份完整归档。</p>';
   h+='</div>';

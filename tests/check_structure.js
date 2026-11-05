@@ -56,5 +56,18 @@ fs.readdirSync(PAGES).forEach(function (dir) {
   cCount += classes.size;
 });
 
+/* 文案哨兵：这些说明曾经和代码对不上，钉住别再漂回去。
+   填 0 只是把单价置零，stepNight 仍可录入、④ 仍会列出 ¥0.00，不能说「不再显示/不再录入」。 */
+const HTML_SRC = path.resolve(__dirname, '..', '教学考勤记账本.html');
+const htmlSrc = fs.readFileSync(HTML_SRC, 'utf8');
+const mpSet = fs.readFileSync(path.join(PAGES, 'settings', 'settings.wxml'), 'utf8');
+[['电脑版', htmlSrc], ['小程序版', mpSet]].forEach(function (p) {
+  if (/不再显示|不再录入/.test(p[1])) bad.push(p[0] + '设置页仍写「金额填 0 后不再显示/不再录入」，与代码不符');
+  if (p[1].indexOf('算 0 元') < 0) bad.push(p[0] + '设置页没写清「填 0 后这笔补贴算 0 元」');
+});
+if (htmlSrc.indexOf('法定工作日内置 2026 年（') >= 0) bad.push('电脑版说明卡写死只内置 2026 年，新增年份会漏');
+const ruleLine = (htmlSrc.match(/<p class="muted">计算规则：[^\n]*<\/p>/) || [''])[0];
+if (!/④/.test(ruleLine)) bad.push('电脑版说明卡的应发公式漏了 ④ 晚修监考费');
+
 if (bad.length) { console.log('FAIL\n' + bad.join('\n')); process.exit(1); }
 console.log('结构自检通过：' + hCount + ' 个事件方法、' + cCount + ' 个 class、wxss ' + rCount + ' 条规则');
