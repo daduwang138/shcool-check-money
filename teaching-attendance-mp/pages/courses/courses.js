@@ -130,12 +130,18 @@ Page({
     this._name = e.detail.value;
   },
 
+  /* 课程名边打边存在 _name 里，其它字段一变就重渲染会把输入框拉回旧值 */
+  _patchEdit: function (patch) {
+    if (this._name !== undefined) { patch['editing.name'] = this._name; }
+    this.setData(patch);
+  },
+
   setWeekday: function (e) {
-    this.setData({ 'editing.weekday': parseInt(e.currentTarget.dataset.v, 10) });
+    this._patchEdit({ 'editing.weekday': parseInt(e.currentTarget.dataset.v, 10) });
   },
 
   setParity: function (e) {
-    this.setData({ 'editing.parity': e.currentTarget.dataset.v });
+    this._patchEdit({ 'editing.parity': e.currentTarget.dataset.v });
   },
 
   stepLessons: function (e) {
@@ -143,7 +149,7 @@ Page({
     var v = (parseInt(this.data.editing.lessons, 10) || 0) + d;
     if (v < 0) { v = 0; }
     if (v > 12) { v = 12; }
-    this.setData({ 'editing.lessons': v });
+    this._patchEdit({ 'editing.lessons': v });
   },
 
   stepWeek: function (e) {
@@ -158,7 +164,7 @@ Page({
     /* 起始周不能晚于结束周，反之亦然 */
     if (which === 'startWeek' && v > this.data.editing.endWeek) { patch['editing.endWeek'] = v; }
     if (which === 'endWeek' && v < this.data.editing.startWeek) { patch['editing.startWeek'] = v; }
-    this.setData(patch);
+    this._patchEdit(patch);
   },
 
   saveCourse: function () {

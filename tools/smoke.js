@@ -66,6 +66,21 @@ const probe = `
     await tapCell('2026-11-10');
     ok('点日期开面板', !!q('.sheet'), q('.sheet-title') ? q('.sheet-title').textContent : '');
 
+    /* 1.1 面板里直接翻天：连续补记不用关掉重开 */
+    var navNext = q('.sheet-nav .btn[data-mp-ds-d="1"]');
+    ok('面板里有「后一天」', !!navNext);
+    if (navNext) {
+      navNext.click();
+      await sleep(280);
+      ok('翻天后面板不关', !!q('.sheet'));
+      ok('翻到 11 月 11 日', !!q('.sheet-title') && q('.sheet-title').textContent.indexOf('11 日') > -1,
+        q('.sheet-title') ? q('.sheet-title').textContent : 'NONE');
+      var navPrev = q('.sheet-nav .btn[data-mp-ds-d="-1"]');
+      if (navPrev) { navPrev.click(); await sleep(280); }
+      ok('再翻回来仍是 11 月 10 日', !!q('.sheet-title') && q('.sheet-title').textContent.indexOf('10 日') > -1,
+        q('.sheet-title') ? q('.sheet-title').textContent : 'NONE');
+    }
+
     /* 2. 设为上班 + 加两节课时 */
     q('.sheet .seg[data-mp-ds-v="work"]').click();
     await sleep(120);

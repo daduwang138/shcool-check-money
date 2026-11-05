@@ -154,14 +154,14 @@ cal.doUndo();
 const afterUndo = core.computeMonth(core.normalize(current()), cal.data.ym);
 ok(afterUndo.lessons === before.lessons, '撤销把课时恢复原状', before.lessons + ' → ' + afterUndo.lessons);
 
-/* 撤销条：5 秒自动收起，也可点 × 立即关闭 */
+/* 撤销条：10 秒自动收起，也可点 × 立即关闭 */
 const realST = global.setTimeout;
 let undoDelay = null;
 global.setTimeout = function (fn, ms) { undoDelay = ms; return realST(fn, 60000); };
 cal.fillCourse();
 global.setTimeout = realST;
 ok(!!cal.data.undo, '操作后弹出撤销条', JSON.stringify(cal.data.undo));
-ok(undoDelay === 5000, '撤销条 5 秒后自动收起', String(undoDelay));
+ok(undoDelay === 10000, '撤销条 10 秒后自动收起', String(undoDelay));
 cal.hideUndo();
 ok(cal.data.undo === null, '点 × 立即关闭撤销条');
 ok(cal._undo === null && !cal._undoTimer, '关闭后撤销快照与计时器一并清掉');
@@ -193,7 +193,7 @@ cal.db = require(path.join(ROOT, 'utils/store.js')).load();
 cal.clearMonth();
 ok(modals.some(m => /已标记核对/.test(m || '')), '已核对的月份清空前先确认', modals.join(' / '));
 ok(cal.db.months[cal.data.ym].checked === false, '清空后核对标记一并去掉');
-cal.hideUndo();   /* 收掉撤销条的 5 秒计时器，别让进程空等 */
+cal.hideUndo();   /* 收掉撤销条的 10 秒计时器，别让进程空等 */
 
 /* ================= 记账面板的课时档位 ================= */
 reset();
@@ -1031,7 +1031,81 @@ lk2.onUnload();
 
 global.setTimeout = realSTLock;
 
-/* 批量套用留下的撤销条计时器也收掉，否则 node 要多等 5 秒才退出 */
+/* ================= 以人为本：连续记账、输入不丢、少弹窗、撤销还全 ================= */
+reset();
+const udb = seedDb();
+mem['kqzb_db_v1'] = JSON.stringify(udb);
+const ucal = makePage('calendar');
+ucal.onLoad();
+const uk1 = '2026-11-04';
+ucal.openSheet(uk1);
+ucal.setData({ 'sheet.lessons': 4 });
+ucal.stepDay({ currentTarget: { dataset: { d: 1 } } });
+ok(!!ucal.data.sheet && ucal.data.sheet.key === '2026-11-05',
+  '翻天后面板不关、直接跳到次日', ucal.data.sheet && ucal.data.sheet.key);
+ok((current().days[uk1] || {}).lessons === 4,
+  '翻天前自动存下当前这天', JSON.stringify(current().days[uk1] || null));
+ucal.onNote({ detail: { value: '期中监考' } });
+ucal.pickRate({ currentTarget: { dataset: { id: 'default' } } });
+ok(ucal.data.sheet.note === '期中监考',
+  '选档位不会把刚打的备注从界面上抹掉', String(ucal.data.sheet.note));
+
+/* 已核对的确认：本次进入页面只问一次，别让补记十几天点十几次 */
+reset();
+const c5db = seedDb();
+c5db.months['2026-11'] = { checked: true, workdays: 20, base: 8000, rate: 120 };
+mem['kqzb_db_v1'] = JSON.stringify(c5db);
+const c5 = makePage('calendar');
+c5.onLoad();
+modals = [];
+c5.openSheet('2026-11-06');
+c5.saveSheet();
+c5.openSheet('2026-11-07');
+c5.saveSheet();
+ok(modals.filter(m => /已标记核对/.test(m || '')).length === 1,
+  '已核对月份本次进入页面只确认一次', modals.join(' / '));
+
+/* 撤销要连「已核对」标记一起还回来 */
+reset();
+const u6db = seedDb();
+u6db.months['2026-11'] = { checked: true, workdays: 20, base: 8000, rate: 120 };
+mem['kqzb_db_v1'] = JSON.stringify(u6db);
+const u6 = makePage('calendar');
+u6.onLoad();
+u6._checkedOk = { '2026-11': true };
+u6.clearMonth();
+ok(current().months['2026-11'].checked === false, '清空后已核对标记去掉');
+u6.doUndo();
+ok(current().months['2026-11'].checked === true,
+  '撤销把已核对标记也还回来', String(current().months['2026-11'].checked));
+
+/* 翻到没记过账的月份，应上班天数不能显示字符串 undefined */
+reset();
+const s7db = seedDb();
+s7db.months['2026-12'] = {};
+mem['kqzb_db_v1'] = JSON.stringify(s7db);
+const s7 = makePage('summary');
+s7.onLoad();
+s7.setData({ ym: '2026-12' });
+s7.render();
+ok(s7.data.p.workdays !== 'undefined' && String(s7.data.p.workdays).length > 0,
+  '空月份的应上班天数显示现算值', String(s7.data.p.workdays));
+
+/* 课程编辑：改节数不该把刚输入的课程名抹掉 */
+reset();
+mem['kqzb_db_v1'] = JSON.stringify(seedDb());
+const cr2 = makePage('courses');
+cr2.onLoad();
+cr2.addCourse();
+cr2.onName({ detail: { value: '高一物理' } });
+cr2.stepLessons({ currentTarget: { dataset: { d: 1 } } });
+ok(cr2.data.editing.name === '高一物理',
+  '改节数不会把刚输入的课程名抹掉', String(cr2.data.editing.name));
+
+/* 新增用例留下的撤销条计时器也收掉，否则 node 要多等 10 秒才退出 */
+[c5, u6].forEach(function (p) { if (p.hideUndo) { p.hideUndo(); } });
+
+/* 批量套用留下的撤销条计时器也收掉，否则 node 要多等 10 秒才退出 */
 if (typeof bcal !== 'undefined' && bcal.hideUndo) { bcal.hideUndo(); }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

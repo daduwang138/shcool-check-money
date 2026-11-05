@@ -510,6 +510,7 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
       <input type="text" id="mNote" class="note" placeholder="例如：代课 2 节、调休">
     </div>
     <div class="row">
+      <button class="btn" id="mCancel">取消</button>
       <button class="btn" id="mPrev">前一天</button>
       <button class="btn primary" id="mDone">完成</button>
       <button class="btn" id="mNext">后一天</button>
@@ -1931,8 +1932,8 @@ function renderCal(){
 
 function cycleHalf(key,which){
   if(preStart(key)){toast("这天在入职起算日之前，不计出勤。要改请在设置里调整起算日");return;}
-  var ym=key.slice(0,7), p=monthP(ym);
-  if(p.checked&&!confirm("本月已标记核对，仍要修改吗？"))return;
+  var ym=key.slice(0,7);
+  if(!editOK(ym,"本月已标记核对，仍要修改吗？"))return;
   var r0=peek(key);
   var am=r0?(r0.am||""):effHalf(key,"am");
   var pm=r0?(r0.pm||""):effHalf(key,"pm");
@@ -1972,19 +1973,39 @@ function clearSel(){
   SELKEYS=[];
   Array.prototype.forEach.call(document.querySelectorAll("#cal .cell.sel"),function(el){el.classList.remove("sel");});
   $("selbar").classList.remove("show");
+  /* 上次勾的「连课时清零」不能带进下一次拖选，否则会静默清掉一片课时 */
+  $("selClearLes").checked=false;
 }
 function showSelBar(){
   if(!SELKEYS.length)return;
   $("selCount").textContent="已选 "+SELKEYS.length+" 天";
   $("selbar").classList.add("show");
 }
+/* 已核对的月份要挡一下误改，但别让老师补记 20 天点 20 次确认：
+   本次打开页面里每个月只问一次，之后这一轮编辑直接放行（刷新页面重新问）。 */
+var CHECKED_OK={};
+function editOK(ym,msg){
+  if(!monthP(ym).checked||CHECKED_OK[ym])return true;
+  if(!confirm(msg))return false;
+  CHECKED_OK[ym]=true;
+  return true;
+}
+function editOKList(list,msg){
+  var todo=list.filter(function(ym){return !CHECKED_OK[ym];});
+  if(!todo.length)return true;
+  if(!confirm(msg))return false;
+  todo.forEach(function(ym){CHECKED_OK[ym]=true;});
+  return true;
+}
+function snapMonths(){return JSON.parse(JSON.stringify(DB.months||{}));}
 function hideUndo(){UNDO=null;clearTimeout(showUndo._t);$("undobar").classList.remove("show");}
-function showUndo(msg,snap){
-  UNDO={snap:snap};
+function showUndo(msg,snap,msnap){
+  UNDO={snap:snap,msnap:msnap||snapMonths()};
   $("undoMsg").textContent=msg;
   $("undobar").classList.add("show");
   clearTimeout(showUndo._t);
-  showUndo._t=setTimeout(hideUndo,5000);
+  /* 人累了反应会慢一点，撤销给 10 秒 */
+  showUndo._t=setTimeout(hideUndo,10000);
 }
 function undoApply(){
   if(!UNDO)return;
@@ -1993,9 +2014,15 @@ function undoApply(){
     if(v===null)delete DB.days[k];
     else DB.days[k]=v;
   });
+  /* 「已核对」标记和当月冻结参数也是那次操作改掉的，撤销要一起还回去 */
+  if(UNDO.msnap)DB.months=UNDO.msnap;
   var n=Object.keys(UNDO.snap).length;
   hideUndo();
-  persist().then(function(){renderCal();toast("已撤销 "+n+" 天");});
+  persist().then(function(){
+    renderCal();
+    if($("view-sum").hidden===false)renderSum();
+    toast("已撤销 "+n+" 天");
+  });
 }
 /* 把一组日期整体设为某个状态；clearLes 为真时连课时一起清零 */
 function applyKeys(keys,am,pm,clearLes,quiet){
@@ -2004,7 +2031,8 @@ function applyKeys(keys,am,pm,clearLes,quiet){
   var checked={};
   keys.forEach(function(k){var ym=k.slice(0,7);if(monthP(ym).checked)checked[ym]=1;});
   var cm=Object.keys(checked);
-  if(cm.length&&!confirm("选中范围包含已标记核对的月份（"+cm.join("、")+"），仍要修改吗？"))return false;
+  if(cm.length&&!editOKList(cm,"选中范围包含已标记核对的月份（"+cm.join("、")+"），仍要修改吗？"))return false;
+  var msnap=snapMonths();
   var snap={};
   keys.forEach(function(k){
     var r=DB.days[k];
@@ -2013,7 +2041,7 @@ function applyKeys(keys,am,pm,clearLes,quiet){
     var note=r?(r.note||""):"";
     setRecord(k,am,pm,les,note,clearLes?true:(r?!!r.lset:false),clearLes?"":(r?r.rid:""));
   });
-  showUndo("已修改 "+keys.length+" 天",snap);
+  showUndo("已修改 "+keys.length+" 天",snap,msnap);
   persist().then(function(){
     renderCal();
     if(!quiet)toast("已设置 "+keys.length+" 天");
@@ -2088,6 +2116,7 @@ function openBulk(){
   $("bkTo").value=dk(y,m,n);
   BK.wd={0:true,1:true,2:true,3:true,4:true,5:true,6:true};
   BK.state="work";
+  $("bkClearLes").checked=false;
   renderBkOpts();
   $("bulkModal").classList.add("show");
 }
@@ -2195,28 +2224,36 @@ function syncRateBox(){
   var cur=(on&&on.dataset&&on.dataset.r)?on.dataset.r:"default";
   buildRateOpts(cur, parseInt($("mLessons").textContent,10)||0);
 }
+function cancelEditor(){
+  $("modal").classList.remove("show");
+  EDIT=null;
+}
 function saveEditor(close){
-  if(!EDIT)return;
-  var key=EDIT, ym=key.slice(0,7), mp=monthP(ym);
+  if(!EDIT)return false;
+  var key=EDIT, ym=key.slice(0,7);
   var am=$("mAm").querySelector(".opt.active"), pm=$("mPm").querySelector(".opt.active");
   var lessons=parseInt($("mLessons").textContent,10)||0;
   var note=$("mNote").value.trim();
   var rb=$("mRate");
   var rid=(lessons>0&&rb&&rb.querySelector(".opt.active"))?rb.querySelector(".opt.active").getAttribute("data-r"):"";
   var night=parseInt($("mNight").textContent,10)||0;
-  if(mp.checked&&!confirm("本月已标记核对，仍要修改吗？"))return;
-  setRecord(key, am?am.dataset.v:"", pm?pm.dataset.v:"", lessons, note, true, rid, night);
+  if(!editOK(ym,"本月已标记核对，仍要修改吗？"))return false;
+  /* 只是打开看一眼就点完成，不能把 lset 钉死：否则「用 N 节」再也不出现，
+     这天的课时会静默记成 0。传 undefined 走 setRecord 的推断，与小程序同一口径。 */
+  setRecord(key, am?am.dataset.v:"", pm?pm.dataset.v:"", lessons, note, undefined, rid, night);
   persist().then(function(){
     renderCal();
     if($("view-sum").hidden===false)renderSum();
     if(close){$("modal").classList.remove("show");EDIT=null;}
   });
+  return true;
 }
 function stepDay(delta){
   if(!EDIT)return;
   var p=ymd(EDIT);var dt=new Date(p[0],p[1]-1,p[2]+delta);
   var k=dk(dt.getFullYear(),dt.getMonth()+1,dt.getDate());
-  saveEditor(false);
+  /* 保存被取消（已核对月份点了「取消」）就留在这一天，别把刚填的弄丢 */
+  if(!saveEditor(false))return;
   EDIT=k;
   openEditor(k);
 }
@@ -2803,7 +2840,7 @@ function renderSet(){
   h+='<p class="muted" style="margin-bottom:8px">晚上监考 <b>一晚就一场、一次 2 小时、10 元</b>，定死的：不算课时、不占出勤半天，也不按小时乘钱。白天照常记出勤，晚上这场在记账面板点一下记 1 次；<b>同一场别再勾一次「加班」半天</b>，会重复算钱。下面两项是给学校口径变了时留的，平时不用动：时长只写进核对单，金额才参与算钱。</p>';
   h+='<div class="fields">';
   h+='<div class="field"><div><label>每次时长（小时）</label><div class="desc">只影响核对单上的时长，不影响金额</div></div><input type="number" id="setNightHours" min="0" step="0.5" value="'+(s.nightHours||0)+'"></div>';
-  h+='<div class="field"><div><label>每次金额（元）</label><div class="desc">填 0 后这笔补贴算 0 元，次数照常可记、④ 也会列出；已记账的月份仍按当时价格算</div></div><input type="number" id="setNightFee" min="0" step="0.01" value="'+(s.nightFee||0)+'"></div>';
+  h+='<div class="field"><div><label>每次金额（元）</label><div class="desc">填 0 就不显示晚修录入（学校不发这笔钱时用）；已记过的日子仍能打开清零，已记账的月份按当时价格算</div></div><input type="number" id="setNightFee" min="0" step="0.01" value="'+(s.nightFee||0)+'"></div>';
   h+='</div>';
   h+='<h3>出勤默认值</h3>';
   h+='<div class="fields">';
@@ -3560,8 +3597,9 @@ function bindEvents(){
     }
   });
 
+  /* 点遮罩 = 放弃改动。误开一天不该被强制写进账本 */
   $("modal").addEventListener("click",function(e){
-    if(e.target===this){saveEditor(true);}
+    if(e.target===this){cancelEditor();}
   });
   document.addEventListener("click",function(e){
     var opt=e.target.closest(".opt");
@@ -3587,6 +3625,7 @@ function bindEvents(){
     var v=parseInt($("mNight").textContent,10)||0;$("mNight").textContent=Math.max(0,v-1);
   });
   $("mDone").addEventListener("click",function(){saveEditor(true);});
+  $("mCancel").addEventListener("click",cancelEditor);
   $("mPrev").addEventListener("click",function(){stepDay(-1);});
   $("mNext").addEventListener("click",function(){stepDay(1);});
 
@@ -3613,8 +3652,7 @@ function bindEvents(){
   $("fillCourse").addEventListener("click",function(){
     if(!DB.term.start){alert("请先到「设置 → 课程表与教学周」填写第 1 教学周的周一。");return;}
     if(!DB.courses.length){alert("课程表还是空的，先到设置里添加课程。");return;}
-    var p=monthP(CUR);
-    if(p.checked&&!confirm("本月已标记核对，仍要填充吗？"))return;
+    if(!editOK(CUR,"本月已标记核对，仍要填充吗？"))return;
     var q=ymd(CUR+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate();
     var filled=0,skipped=0,hol=0;
     for(var d=1;d<=n;d++){
@@ -3639,9 +3677,8 @@ function bindEvents(){
   });
   $("fillWork").addEventListener("click",function(){
     if(!DB.settings.autoWork){toast("默认出勤是关闭的，请先在设置里打开「法定工作日默认算全天上班」");return;}
-    var p=monthP(CUR);
-    if(p.checked&&!confirm("本月已标记核对，仍要恢复默认出勤？"))return;
-    var q=ymd(CUR+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate(),cnt=0,snap={};
+    if(!editOK(CUR,"本月已标记核对，仍要恢复默认出勤？"))return;
+    var q=ymd(CUR+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate(),cnt=0,snap={},msnap=snapMonths();
     for(var d=1;d<=n;d++){
       var k=dk(y,m,d),r=peek(k);
       if(!r||!r.off)continue;
@@ -3652,14 +3689,13 @@ function bindEvents(){
       cnt++;
     }
     if(!cnt){toast("本月没有需要恢复的日子");return;}
-    showUndo("已恢复默认出勤 "+cnt+" 天",snap);
+    showUndo("已恢复默认出勤 "+cnt+" 天",snap,msnap);
     persist().then(function(){toast("已恢复 "+cnt+" 天默认出勤");renderCal();});
   });
   $("clearM").addEventListener("click",function(){
-    var p=monthP(CUR);
-    if(p.checked&&!confirm("本月已标记核对，仍要清空？"))return;
-    if(!confirm("清空 "+CUR+" 的全部记录？\n\n清空后：出勤 0 天、课时 0 节、应发 ¥0，默认出勤也一并清掉。\n误操作可在 5 秒内点「撤销」；想让法定工作日重新自动算回来，点「恢复默认出勤」。"))return;
-    var q=ymd(CUR+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate(),snap={};
+    if(!editOK(CUR,"本月已标记核对，仍要清空？"))return;
+    if(!confirm("清空 "+CUR+" 的全部记录？\n\n清空后：出勤 0 天、课时 0 节、应发 ¥0，默认出勤也一并清掉。\n误操作可在 10 秒内点「撤销」；想让法定工作日重新自动算回来，点「恢复默认出勤」。"))return;
+    var q=ymd(CUR+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate(),snap={},msnap=snapMonths();
     for(var d=1;d<=n;d++){
       var k=dk(y,m,d),r=peek(k);
       snap[k]=r?JSON.parse(JSON.stringify(r)):null;
@@ -3671,7 +3707,7 @@ function bindEvents(){
       }
     }
     p.checked=false;
-    showUndo("已清空 "+CUR,snap);
+    showUndo("已清空 "+CUR,snap,msnap);
     persist().then(function(){toast("已清空，出勤归 0");renderCal();});
   });
 }

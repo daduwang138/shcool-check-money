@@ -83,7 +83,8 @@ Page({
         ? ('一晚 1 次 · ' + core.fmtShort(c.nightHoursEach) + ' 小时 · ¥' + core.fmtShort(c.nightFeeEach) + '/次')
         : '',
       p: {
-        workdays: String(p.workdays),
+        /* 没记过账的月份 p.workdays 还是 undefined，输入框会显示 "undefined" 并卡死；取现算值 */
+        workdays: String(c.workdays),
         base: String(core.monthBase(db, ym)),
         rate: String(core.monthRate(db, ym))
       },
@@ -193,12 +194,17 @@ Page({
     } else if (kind === 2) {
       months = core.monthsBetween(cy + '-01', now);
     } else {
-      var keys = core.monthKeysOf(db);
+      /* monthKeysOf 会把「只翻看过、还没记过」的月份也算进来（monthP 建了空壳），
+         再筛一遍只留真有日记录的月份，避免 CSV 里出现整月空行 */
+      var keys = core.monthKeysOf(db).filter(function (m) {
+        return Object.keys(db.days || {}).some(function (k) {
+          return k.slice(0, 7) === m && core.hasContent(db.days[k]);
+        });
+      });
       if (!keys.length) {
         wx.showToast({ title: '还没有任何记录', icon: 'none' });
         return;
       }
-      /* 中间没记录的月份不必导出，只保留有记录的月份，避免整月空行 */
       months = keys.slice();
     }
     if (!months.length) {

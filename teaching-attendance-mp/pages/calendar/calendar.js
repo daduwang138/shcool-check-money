@@ -525,8 +525,9 @@ Page({
       return;
     }
     var scope = b.st === 'am' ? 'am' : (b.st === 'pm' ? 'pm' : 'both');
-    this.setData({ bulk: null });
-    this.applyToKeys(keys, b.st, scope, b.clearLes);
+    var that = this;
+    /* 面板等真正写入成功再关：已核对月份点了「取消」不该白填一遍 */
+    this.applyToKeys(keys, b.st, scope, b.clearLes, function () { that.setData({ bulk: null }); });
   },
 
   applySel: function (e) {
@@ -540,7 +541,7 @@ Page({
   },
 
   /* 把一组日期整体设为某状态：scope 只在「只上午/只下午」时有意义 */
-  applyToKeys: function (keys, st, scope, clearLes) {
+  applyToKeys: function (keys, st, scope, clearLes, onDone) {
     var db = this.db, that = this;
     keys = keys.filter(function (k) { return !core.preStart(db, k); });
     if (!keys.length) {
@@ -555,6 +556,7 @@ Page({
     var cm = Object.keys(checked);
 
     var run = function () {
+      var msnap = JSON.parse(JSON.stringify(db.months || {}));
       var snap = {};
       keys.forEach(function (k) {
         var r = db.days[k];
@@ -572,7 +574,7 @@ Page({
         core.setRecord(db, k, am, pm, les, note, clearLes ? true : (r ? !!r.lset : false),
           clearLes ? '' : (r ? r.rid : ''));
       });
-      that._undo = { msg: that.data.ym, snap: snap };
+      that._undo = { msg: that.data.ym, snap: snap, msnap: msnap };
       store.save(db);
       that.setData({ sel: false, selKeys: [], clearLes: false, allowWk: false });
       that.render();
@@ -580,15 +582,12 @@ Page({
     };
 
     if (cm.length) {
-      wx.showModal({
-        title: '含已核对的月份',
-        content: cm.join('、') + ' 已标记核对，仍要修改吗？',
-        confirmText: '继续改',
-        success: function (res) { if (res.confirm) { run(); } }
-      });
+      /* 已核对的确认本次进入页面只问一次，别让补记十几天点十几次 */
+      this._allowEditMonths(cm, function () { run(); if (onDone) { onDone(); } });
       return true;
     }
     run();
+    if (onDone) { onDone(); }
     return true;
   },
 
@@ -692,7 +691,7 @@ Page({
   /* 选了哪档课就记在哪天，没选算默认档 */
   pickRate: function (e) {
     var id = e.currentTarget.dataset.id || 'default';
-    this.setData({ 'sheet.rid': id });
+    this._patchSheet({ 'sheet.rid': id });
   },
 
   clearSheet: function () {
@@ -700,32 +699,82 @@ Page({
     this._note = '';
   },
 
+  /* 已核对的月份挡一下误改，但别让老师补记 20 天点 20 次确认：
+     本次进入页面里每个月只问一次（重进页面重新问）。 */
+  _allowEdit: function (ym, go) {
+    if (!this._checkedOk) { this._checkedOk = {}; }
+    if (!core.monthP(this.db, ym).checked || this._checkedOk[ym]) { go.call(this); return; }
+    var that = this;
+    wx.showModal({
+      title: '本月已标记核对',
+      content: ym + ' 已标记核对，仍要修改吗？',
+      confirmText: '继续改',
+      success: function (res) { if (res.confirm) { that._checkedOk[ym] = true; go.call(that); } }
+    });
+  },
+
+  _allowEditMonths: function (list, go) {
+    if (!this._checkedOk) { this._checkedOk = {}; }
+    var that = this;
+    var todo = list.filter(function (ym) { return !that._checkedOk[ym]; });
+    if (!todo.length) { go.call(this); return; }
+    wx.showModal({
+      title: '含已核对的月份',
+      content: todo.join('、') + ' 已标记核对，仍要修改吗？',
+      confirmText: '继续改',
+      success: function (res) {
+        if (res.confirm) {
+          todo.forEach(function (ym) { that._checkedOk[ym] = true; });
+          go.call(that);
+        }
+      }
+    });
+  },
+
   saveSheet: function () {
     var s = this.data.sheet;
     if (!s) { return; }
-    if (s.checked) {
-      var that = this;
-      wx.showModal({
-        title: '本月已标记核对',
-        content: '仍然要修改这一天的记录吗？',
-        confirmText: '继续改',
-        success: function (res) { if (res.confirm) { that.writeSheet(); } }
-      });
-      return;
-    }
-    this.writeSheet();
+    this._allowEdit(this.data.ym, this.writeSheet);
   },
 
-  writeSheet: function () {
+  /* 把面板内容写进库，关不关面板由调用方决定（翻天时要留着） */
+  _commitSheet: function () {
     var s = this.data.sheet;
+    if (!s) { return; }
     var note = (this._note === undefined ? s.note : this._note) || '';
     this._beginUndo();
     core.setRecord(this.db, s.key, s.am, s.pm, s.lessons, note, undefined, s.rid, s.night);
     store.save(this.db);
+  },
+
+  writeSheet: function () {
+    var s = this.data.sheet;
+    if (!s) { return; }
+    this._commitSheet();
     this.setData({ sheet: null });
     this._note = undefined;
     this.render();
     this.showUndo('已记下 ' + s.title);
+  },
+
+  /* 连续补记一周是最常见的动作：翻天前先存下当前这天，面板不关，每天少两次点击 */
+  stepDay: function (e) {
+    var s = this.data.sheet;
+    if (!s) { return; }
+    var delta = parseInt(e.currentTarget.dataset.d, 10);
+    var p = s.key.split('-');
+    var dt = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10) + delta);
+    var k = core.dk(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
+    if (core.preStart(this.db, k)) {
+      wx.showToast({ title: '这天在入职起算日之前，不计出勤', icon: 'none' });
+      return;
+    }
+    var that = this;
+    this._allowEdit(s.key.slice(0, 7), function () {
+      that._commitSheet();
+      that.openSheet(k);
+      that.render();
+    });
   },
 
   fillCourse: function () {
@@ -739,7 +788,6 @@ Page({
       return;
     }
     var that = this;
-    var p = core.monthP(db, ym);
     var go = function () {
       that._beginUndo();
       var r = core.fillLessonsFromCourses(db, ym);
@@ -751,14 +799,7 @@ Page({
       wx.showToast({ title: msg, icon: 'none' });
       that.showUndo('已按课程表填入 ' + r.filled + ' 天课时');
     };
-    if (p.checked) {
-      wx.showModal({
-        title: '本月已标记核对', content: '仍然要按课程表填充课时吗？', confirmText: '继续',
-        success: function (res) { if (res.confirm) { go(); } }
-      });
-      return;
-    }
-    go();
+    this._allowEdit(ym, go);
   },
 
   restoreDefault: function () {
@@ -793,7 +834,7 @@ Page({
     var doClear = function () {
       wx.showModal({
         title: '清空 ' + ym,
-        content: '清空后出勤 0 天、课时 0 节、应发 ¥0，默认出勤也一并清掉。5 秒内可撤销。',
+        content: '清空后出勤 0 天、课时 0 节、应发 ¥0，默认出勤也一并清掉。10 秒内可撤销。',
         confirmText: '清空',
         confirmColor: '#A33A28',
         success: function (res) {
@@ -817,15 +858,10 @@ Page({
         }
       });
     };
-    /* 已核对是「别再手滑改」的标记，别的批量操作都会先问一句，清空更该问 */
+    /* 已核对是「别再手滑改」的标记，但本次进入页面只问一次；
+       清空本身还有一次破坏性确认，别让老师连点两个对话框 */
     if (core.monthP(db, ym).checked) {
-      wx.showModal({
-        title: '本月已标记核对',
-        content: ym + ' 已标记核对，仍然要清空吗？',
-        confirmText: '继续清空',
-        confirmColor: '#A33A28',
-        success: function (res) { if (res.confirm) { doClear(); } }
-      });
+      this._allowEdit(ym, doClear);
       return;
     }
     doClear();
@@ -839,7 +875,7 @@ Page({
       var k = core.dk(y, m, d);
       snap[k] = db.days[k] ? JSON.parse(JSON.stringify(db.days[k])) : null;
     }
-    this._undo = { msg: ym, snap: snap };
+    this._undo = { msg: ym, snap: snap, msnap: JSON.parse(JSON.stringify(db.months || {})) };
   },
 
   showUndo: function (label) {
@@ -849,7 +885,7 @@ Page({
     this._undoTimer = setTimeout(function () {
       that._undo = null;
       that.setData({ undo: null });
-    }, 5000);
+    }, 10000);
   },
 
   hideUndo: function () {
@@ -865,6 +901,8 @@ Page({
       if (snap[k] === null) { delete this.db.days[k]; }
       else { this.db.days[k] = snap[k]; }
     }, this);
+    /* 「已核对」与当月冻结参数也是那次操作改掉的，撤销要一起还回去 */
+    if (this._undo.msnap) { this.db.months = this._undo.msnap; }
     store.save(this.db);
     this._undo = null;
     if (this._undoTimer) { clearTimeout(this._undoTimer); }

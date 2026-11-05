@@ -570,6 +570,17 @@
   font-size: 26rpx;
 }
 
+.sheet-nav {
+  display: flex;
+  margin-top: 24rpx;
+}
+.sheet-nav .btn {
+  flex: 1;
+}
+.sheet-nav .btn:first-child {
+  margin-right: 12rpx;
+}
+
 .sheet-actions {
   display: flex;
   margin-top: 30rpx;
