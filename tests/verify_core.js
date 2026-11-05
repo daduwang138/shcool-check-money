@@ -90,7 +90,7 @@ function mkAuto() {
   };
 }
 
-/* 自己填的放假安排：2027 春节（国办发还没公布）+ 2026 末尾补一天 + 一个补班周六 */
+/* 自己填的放假安排：2027 年另写一套春节（与内置不同，用来测自定义优先级）+ 2026 末尾补一天 + 一个补班周六 */
 function mkCustom() {
   const db = mkLegacy();
   db.settings.holidays = {
@@ -417,7 +417,73 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('粘贴·导入后春节算休息', core.isWorkday('2027-02-08', db), false);
   eq('粘贴·导入后补班日算上班', core.isWorkday('2027-02-20', db), true);
   eq('粘贴·导入后 2 月应上班', core.autoWorkdays(2027, 2, db), 16);
-  eq('粘贴·没导入时 2 月应上班', core.autoWorkdays(2027, 2, core.blankDB()), 20);
+  eq('粘贴·没导入时按内置 2027 春节算', core.autoWorkdays(2027, 2, core.blankDB()), 15);
+  eq('粘贴·内置表生效后两版仍一致', ctx.autoWorkdays(2027, 2), 15);
+}
+
+/* ---------- 8.5 2027 内置表：国办发明电〔2026〕10号（2026-11-05 发布） ----------
+   逐日比对只保证两版一样，这里钉死官方原文：放假段、补班日，以及
+   「联网获取解析出来的内容」必须与内置表逐段相同。数据来源 gov.cn 原文 +
+   holiday-cn 的 2027.json，两者逐条核过。 */
+{
+  const off = [
+    ['2027-01-01', '2027-01-03'],
+    ['2027-02-05', '2027-02-13'],
+    ['2027-04-03', '2027-04-05'],
+    ['2027-05-01', '2027-05-05'],
+    ['2027-06-09', '2027-06-09'],
+    ['2027-09-15', '2027-09-15'],
+    ['2027-10-01', '2027-10-07']
+  ];
+  const makeup = ['2027-01-31', '2027-02-14', '2027-05-08', '2027-09-26', '2027-10-09'];
+  const db = core.blankDB();
+  const wd = (k) => core.isWorkday(k, db);
+  eq('2027·依据文号', ctx.HOLIDAYS[2027].note, '国办发明电〔2026〕10号');
+  eq('2027·内置放假段', ctx.HOLIDAYS[2027].spans, off);
+  eq('2027·内置补班日', ctx.HOLIDAYS[2027].makeup, makeup);
+  eq('2027·内置年份清单', Object.keys(ctx.HOLIDAYS).sort(), ['2026', '2027']);
+
+  /* 把官方逐日记录还原出来，走同一条解析路径，验证「抓到的 == 内置的」 */
+  const days = [];
+  off.forEach(function (s) {
+    const a = Date.parse(s[0] + 'T00:00:00Z'), b = Date.parse(s[1] + 'T00:00:00Z');
+    for (let t = a; t <= b; t += 86400000) { days.push({ date: new Date(t).toISOString().slice(0, 10), isOffDay: true }); }
+  });
+  makeup.forEach(function (k) { days.push({ date: k, isOffDay: false }); });
+  const paper = 'https://www.gov.cn/zhengce/zhengceku/202611/content_7085102.htm';
+  const raw = { year: 2027, papers: [paper], days: days };
+  const parsed = core.parseHolidayJson(raw, 2027);
+  eq('2027·解析出 7 段 29 天假', [parsed.off.length, parsed.offDays], [7, 29]);
+  eq('2027·解析出 5 天补班', parsed.workDays, 5);
+  eq('2027·解析与内置放假段一致', parsed.off, off);
+  eq('2027·解析与内置补班一致', parsed.work.map((s) => s[0]), makeup);
+  eq('2027·解析两版一致', ctx.parseHolidayJson(raw, 2027).off, parsed.off);
+  eq('2027·带原文链接', parsed.note, paper);
+
+  /* 官方通知逐条：一 Jan 3 天、春节 9 天、清明/劳动/国庆与 5 个补班日 */
+  eq('2027·元旦 1/1~1/3 休，1/4 上班',
+    ['2027-01-01', '2027-01-03', '2027-01-04'].map(wd), [false, false, true]);
+  eq('2027·春节前 1/31 补班', wd('2027-01-31'), true);
+  eq('2027·除夕 2/5 起连休到 2/13',
+    ['2027-02-05', '2027-02-08', '2027-02-12', '2027-02-13'].map(wd), [false, false, false, false]);
+  eq('2027·2/14 补班', wd('2027-02-14'), true);
+  eq('2027·清明 4/3~4/5 不调休',
+    ['2027-04-03', '2027-04-05', '2027-04-06'].map(wd), [false, false, true]);
+  eq('2027·劳动节 5/1~5/5，5/8 补班',
+    ['2027-05-01', '2027-05-05', '2027-05-08'].map(wd), [false, false, true]);
+  eq('2027·端午只放 6/9 一天', [wd('2027-06-09'), wd('2027-06-10')], [false, true]);
+  eq('2027·中秋只放 9/15 一天', [wd('2027-09-15'), wd('2027-09-16')], [false, true]);
+  eq('2027·国庆 10/1~10/7，9/26 与 10/9 补班',
+    ['2027-09-26', '2027-10-01', '2027-10-07', '2027-10-09'].map(wd), [true, false, false, true]);
+  eq('2027·2 月应上班 15 天', core.autoWorkdays(2027, 2, db), 15);
+  eq('2027·10 月应上班 17 天', core.autoWorkdays(2027, 10, db), 17);
+  eq('2027·全年应上班 248 天',
+    Array.from({ length: 12 }, (_, i) => core.autoWorkdays(2027, i + 1, db)).reduce((a, b) => a + b, 0), 248);
+  /* 自定义只盖住自己写过的段，其余仍走内置；不是「有自定义就整年退回朴素规则」 */
+  const mix = core.blankDB();
+  mix.settings.holidays = { 2027: { off: [['2027-03-01', '2027-03-01']], work: [] } };
+  eq('2027·自定义不影响内置春节', core.isWorkday('2027-02-08', mix), false);
+  eq('2027·自定义自己那段生效', core.isWorkday('2027-03-01', mix), false);
 }
 
 /* ---------- 9. 晚修监考：两版一致之外，还得钉死「2 小时 10 元/次」这个业务口径 ---------- */

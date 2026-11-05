@@ -805,6 +805,11 @@ hol.onLoad();
 const HY = hol.data.y;
 ok(HY === HY0, '默认停在当年', String(HY));
 ok(hol.data.off.length === 0 && hol.data.custom === false, '新库里没有自定义假期');
+hol.nextYear();
+ok(hol.data.y === HY + 1 && /国办发明电〔2026〕10号/.test(hol.data.builtin),
+  '翻到 2027 能看到内置的国办发安排', hol.data.builtin);
+hol.prevYear();
+ok(hol.data.y === HY, '翻回来还是当年', String(hol.data.y));
 
 hol.pickFrom({ detail: { value: HY + '-02-06' } });
 hol.pickTo({ detail: { value: HY + '-02-12' } });

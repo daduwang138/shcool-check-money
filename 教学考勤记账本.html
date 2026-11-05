@@ -634,6 +634,11 @@ var HOLIDAYS={
     note:"国办发明电〔2025〕7号",
     spans:[["2026-01-01","2026-01-03"],["2026-02-15","2026-02-23"],["2026-04-04","2026-04-06"],["2026-05-01","2026-05-05"],["2026-06-19","2026-06-21"],["2026-09-25","2026-09-27"],["2026-10-01","2026-10-07"]],
     makeup:["2026-01-04","2026-02-14","2026-02-28","2026-05-09","2026-09-20","2026-10-10"]
+  },
+  2027:{
+    note:"国办发明电〔2026〕10号",
+    spans:[["2027-01-01","2027-01-03"],["2027-02-05","2027-02-13"],["2027-04-03","2027-04-05"],["2027-05-01","2027-05-05"],["2027-06-09","2027-06-09"],["2027-09-15","2027-09-15"],["2027-10-01","2027-10-07"]],
+    makeup:["2027-01-31","2027-02-14","2027-05-08","2027-09-26","2027-10-09"]
   }
 };
 
@@ -2628,12 +2633,16 @@ function holDoFetch(y){
   function next(){
     if(i>=HOL_SRC.length)return Promise.reject(lastErr||new Error("数据源都不通"));
     var url=HOL_SRC[i++]+y+".json";
-    return holGet(url,8000).then(function(txt){return txt;},function(e){lastErr=e;return next();});
+    return holGet(url,8000).then(function(txt){
+      var r=parseHolidayJson(txt,y);
+      /* CDN 缓存常比仓库慢半天：文件在、days 却是空的（2027 发布当天就撞上过）。
+         HTTP 200 但没数据也得换源，否则拿第一个 CDN 的空文件就误报「还没公布」。 */
+      if(!r.ok){lastErr=new Error(r.err);return next();}
+      return r;
+    },function(e){lastErr=e;return next();});
   }
-  next().then(function(txt){
-    var r=parseHolidayJson(txt,y);
-    if(r.ok)HOL_FETCH={ok:true,year:r.year,off:r.off,work:r.work,offDays:r.offDays,workDays:r.workDays,note:r.note};
-    else HOL_FETCH={ok:false,err:r.err};
+  next().then(function(r){
+    HOL_FETCH={ok:true,year:r.year,off:r.off,work:r.work,offDays:r.offDays,workDays:r.workDays,note:r.note};
   }).catch(function(e){
     HOL_FETCH={ok:false,err:holErrText(e)};
   }).then(function(){
