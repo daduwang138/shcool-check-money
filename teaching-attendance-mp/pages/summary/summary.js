@@ -80,7 +80,7 @@ Page({
       otherRates: core.ratesOf(db).filter(function (r) { return r.id !== 'default'; })
         .map(function (r) { return r.name + ' ¥' + core.fmtShort(core.priceOf(db, ym, r.id)) + '/节'; }).join(' · '),
       nightEach: (c.nightFeeEach > 0 || c.nightCount > 0)
-        ? ('每次 ' + core.fmtShort(c.nightHoursEach) + ' 小时 · ¥' + core.fmtShort(c.nightFeeEach))
+        ? ('一晚 1 次 · ' + core.fmtShort(c.nightHoursEach) + ' 小时 · ¥' + core.fmtShort(c.nightFeeEach) + '/次')
         : '',
       p: {
         workdays: String(p.workdays),

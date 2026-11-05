@@ -147,7 +147,7 @@ Page({
         id: k, key: k, blank: false, d: d, cls: cls, sel: !!selSet[k],
         amCls: core.sl(am).cls + (ghA ? ' ghost' : ''),
         pmCls: core.sl(pm).cls + (ghP ? ' ghost' : ''),
-        lesText: lesText, lesCls: lesCls, nightText: ni ? '晚' + ni : '',
+        lesText: lesText, lesCls: lesCls, nightText: ni ? (ni > 1 ? '晚' + ni : '晚修') : '',
         tag: tag, tagCls: tagCls
       });
     }
@@ -615,7 +615,7 @@ Page({
     this.setData({
       /* 档位随设置页变动，每次点开重算一遍，别缓存到页面 data 里 */
       rates: core.ratesOf(db).map(function (r) { return { id: r.id, name: r.name, price: r.price }; }),
-      nightHint: core.fmtShort(nh) + ' 小时 · ' + core.fmtShort(nf) + ' 元',
+      nightHint: '一晚 1 次 · ' + core.fmtShort(nh) + ' 小时 · ' + core.fmtShort(nf) + ' 元',
       sheet: {
         key: k,
         title: parseInt(k.slice(5, 7), 10) + ' 月 ' + parseInt(k.slice(8), 10) + ' 日',
@@ -660,15 +660,18 @@ Page({
     this._patchSheet({ 'sheet.lessons': v });
   },
 
-  /* 晚修监考按次记，一天最多 4 次：再多就该看看是不是记错日子了 */
+  /* 晚修监考一晚就一场：2 小时 10 元，定死的。上限设 1，误点第二下不会多算一笔钱。
+     内核不设限——从旧备份或粘贴码里读进来的多次记录仍照实算，界面不替人改账。 */
   stepNight: function (e) {
     var d = parseInt(e.currentTarget.dataset.d, 10);
-    var v = (parseInt(this.data.sheet.night, 10) || 0) + d;
+    var cur = (parseInt(this.data.sheet.night, 10) || 0);
+    var v = cur + d;
     if (v < 0) { v = 0; }
-    /* 到顶了给个响，不然连点没反应会被当成按钮坏了 */
-    if (v > 4) {
-      v = 4;
-      if (d > 0) { wx.showToast({ title: '一天最多记 4 次', icon: 'none' }); }
+    /* 到顶了给个响，不然连点没反应会被当成按钮坏了。
+       旧数据本来就 >1 次时保持原值，界面不偷偷替人改账，点 − 可以自己减下来 */
+    if (v > 1) {
+      v = cur > 1 ? cur : 1;
+      if (d > 0) { wx.showToast({ title: '一晚只记 1 次监考', icon: 'none' }); }
     }
     this._patchSheet({ 'sheet.night': v });
   },

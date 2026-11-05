@@ -206,7 +206,7 @@
       <view class="step" data-d="-1" bindtap="stepNight">−</view>
       <text class="step-val">{{sheet.night}}</text>
       <view class="step" data-d="1" bindtap="stepNight">＋</view>
-      <text class="sched">每次 {{nightHint}}</text>
+      <text class="sched">{{nightHint}}</text>
     </view>
   </view>
 

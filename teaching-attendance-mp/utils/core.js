@@ -655,7 +655,7 @@ function sumText(c){
   }
   /* 晚修监考单独一行：不进课时合计，财务那边也是两笔 */
   if(c.nightCount>0){
-    L.push("晚修监考："+c.nightCount+" 次 × "+fmtShort(c.nightHoursEach)+" 小时 × "+fmtShort(c.nightFeeEach)+" 元 = "+fmt(c.nightFee)+" 元");
+    L.push("晚修监考："+c.nightCount+" 次 × "+fmtShort(c.nightFeeEach)+" 元/次 = "+fmt(c.nightFee)+" 元（每次 "+fmtShort(c.nightHoursEach)+" 小时，共 "+fmtShort(c.nightHours)+" 小时）");
   }
   L.push("————————————————");
   L.push("折算日薪："+fmt(c.dailyRate)+" 元");

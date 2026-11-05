@@ -121,6 +121,8 @@ function mkRates() {
 /* 晚修监考：按次给的补贴，不算课时、不占出勤半天 */
 function mkNight() {
   const db = mkLegacy();
+  /* 一个月 4 个晚上各监考一场，合计 4 次；不是「一晚 4 次」。
+     单日上限 1 次由界面限幅，内核仍按次数累加，才接得住跨天合计与旧备份。 */
   db.days['2026-10-08'].night = 2;
   db.days['2026-10-10'].night = 1;
   /* 这天本来是默认上班日：从弹窗保存时 am/pm 会带上默认值，
@@ -445,7 +447,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     Object.keys(c.days).filter(k => k.slice(0, 7) === '2026-10' && core.hasContent(c.days[k])).length);
 
   const txt = core.sumText(cc);
-  eq('晚修·核对单明细行', txt.indexOf('晚修监考：4 次 × 2 小时 × 10 元 = 40.00 元') >= 0, true);
+  eq('晚修·核对单明细行', txt.indexOf('晚修监考：4 次 × 10 元/次 = 40.00 元（每次 2 小时，共 8 小时）') >= 0, true);
   eq('晚修·核对单有 ④', txt.indexOf('④ 晚修监考费：40.00 元') >= 0, true);
   eq('晚修·核对单两版一致', ctx.sumText(hc), txt);
   eq('晚修·没记就不出现 ④', core.sumText(pc).indexOf('④ 晚修监考费'), -1);
@@ -472,6 +474,19 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   fresh.days['2026-11-03'] = { am: 'work', pm: 'work', lessons: 2, note: '', night: 2 };
   eq('晚修·新价生效', core.computeMonth(fresh, '2026-11').nightFee, 50);
   eq('晚修·nightOf 读设置', core.nightOf(fresh, '2026-11'), { hours: 2, fee: 25 });
+
+  /* 学校口径「一次 2 小时、10 元」定死的：时长只写进核对单，不参与乘算。
+     就算把时长改成 5 小时，一场也还是 10 元；这条钉死用户确认过的业务口径。 */
+  const hrOnly = core.blankDB();
+  hrOnly.settings.nightHours = 5;
+  hrOnly.days['2026-11-03'] = { am: 'work', pm: 'work', lessons: 0, note: '', night: 1 };
+  const hrC = core.computeMonth(hrOnly, '2026-11');
+  eq('晚修·改时长不改金额', [hrC.nightFee, hrC.nightHours], [10, 5]);
+  const hrH = ctx.normalize(core.blankDB());
+  hrH.settings.nightHours = 5;
+  hrH.days['2026-11-03'] = { am: 'work', pm: 'work', lessons: 0, note: '', night: 1 };
+  ctx.DB = hrH;
+  eq('晚修·改时长不改金额（两版一致）', ctx.computeMonth('2026-11').nightFee, 10);
 
   /* 改出勤、改课时不该顺手把晚修次数抹掉，只有显式传 0 才清 */
   const keep = core.blankDB();

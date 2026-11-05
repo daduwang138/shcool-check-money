@@ -1159,7 +1159,7 @@ function sumText(c){
   }
   /* 晚修监考单独一行：不进课时合计，财务那边也是两笔 */
   if(c.nightCount>0){
-    L.push("晚修监考："+c.nightCount+" 次 × "+fmtShort(c.nightHoursEach)+" 小时 × "+fmtShort(c.nightFeeEach)+" 元 = "+fmt(c.nightFee)+" 元");
+    L.push("晚修监考："+c.nightCount+" 次 × "+fmtShort(c.nightFeeEach)+" 元/次 = "+fmt(c.nightFee)+" 元（每次 "+fmtShort(c.nightHoursEach)+" 小时，共 "+fmtShort(c.nightHours)+" 小时）");
   }
   L.push("————————————————");
   L.push("折算日薪："+fmt(c.dailyRate)+" 元");
@@ -1901,7 +1901,7 @@ function renderCal(){
     /* 晚修监考跟课时挤在同一行：格子窄，多开一行会把日期挤散 */
     if(lesHtml||ni){
       html+='<div class="lessons'+lesCls+(lesHtml?"":" bare")+'"'+lesTitle+'>'+lesHtml
-        +(ni?'<span class="nighttag" title="晚修监考 '+ni+' 次">晚 '+ni+'</span>':'')+'</div>';
+        +(ni?'<span class="nighttag" title="晚修监考 '+ni+' 次">晚修'+(ni>1?' '+ni:'')+'</span>':'')+'</div>';
     }
     html+='</div>';
   }
@@ -2136,7 +2136,7 @@ function openEditor(key){
   $("mNight").textContent=ni;
   if(nFee>0||ni>0){
     $("mNightBox").style.display="";
-    $("mNightHint").textContent="每次 "+fmtShort(DB.settings.nightHours)+" 小时 · "+fmtShort(nFee)+" 元";
+    $("mNightHint").textContent="一晚 1 次 · "+fmtShort(DB.settings.nightHours)+" 小时 · "+fmtShort(nFee)+" 元";
   }else{
     $("mNightBox").style.display="none";
     $("mNightHint").textContent="";
@@ -2265,7 +2265,7 @@ function renderSum(){
     html+='<tr><td>其他档位</td><td class="num faint">'+otherRates.map(function(r){return esc(r.name)+' ¥'+fmtShort(priceOf(DB,CUR,r.id))+'/节';}).join(' · ')+'</td></tr>';
   }
   if(c.nightCount>0||c.nightFeeEach>0){
-    html+='<tr><td>晚修监考</td><td class="num faint">每次 '+fmtShort(c.nightHoursEach)+' 小时 · ¥'+fmtShort(c.nightFeeEach)+'</td></tr>';
+    html+='<tr><td>晚修监考</td><td class="num faint">一晚 1 次 · '+fmtShort(c.nightHoursEach)+' 小时 · ¥'+fmtShort(c.nightFeeEach)+'/次</td></tr>';
   }
   html+='</tbody></table>';
   html+='</div></div>';
@@ -2284,7 +2284,7 @@ function renderSum(){
   html+='<tr class="hi"><td>③ 课时费<br><span class="faint">'+rateLine+'</span></td><td class="num">¥'+fmt(c.lessonFee)+'</td></tr>';
   /* 晚修监考没记就不占一行，免得每个月都挂一条 ¥0.00 */
   if(c.nightCount>0){
-    html+='<tr class="hi"><td>④ 晚修监考费<br><span class="faint">'+c.nightCount+' 次 × '+fmtShort(c.nightHoursEach)+' 小时 × ¥'+fmtShort(c.nightFeeEach)+'</span></td><td class="num">¥'+fmt(c.nightFee)+'</td></tr>';
+    html+='<tr class="hi"><td>④ 晚修监考费<br><span class="faint">'+c.nightCount+' 次 × ¥'+fmtShort(c.nightFeeEach)+'/次（每次 '+fmtShort(c.nightHoursEach)+' 小时，共 '+fmtShort(c.nightHours)+' 小时）</span></td><td class="num">¥'+fmt(c.nightFee)+'</td></tr>';
   }
   html+='<tr class="total"><td>应发合计</td><td class="num" style="font-size:16px">¥'+fmt(c.total)+'</td></tr>';
   html+='</tbody></table>';
@@ -2791,7 +2791,7 @@ function renderSet(){
   }
   h+='<button class="btn sm" id="rateAdd">＋ 加一档</button>';
   h+='<h3>晚修监考</h3>';
-  h+='<p class="muted" style="margin-bottom:8px">晚上加班监考按次给钱，不算课时、也不占出勤半天。白天照常记出勤，晚上这场只在记账面板填「几次」；<b>同一场别再勾一次「加班」半天</b>，会重复算钱。这里填一次算几小时、给多少钱。</p>';
+  h+='<p class="muted" style="margin-bottom:8px">晚上监考 <b>一晚就一场、一次 2 小时、10 元</b>，定死的：不算课时、不占出勤半天，也不按小时乘钱。白天照常记出勤，晚上这场在记账面板点一下记 1 次；<b>同一场别再勾一次「加班」半天</b>，会重复算钱。下面两项是给学校口径变了时留的，平时不用动：时长只写进核对单，金额才参与算钱。</p>';
   h+='<div class="fields">';
   h+='<div class="field"><div><label>每次时长（小时）</label><div class="desc">只影响核对单上的时长，不影响金额</div></div><input type="number" id="setNightHours" min="0" step="0.5" value="'+(s.nightHours||0)+'"></div>';
   h+='<div class="field"><div><label>每次金额（元）</label><div class="desc">填 0 后新记录不再显示；已记账的月份仍按当时价格算</div></div><input type="number" id="setNightFee" min="0" step="0.01" value="'+(s.nightFee||0)+'"></div>';
@@ -3570,7 +3570,8 @@ function bindEvents(){
   });
   $("mNightPlus").addEventListener("click",function(){
     var v=parseInt($("mNight").textContent,10)||0;
-    if(v>=4){toast("一天最多记 4 次");return;}
+    /* 学校口径：一晚就一场，2 小时 10 元，定死的。记成 2 次几乎必是手滑，会多算一笔钱 */
+    if(v>=1){toast("一晚只记 1 次监考；记错了点 − 取消");return;}
     $("mNight").textContent=v+1;
   });
   $("mNightMinus").addEventListener("click",function(){

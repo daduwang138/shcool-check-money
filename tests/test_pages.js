@@ -235,26 +235,28 @@ const nkey = '2026-11-06';
 ncal.openSheet(nkey);
 ok(ncal.data.sheet.nightOn === true, '有单价时面板显示晚修监考');
 ok(ncal.data.sheet.night === 0, '没记过的日子是 0 次');
-ok(ncal.data.nightHint === '2 小时 · 10 元', '提示写清每次时长和钱', ncal.data.nightHint);
+ok(ncal.data.nightHint === '一晚 1 次 · 2 小时 · 10 元', '提示写清一晚一次、时长和钱', ncal.data.nightHint);
 ncal.stepNight({ currentTarget: { dataset: { d: 1 } } });
+ok(ncal.data.sheet.night === 1, '点一下记 1 次');
 ncal.stepNight({ currentTarget: { dataset: { d: 1 } } });
-ok(ncal.data.sheet.night === 2, '可以加两次');
+ok(ncal.data.sheet.night === 1, '一晚只能记 1 次，误点不会多算钱', String(ncal.data.sheet.night));
+ok(toasts.some(t => /一晚只记 1 次/.test(t)), '到顶给提示，不会被当成按钮坏了', toasts.join('/'));
 ncal.saveSheet();
-ok(current().days[nkey].night === 2, '晚修次数随记录落盘');
+ok(current().days[nkey].night === 1, '晚修次数随记录落盘');
 const nc = core.computeMonth(current(), '2026-11');
-ok([nc.nightCount, nc.nightHours, nc.nightFee].join(',') === '2,4,20', '2 次 = 4 小时 = 20 元',
+ok([nc.nightCount, nc.nightHours, nc.nightFee].join(',') === '1,2,10', '1 次 = 2 小时 = 10 元',
   [nc.nightCount, nc.nightHours, nc.nightFee].join(','));
 ok(nc.lessons === 0, '晚修不算课时', String(nc.lessons));
 const ncell = ncal.data.cells.find(c => c.key === nkey);
-ok(ncell && ncell.nightText === '晚2', '日历格子上带晚修标记', ncell && ncell.nightText);
+ok(ncell && ncell.nightText === '晚修', '日历格子上带晚修标记', ncell && ncell.nightText);
 ncal.openSheet(nkey);
-ok(ncal.data.sheet.night === 2, '重新打开面板带出已记的次数');
-for (let i = 0; i < 5; i++) { ncal.stepNight({ currentTarget: { dataset: { d: 1 } } }); }
-ok(ncal.data.sheet.night === 4, '一天最多 4 次，防手滑');
-ok(toasts.some(t => /最多记 4 次/.test(t)), '到顶给提示，不会被当成按钮坏了', toasts.join('/'));
+ok(ncal.data.sheet.night === 1, '重新打开面板带出已记的次数');
 ncal.stepNight({ currentTarget: { dataset: { d: -1 } } });
-ncal.stepNight({ currentTarget: { dataset: { d: -1 } } });
-ok(ncal.data.sheet.night === 2, '可以减回去');
+ok(ncal.data.sheet.night === 0, '可以减回 0 次');
+/* 界面限幅，但内核不替人改账：旧备份/粘贴码里读进来的多次记录仍照实算 */
+const legacyNight = core.blankDB();
+legacyNight.days['2026-11-06'] = { am: '', pm: '', lessons: 0, note: '', night: 3, upd: 1 };
+ok(core.computeMonth(legacyNight, '2026-11').nightFee === 30, '导入的 3 次仍按 3 次算，界面不篡改旧账');
 ncal.clearSheet();
 ncal.saveSheet();
 ok(!(current().days[nkey] || {}).night, '清空这天会连晚修一起清掉');
@@ -632,7 +634,7 @@ const sumN = makePage('summary');
 sumN.onLoad();
 const nrow = sumN.data.rows.find(r => r.k === '晚修监考费');
 ok(!!nrow && nrow.v.indexOf('20.00') >= 0, '计算过程列出晚修监考费', nrow && nrow.v);
-ok(sumN.data.nightEach === '每次 2 小时 · ¥10', '参数卡显示只读的晚修价', sumN.data.nightEach);
+ok(sumN.data.nightEach === '一晚 1 次 · 2 小时 · ¥10/次', '参数卡显示只读的晚修价', sumN.data.nightEach);
 ok(sumN.data.total === core.fmt(core.computeMonth(core.normalize(current()), sumN.data.ym).total),
   '应发合计把晚修算进去了', sumN.data.total);
 clips.length = 0;
@@ -664,7 +666,7 @@ sumN.db.settings.nightFee = 25;
 sumN.render();
 ok(sumN.data.otherRates.indexOf('晚自习 ¥80/节') >= 0, '档位只读行用当月冻结价', sumN.data.otherRates);
 ok(sumN.data.otherRates.indexOf('¥150') < 0, '档位只读行不跟新设置变', sumN.data.otherRates);
-ok(sumN.data.nightEach === '每次 2 小时 · ¥10', '晚修只读行也用冻结价', sumN.data.nightEach);
+ok(sumN.data.nightEach === '一晚 1 次 · 2 小时 · ¥10/次', '晚修只读行也用冻结价', sumN.data.nightEach);
 ok(sumN.data.total === core.fmt(core.computeMonth(sumN.db, ymN).total), '金额与参数卡同口径');
 
 /* 恢复默认参数只删三个可手改的值，档位与晚修的快照保留（记过账的月份不因调价变钱） */
