@@ -69,5 +69,21 @@ if (htmlSrc.indexOf('法定工作日内置 2026 年（') >= 0) bad.push('电脑�
 const ruleLine = (htmlSrc.match(/<p class="muted">计算规则：[^\n]*<\/p>/) || [''])[0];
 if (!/④/.test(ruleLine)) bad.push('电脑版说明卡的应发公式漏了 ④ 晚修监考费');
 
+/* 自动落账口径哨兵：开关说明必须与 autoFillLessons() 一致——
+   默认开、未来不预填、已核对不动、10 秒可撤销、撤销后本月不再自动填。 */
+function near(src, marker, back, fwd) {
+  const i = src.indexOf(marker);
+  return i < 0 ? '' : src.slice(Math.max(0, i - back), i + fwd);
+}
+[['电脑版', near(htmlSrc, 'data-k="autoLessons"', 500, 100)],
+ ['小程序版', near(mpSet, 'data-key="autoLessons"', 500, 100)]].forEach(function (p) {
+  const t = p[1];
+  if (!t) { bad.push(p[0] + '设置页缺「按课程表自动记课时」开关'); return; }
+  if (!/未来.{0,8}不预填/.test(t)) bad.push(p[0] + '自动落账说明没写「未来不预填」');
+  if (!/已核对/.test(t)) bad.push(p[0] + '自动落账说明没写「已核对的月份不动」');
+  if (!/10 秒/.test(t)) bad.push(p[0] + '自动落账说明没写「10 秒可撤销」');
+  if (!/不再自动填/.test(t)) bad.push(p[0] + '自动落账说明没写「撤销后本月不再自动填」');
+});
+
 if (bad.length) { console.log('FAIL\n' + bad.join('\n')); process.exit(1); }
 console.log('结构自检通过：' + hCount + ' 个事件方法、' + cCount + ' 个 class、wxss ' + rCount + ' 条规则');

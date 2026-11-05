@@ -460,7 +460,7 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
     <div class="cal" id="cal"></div>
     <details class="help">
       <summary>使用说明与图例含义</summary>
-      <p>法定工作日默认就算全天上班（<b>虚框「班」</b>），<b>不用一天天点</b>。只有例外才需要动：点虚框格子先确认为上班，再点依次切换 监考 → 加班 → 请假 → 空。点日期空白处录入课时和备注。<br><b>每格不看颜色也能认</b>：上午、下午两个小格里直接写着「班 / 监 / 加 / 假」，实心=上班、斜纹=监考、点纹=加班、灰底=请假、虚框=默认上班（还没确认）。<br><b>入职当月起算</b>：在「设置 → 入职起算日」填一次，之前的日子全部灰显、不计出勤和课时，不用逐天去点。<br><b>在日期上按住拖动可圈选多天</b>（周末自动跳过，要改周末请用「批量设置」勾周六日），松手后底部出现操作条，一次套用到整片；跨月的规则用「批量设置」。<br>「清空本月」会把出勤、课时一起归零（可撤销）；想让法定工作日重新自动算回来，点「恢复默认出勤」。<br>课时里淡色的 <b>4 节?</b> 只表示“课程表上这天有课、还没填”；你改成几节就以你的记录为准，不会再提示。</p>
+      <p>法定工作日默认就算全天上班（<b>虚框「班」</b>），<b>不用一天天点</b>。只有例外才需要动：点虚框格子先确认为上班，再点依次切换 监考 → 加班 → 请假 → 空。点日期空白处录入课时和备注。<br><b>每格不看颜色也能认</b>：上午、下午两个小格里直接写着「班 / 监 / 加 / 假」，实心=上班、斜纹=监考、点纹=加班、灰底=请假、虚框=默认上班（还没确认）。<br><b>入职当月起算</b>：在「设置 → 入职起算日」填一次，之前的日子全部灰显、不计出勤和课时，不用逐天去点。<br><b>在日期上按住拖动可圈选多天</b>（周末自动跳过，要改周末请用「批量设置」勾周六日），松手后底部出现操作条，一次套用到整片；跨月的规则用「批量设置」。<br>「清空本月」会把出勤、课时一起归零（可撤销）；想让法定工作日重新自动算回来，点「恢复默认出勤」。<br>课时现在按课程表<b>自动记入已过去的日子</b>，不用一天天填；淡色的 <b>4 节?</b> 只剩未来日期会出现。改过的日子以你填的为准，不会被自动覆盖；不想要自动填，到「设置 → 出勤默认值」关开关。</p>
     </details>
   </section>
 
@@ -620,6 +620,7 @@ var DIR_READY=false;                    /* 目录里的设置文件是否读通�
 var EXP={from:"",to:""};
 var CALCELLS=[], POS={};
 var DRAG={on:false,moved:false,sx:0,sy:0,startKey:null}, SELKEYS=[], SUPPRESS_CLICK=false, UNDO=null;
+var AUTO_BLOCKED={};   /* 撤销过自动落账的月份：本次打开不再自动填 */
 
 var STATES={
   "":{label:"空",cls:"s-empty",ch:""},
@@ -874,6 +875,35 @@ function lessonsFor(key){
   }
   return sum;
 }
+/* 课程表课时自动落账：只补「今天及以前、没手填过」的日子。
+   未来日期不预填——课表中途换了，还没到的日子下次会按新课表算；
+   已核对的月份是定稿，整月不动；翻看旧月也不改账。
+   手填过的日子靠 lset / 已有课时跳过，绝不覆盖。 */
+function autoFillLessons(ym,today){
+  var res={filled:0,skipped:0,hol:0,future:0,reason:""};
+  if(!DB.settings.autoLessons){res.reason="off";return res;}
+  if(!DB.term||!DB.term.start||!DB.courses||!DB.courses.length){res.reason="no-courses";return res;}
+  if(ym!==today.slice(0,7)){res.reason="not-current";return res;}
+  var mp=DB.months[ym];
+  if(mp&&mp.checked){res.reason="checked";return res;}
+  var q=ymd(ym+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate();
+  for(var d=1;d<=n;d++){
+    var k=dk(y,m,d);
+    if(k>today){res.future++;continue;}
+    if(isHoliday(k)){res.hol++;continue;}
+    var v=lessonsFor(k);
+    if(v<=0)continue;
+    var ex=peek(k);
+    if(ex&&(ex.off||ex.am==="leave"||ex.pm==="leave")){res.skipped++;continue;}
+    if(ex&&(ex.lset||(parseInt(ex.lessons,10)||0)>0)){res.skipped++;continue;}
+    var a0=effHalf(k,"am"),b0=effHalf(k,"pm"),r=rec(k);
+    if(!r.am)r.am=a0||"";
+    if(!r.pm)r.pm=b0||"";
+    r.lessons=v;r.lset=true;r.upd=Date.now();
+    res.filled++;
+  }
+  return res;
+}
 function coursePreviewText(){
   if(!DB.term||!DB.term.start)return "先填第 1 教学周的周一，才能把周次换算成日期。";
   if(!DB.courses.length)return "还没有课程，点下面的「添加课程」。";
@@ -893,6 +923,8 @@ function blankDB(){
       /* 晚修监考：按次计，不算课时也不占出勤半天 */
       nightHours:2,nightFee:10,
       enableBase:true,enableLesson:true,enableInv:true,enableOt:true,autoWork:true,
+      /* 课程表课时自动落账：默认开，只补当月「今天及以前」且没手填过的日子 */
+      autoLessons:true,
       /* 常规周：下标 0=周日 … 6=周六；1=全天，0.5=只上午，0=不上班 */
       weekPattern:[0,1,1,1,1,1,0],
       /* 入职起算日（YYYY-MM-DD）：这天之前一律不算出勤、不计课时 */
@@ -921,6 +953,8 @@ function normalize(db){
   /* 晚修监考的两个价：存成字符串也认，负数归零 */
   db.settings.nightHours=Math.max(0,parseFloat(db.settings.nightHours)||0);
   db.settings.nightFee=Math.max(0,parseFloat(db.settings.nightFee)||0);
+  /* 老备份没有这个开关时默认开；只有显式关掉才关 */
+  db.settings.autoLessons=db.settings.autoLessons!==false;
   if(typeof db.settings.fileName!=="string"||!db.settings.fileName.trim())db.settings.fileName="考勤数据.json";
   /* 文件前缀：老数据里只有 fileName（整库单文件），从这里推导出前缀 */
   if(typeof db.settings.fileBase!=="string"||!db.settings.fileBase.trim()){
@@ -1869,7 +1903,25 @@ function shiftMonth(delta){
   CUR=dt.getFullYear()+"-"+pad(dt.getMonth()+1);
   renderCal();
 }
+/* 渲染前把当月已过去的日子按课程表补齐。
+   函数是幂等的（填过的日子有 lset，不会再写），每次 render 跑一遍很便宜；
+   撤销会把这个月记进 AUTO_BLOCKED，不会又自动填回来。 */
+function maybeAutoFill(){
+  if(!DB||!CUR||AUTO_BLOCKED[CUR])return;
+  var ym=CUR,snap={},msnap=snapMonths();
+  var q=ymd(ym+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate();
+  for(var d=1;d<=n;d++){
+    var k0=dk(y,m,d),r0=DB.days[k0];
+    snap[k0]=r0?JSON.parse(JSON.stringify(r0)):null;
+  }
+  var r=autoFillLessons(ym,todayKey());
+  if(r.filled<=0)return;
+  showUndo("已按课程表自动记入 "+r.filled+" 天课时",snap,msnap);
+  if(UNDO){UNDO.auto=true;UNDO.ym=ym;}
+  persist();
+}
 function renderCal(){
+  maybeAutoFill();
   var p=ymd(CUR+"-01"), y=p[0], m=p[1];
   $("monLabel").textContent=y+" 年 "+m+" 月";
   var first=new Date(y,m-1,1).getDay();
@@ -2009,6 +2061,9 @@ function showUndo(msg,snap,msnap){
 }
 function undoApply(){
   if(!UNDO)return;
+  /* 撤销自动落账 = 这个月别再自动填回来；想以后都不填，去设置里关开关 */
+  var autoUndo=!!(UNDO.auto&&UNDO.ym);
+  if(autoUndo)AUTO_BLOCKED[UNDO.ym]=true;
   Object.keys(UNDO.snap).forEach(function(k){
     var v=UNDO.snap[k];
     if(v===null)delete DB.days[k];
@@ -2021,7 +2076,7 @@ function undoApply(){
   persist().then(function(){
     renderCal();
     if($("view-sum").hidden===false)renderSum();
-    toast("已撤销 "+n+" 天");
+    toast(autoUndo?"已撤销 "+n+" 天，本月不再自动填课时":"已撤销 "+n+" 天");
   });
 }
 /* 把一组日期整体设为某个状态；clearLes 为真时连课时一起清零 */
@@ -2845,6 +2900,7 @@ function renderSet(){
   h+='<h3>出勤默认值</h3>';
   h+='<div class="fields">';
   h+='<div class="field"><div><label>法定工作日默认算全天上班</label><div class="desc">开着就不用逐天勾选，只有请假、调休、监考这些例外才需要改</div></div><div class="switch'+(s.autoWork?" on":"")+'" data-k="autoWork"></div></div>';
+  h+='<div class="field"><div><label>按课程表自动记课时</label><div class="desc">默认开：本月里已经过去、课程表上有课、又没手填过的日子自动记上课时，不用一天天点。未来的日子不预填，已手填或已核对的月份不动。自动填完 10 秒内可撤销，撤销后本月不再自动填；想彻底关掉就关这个开关，已记的账不追溯删除</div></div><div class="switch'+(s.autoLessons?" on":"")+'" data-k="autoLessons"></div></div>';
   h+='<div class="field"><div><label>入职起算日</label><div class="desc">这天之前不算出勤、不计课时，也不用到月历上逐天去点；留空表示不限</div></div><input type="date" id="setStart" value="'+(s.startDate||"")+'"></div>';
   h+='</div>';
   h+='<h3>常规周</h3>';

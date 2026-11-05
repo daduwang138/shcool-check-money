@@ -98,6 +98,7 @@ Page({
   },
 
   render: function () {
+    this._maybeAutoFill();
     var db = this.db, ym = this.data.ym;
     var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
     var lead = (core.firstWeekdayOf(ym) + 6) % 7;
@@ -867,6 +868,21 @@ Page({
     doClear();
   },
 
+  /* 进入某月时把已过去的日子按课程表补齐。
+     幂等（填过的日子有 lset），撤销后本会话不再自动填回来。 */
+  _maybeAutoFill: function () {
+    var db = this.db, ym = this.data.ym;
+    if (!db || !ym || (this._autoBlocked && this._autoBlocked[ym])) { return; }
+    var prevUndo = this._undo;
+    this._beginUndo();                    /* 必须在写入前拍快照，撤销才有意义 */
+    var r = core.autoFillLessons(db, ym, core.todayKey());
+    if (r.filled <= 0) { this._undo = prevUndo; return; }
+    store.save(db);
+    this._undo.auto = true;
+    this._undo.ym = ym;
+    this.showUndo('已按课程表自动记入 ' + r.filled + ' 天课时');
+  },
+
   _beginUndo: function () {
     var db = this.db, ym = this.data.ym;
     var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
@@ -896,6 +912,13 @@ Page({
 
   doUndo: function () {
     if (!this._undo) { return; }
+    /* 撤销自动落账：本月别再自动填回来，想永久关掉去设置页 */
+    var autoUndo = !!this._undo.auto;
+    var autoYm = this._undo.ym;
+    if (autoUndo && autoYm) {
+      if (!this._autoBlocked) { this._autoBlocked = {}; }
+      this._autoBlocked[autoYm] = true;
+    }
     var snap = this._undo.snap;
     Object.keys(snap).forEach(function (k) {
       if (snap[k] === null) { delete this.db.days[k]; }
@@ -908,7 +931,7 @@ Page({
     if (this._undoTimer) { clearTimeout(this._undoTimer); }
     this.setData({ undo: null });
     this.render();
-    wx.showToast({ title: '已撤销', icon: 'none' });
+    wx.showToast({ title: autoUndo ? '已撤销，本月不再自动填' : '已撤销', icon: 'none' });
   },
 
   /* 右上角「转发」：发给同事各自记账。数据存在各自手机上，转发不会带走自己的账 */

@@ -370,6 +370,8 @@ function blankDB() {
       /* 晚修监考：按次计，不算课时也不占出勤半天 */
       nightHours: 2, nightFee: 10,
       enableBase: true, enableLesson: true, enableInv: true, enableOt: true, autoWork: true,
+      /* 课程表课时自动落账：默认开，只补当月「今天及以前」且没手填过的日子 */
+      autoLessons: true,
       weekPattern: [0, 1, 1, 1, 1, 1, 0],
       startDate: '',
       fileBase: '考勤数据',
@@ -399,6 +401,8 @@ function normalize(db) {
   /* 晚修监考的两个价：存成字符串也认，负数归零 */
   db.settings.nightHours = Math.max(0, parseFloat(db.settings.nightHours) || 0);
   db.settings.nightFee = Math.max(0, parseFloat(db.settings.nightFee) || 0);
+  /* 老备份没有这个开关时默认开；只有显式关掉才关 */
+  db.settings.autoLessons = db.settings.autoLessons !== false;
   if (!db.months || typeof db.months !== 'object') db.months = {};
   if (!db.days || typeof db.days !== 'object') db.days = {};
   Object.keys(db.days).forEach(function (k) {
@@ -499,6 +503,41 @@ function fillLessonsFromCourses(db, ym) {
     filled++;
   }
   return { filled: filled, skipped: skipped, hol: hol };
+}
+
+/* 课程表课时自动落账：只补「今天及以前、没手填过」的日子。
+   未来日期不预填——课表中途换了，还没到的日子下次会按新课表算；
+   已核对的月份是定稿，整月不动；翻看旧月也不改账。
+   手填过的日子靠 lset / 已有课时跳过，绝不覆盖。 */
+function autoFillLessons(db, ym, today) {
+  var res = { filled: 0, skipped: 0, hol: 0, future: 0, reason: '' };
+  if (!db.settings.autoLessons) { res.reason = 'off'; return res; }
+  if (!db.term || !db.term.start || !db.courses || !db.courses.length) { res.reason = 'no-courses'; return res; }
+  if (ym !== today.slice(0, 7)) { res.reason = 'not-current'; return res; }
+  var mp = db.months[ym];
+  if (mp && mp.checked) { res.reason = 'checked'; return res; }
+  var q = ymd(ym + '-01'), y = q[0], m = q[1];
+  var n = new Date(y, m, 0).getDate();
+  for (var d = 1; d <= n; d++) {
+    var k = dk(y, m, d);
+    if (k > today) { res.future++; continue; }
+    if (isHoliday(k, db)) { res.hol++; continue; }
+    var v = lessonsFor(db, k);
+    if (v <= 0) continue;
+    var ex = db.days[k];
+    if (ex && (ex.off || ex.am === 'leave' || ex.pm === 'leave')) { res.skipped++; continue; }
+    if (ex && (ex.lset || (parseInt(ex.lessons, 10) || 0) > 0)) { res.skipped++; continue; }
+    var a = effHalf(db, k, 'am'), b = effHalf(db, k, 'pm');
+    var r = db.days[k];
+    if (!r) { r = db.days[k] = { am: '', pm: '', lessons: 0, note: '', upd: 0 }; }
+    if (!r.am) r.am = a || '';
+    if (!r.pm) r.pm = b || '';
+    r.lessons = v;
+    r.lset = true;
+    r.upd = Date.now();
+    res.filled++;
+  }
+  return res;
 }
 
 /* 这月有没有经手过：落过任意一条日记录，或标记过已核对。
@@ -794,7 +833,7 @@ module.exports = {
   setRecord: setRecord, monthP: monthP, computeMonth: computeMonth,
   sumText: sumText, ratesOf: ratesOf, rateName: rateName, priceOf: priceOf, nightOf: nightOf,
   monthTouched: monthTouched, monthBase: monthBase, monthRate: monthRate,
-  fillLessonsFromCourses: fillLessonsFromCourses,
+  fillLessonsFromCourses: fillLessonsFromCourses, autoFillLessons: autoFillLessons,
   ymOf: ymOf, isYm: isYm, addMonths: addMonths, monthsBetween: monthsBetween,
   monthKeysOf: monthKeysOf, daysInMonth: daysInMonth, firstWeekdayOf: firstWeekdayOf,
   qcsv: qcsv, csvRow: csvRow, buildExportCsv: buildExportCsv

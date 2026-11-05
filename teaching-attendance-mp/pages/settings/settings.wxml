@@ -89,6 +89,14 @@
       <switch checked="{{autoWork}}" data-key="autoWork" bindchange="toggle" color="#1B5E9B" />
     </view>
 
+    <view class="row">
+      <view class="col">
+        <text class="row-label">按课程表自动记课时</text>
+        <text class="sub">本月已过去、有课又没填过的日子自动记上；未来不预填，已核对的月份不动。自动填完 10 秒可撤销，撤销后本月不再自动填；关掉开关后已记的账不删。</text>
+      </view>
+      <switch checked="{{autoLessons}}" data-key="autoLessons" bindchange="toggle" color="#1B5E9B" />
+    </view>
+
     <view class="week-block">
       <text class="row-label">常规一周</text>
       <text class="sub">法定节假日与调休优先，这里只在普通日子生效。点格子切换：班 → 半 → 休</text>

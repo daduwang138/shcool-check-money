@@ -144,6 +144,7 @@ const probe = `
     await sleep(400);
     ok('设置页渲染', qa('.row').length > 6, qa('.row').length + ' 行');
     ok('开关渲染成组件', qa('.mp-switch').length >= 6, qa('.mp-switch').length + ' 个');
+    ok('设置页有自动落账开关', qa('.row').some(function (r) { return /按课程表自动记课时/.test(r.textContent); }));
 
     /* 10. 课程表 */
     q('[data-mp-ev-tap="gotoCourses"]').click();

@@ -79,7 +79,9 @@ function seedDb(extra) {
     v: 1, savedAt: 0,
     settings: {
       autoWork: true, weekPattern: [0, 1, 1, 1, 1, 1, 0],
-      baseSalary: 8000, rate: 120, startDate: '2026-09-21', enableBase: true, enableLesson: true
+      baseSalary: 8000, rate: 120, startDate: '2026-09-21', enableBase: true, enableLesson: true,
+      /* 旧测试测的是「手动填课时」的行为，先关掉自动落账隔离；新功能另有专门一节 */
+      autoLessons: false
     },
     months: {}, days: {}, term: { start: '2026-09-21', defaultWeeks: 16 },
     courses: [{ id: 'a', name: '语文', weekday: 1, lessons: 4, startWeek: 1, endWeek: 16, parity: 'all' }]
@@ -1102,8 +1104,76 @@ cr2.stepLessons({ currentTarget: { dataset: { d: 1 } } });
 ok(cr2.data.editing.name === '高一物理',
   '改节数不会把刚输入的课程名抹掉', String(cr2.data.editing.name));
 
+/* ================= 课程表课时自动落账（默认开、只补今天及以前） ================= */
+/* 造一个「当月每天都有课」的课程表，保证任何日期跑测试都会触发自动落账 */
+function autoSeed() {
+  const d = seedDb();
+  const ym = core.todayKey().slice(0, 7);
+  d.settings.autoLessons = true;
+  d.settings.startDate = '';
+  d.term.start = ym + '-01';
+  d.courses = [];
+  for (let w = 1; w <= 7; w++) {
+    d.courses.push({ id: 'w' + w, name: '课' + w, weekday: w, lessons: 2,
+      startWeek: 1, endWeek: 52, parity: 'all' });
+  }
+  Object.keys(d.days).forEach(k => { if (k.slice(0, 7) === ym) delete d.days[k]; });
+  delete d.months[ym];
+  return d;
+}
+const afYm = core.todayKey().slice(0, 7), afToday = core.todayKey();
+reset();
+const afdb = autoSeed();
+let afExpect = 0;
+for (let d = 1; d <= parseInt(afToday.slice(8, 10), 10); d++) {
+  afExpect += core.lessonsFor(afdb, afYm + '-' + String(d).padStart(2, '0'));
+}
+mem['kqzb_db_v1'] = JSON.stringify(afdb);
+const af = makePage('calendar');
+af.onLoad();
+ok(afExpect > 0, '测试种子：当月已过去的日子确实有课', String(afExpect));
+ok(!!af.data.undo && /自动记入/.test(af.data.undo.label || ''),
+  '自动落账后弹出撤销条', JSON.stringify(af.data.undo));
+ok(core.computeMonth(current(), afYm).lessons === afExpect,
+  '当月已过去的日子按课程表记上课时',
+  core.computeMonth(current(), afYm).lessons + ' / 期望 ' + afExpect);
+ok(Object.keys(current().days).filter(k => k.slice(0, 7) === afYm && k > afToday).length === 0,
+  '未来的日子不预填');
+af.doUndo();
+ok(core.computeMonth(current(), afYm).lessons === 0, '撤销把自动落账清掉');
+ok(toasts.some(t => /本月不再自动填/.test(t)), '撤销提示本月不再自动填', toasts.join('/'));
+af.render();
+ok(core.computeMonth(current(), afYm).lessons === 0, '撤销后本次打开不再自动填回来');
+
+/* 关掉开关 / 已核对的月份：都不该动账 */
+reset();
+mem['kqzb_db_v1'] = JSON.stringify(seedDb());   /* 种子里 autoLessons=false */
+const afOff = makePage('calendar');
+afOff.onLoad();
+ok(!afOff.data.undo, '关掉开关后不弹自动落账撤销条');
+ok(core.computeMonth(current(), afYm).lessons === 0, '关掉开关后不写课时');
+
+reset();
+const afCkDb = autoSeed();
+afCkDb.months[afYm] = { checked: true, workdays: 20, base: 8000, rate: 120 };
+mem['kqzb_db_v1'] = JSON.stringify(afCkDb);
+const afCk = makePage('calendar');
+afCk.onLoad();
+ok(!afCk.data.undo, '已核对月份不自动落账');
+ok(core.computeMonth(current(), afYm).lessons === 0, '已核对月份整月不动');
+
+/* 设置页能把开关拨开 */
+reset();
+mem['kqzb_db_v1'] = JSON.stringify(seedDb());
+const afSet = makePage('settings');
+afSet.onLoad();
+ok(afSet.data.autoLessons === false, '设置页带出自动落账开关状态');
+afSet.toggle({ currentTarget: { dataset: { key: 'autoLessons' } }, detail: { value: true } });
+ok(current().settings.autoLessons === true && afSet.data.autoLessons === true,
+  '设置页能打开自动落账并同步界面');
+
 /* 新增用例留下的撤销条计时器也收掉，否则 node 要多等 10 秒才退出 */
-[c5, u6].forEach(function (p) { if (p.hideUndo) { p.hideUndo(); } });
+[c5, u6, af].forEach(function (p) { if (p.hideUndo) { p.hideUndo(); } });
 
 /* 批量套用留下的撤销条计时器也收掉，否则 node 要多等 10 秒才退出 */
 if (typeof bcal !== 'undefined' && bcal.hideUndo) { bcal.hideUndo(); }

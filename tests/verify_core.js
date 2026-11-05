@@ -681,6 +681,63 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('小程序专属·新填的都等于课程表推算值', badFill, []);
 }
 
+/* ---------- 11.5 课程表课时自动落账：两版并排 + 钉死口径 ---------- */
+{
+  const raw = mkLegacy();
+  const hdb = ctx.normalize(JSON.parse(JSON.stringify(raw)));
+  const cdb = core.normalize(JSON.parse(JSON.stringify(raw)));
+  ctx.DB = hdb;
+  const YM = '2026-11', TODAY = '2026-11-06';
+  const rh = ctx.autoFillLessons(YM, TODAY);
+  const rc = core.autoFillLessons(cdb, YM, TODAY);
+  eq('自动落账·两版返回值一致', rh, rc);
+  /* upd 是 Date.now()，两版跑在不同毫秒，比对时剔除 */
+  const normDays = function (d) {
+    const o = {};
+    Object.keys(d.days).sort().forEach(function (k) {
+      const r = Object.assign({}, d.days[k]); delete r.upd; o[k] = r;
+    });
+    return o;
+  };
+  eq('自动落账·两版落盘逐字段一致', normDays(hdb), normDays(cdb));
+  eq('自动落账·钉死只补 1 天（周一 4 节）', rc.filled, 1);
+  eq('自动落账·钉死跳过 1 天已手填', rc.skipped, 1);
+  eq('自动落账·未来 24 天不预填', rc.future, 24);
+  eq('自动落账·11-02 记入 4 节并钉死 lset',
+    [cdb.days['2026-11-02'].lessons, cdb.days['2026-11-02'].lset], [4, true]);
+  eq('自动落账·11-02 顺手带上默认出勤',
+    [cdb.days['2026-11-02'].am, cdb.days['2026-11-02'].pm], ['work', 'work']);
+  eq('自动落账·11-03 手填的 4 节没被覆盖', cdb.days['2026-11-03'].lessons, 4);
+  eq('自动落账·11-04 手填的 0 节没被顶回课表', cdb.days['2026-11-04'].lessons, 0);
+  eq('自动落账·未来日期没产生新记录',
+    Object.keys(cdb.days).filter(k => k.slice(0, 7) === YM && k > TODAY && !raw.days[k]), []);
+  eq('自动落账·幂等，再跑一次不重复写', core.autoFillLessons(cdb, YM, TODAY).filled, 0);
+  /* 时间往后走，原先「未来」的日子变成过去，按当时的课程表补上 */
+  const later = core.autoFillLessons(cdb, YM, '2026-11-20');
+  eq('自动落账·日子过去后补 2 天', later.filled, 2);
+  eq('自动落账·补上的仍等于课程表推算值',
+    Object.keys(cdb.days).filter(function (k) {
+      return k.slice(0, 7) === YM && k > TODAY && k <= '2026-11-20' && !raw.days[k] &&
+        cdb.days[k].lessons !== core.lessonsFor(cdb, k);
+    }), []);
+  /* 三种「不该动账」的情形 */
+  const off = core.normalize(JSON.parse(JSON.stringify(raw)));
+  off.settings.autoLessons = false;
+  eq('自动落账·关掉开关整月不动', core.autoFillLessons(off, YM, TODAY).reason, 'off');
+  eq('自动落账·关掉开关不写记录', off.days['2026-11-02'], undefined);
+  const ck = core.normalize(JSON.parse(JSON.stringify(raw)));
+  ck.months[YM] = { checked: true };
+  eq('自动落账·已核对月份整月不动', core.autoFillLessons(ck, YM, TODAY).reason, 'checked');
+  eq('自动落账·已核对月份不写记录', ck.days['2026-11-02'], undefined);
+  eq('自动落账·翻看旧月不改账',
+    core.autoFillLessons(core.normalize(JSON.parse(JSON.stringify(raw))), '2026-10', TODAY).reason,
+    'not-current');
+  eq('自动落账·没课表直接跳过',
+    core.autoFillLessons(core.normalize(mkEmpty()), YM, TODAY).reason, 'no-courses');
+  eq('自动落账·老备份没这个字段时默认开',
+    core.normalize(mkEmpty()).settings.autoLessons, true);
+}
+
 /* ---------- 12. 计薪开关：④ 是独立补贴，别被别的开关顺手关掉 ----------
    设置页文案已经写明「关课时费不影响晚修」「关加班不抹掉已记的记录」，
    这里把这几句话钉成断言，改文案或改实现时都会有人被提醒。 */
