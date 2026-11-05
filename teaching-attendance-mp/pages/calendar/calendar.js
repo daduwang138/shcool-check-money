@@ -103,7 +103,7 @@ Page({
       var pm = pre ? '' : core.effHalf(db, k, 'pm');
       var r = core.peek(db, k);
       var les = (pre || !r) ? 0 : (parseInt(r.lessons, 10) || 0);
-      var wk = core.isWorkday(k);
+      var wk = core.isWorkday(k, db);
       var ghA = core.isGhostHalf(db, k, 'am');
       var ghP = core.isGhostHalf(db, k, 'pm');
       var rest = !wk;
@@ -141,7 +141,13 @@ Page({
     ];
 
     var notes = [];
-    if (!core.HOLIDAYS[y]) { notes.push(y + ' 年放假安排未内置，按周一到周五估算'); }
+    /* 有自定义就说明来源，别再说「按周一到周五估算」——那句话已经不成立了 */
+    var hasCustom = core.holidayYears(db).indexOf(y) >= 0;
+    if (hasCustom) {
+      notes.push(y + ' 年放假安排按你填的算，可在「设置 → 放假安排」里改');
+    } else if (!core.HOLIDAYS[y]) {
+      notes.push(y + ' 年放假安排未内置，按周一到周五估算');
+    }
     if (db.settings.startDate && db.settings.startDate.slice(0, 7) === ym) {
       var sd = core.ymd(db.settings.startDate);
       notes.push(sd[1] + ' 月 ' + sd[2] + ' 日起算');
@@ -228,8 +234,8 @@ Page({
   _selable: function (k) {
     if (!k) { return false; }
     if (core.preStart(this.db, k)) { return false; }
-    if (this.data.allowWk) { return !core.isHoliday(k); }
-    return core.isWorkday(k);
+    if (this.data.allowWk) { return !core.isHoliday(k, this.db); }
+    return core.isWorkday(k, this.db);
   },
 
   /* 一颗格子的宽高，用来把手指位移换算成跨了几格 */
@@ -377,7 +383,7 @@ Page({
     for (var d = 1; d <= n; d++) {
       var k = core.dk(y, m, d);
       if (core.preStart(db, k)) { continue; }
-      if (!core.isWorkday(k)) { continue; }
+      if (!core.isWorkday(k, this.db)) { continue; }
       keys.push(k);
     }
     this.setData({ selKeys: keys });
@@ -491,8 +497,8 @@ Page({
     var p = core.monthP(db, k.slice(0, 7));
 
     var kind;
-    if (core.isHoliday(k)) { kind = '法定节假日'; }
-    else if (core.isWorkday(k)) { kind = '法定上班日'; }
+    if (core.isHoliday(k, this.db)) { kind = '法定节假日'; }
+    else if (core.isWorkday(k, this.db)) { kind = '法定上班日'; }
     else { kind = '休息日'; }
     var w = core.weekOf(db, k);
     var sub = '周' + core.dowLabel(k) + ' · ' + kind + (w > 0 ? ' · 第 ' + w + ' 周' : '');

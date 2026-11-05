@@ -50,8 +50,17 @@ function fmt(n) {
 }
 function sl(v) { return STATES[v] || STATES['']; }
 
-/* ---------- 法定工作日 ---------- */
+/* ---------- 法定工作日 ----------
+   节假日来源三层，越靠前越优先：
+   1. db.settings.holidays[年] —— 用户自己填的（国务院没公布前、或学校校历不同）
+   2. HOLIDAYS[年]           —— 内置的国办发文件
+   3. 朴素规则               —— 周一到周五上班，周六日休息
+   自定义表只覆盖它显式写了的日子，没写的继续往下走，所以可以只补春节、国庆靠内置。 */
 function table(y) { return HOLIDAYS[y] || null; }
+function customOf(db, y) {
+  var h = db && db.settings && db.settings.holidays;
+  return (h && h[y]) || null;
+}
 function isWeekendKey(key) {
   var p = ymd(key);
   var w = new Date(p[0], p[1] - 1, p[2]).getDay();
@@ -63,29 +72,78 @@ function inSpan(key, spans) {
   }
   return false;
 }
-function isWorkday(key) {
-  var y = ymd(key)[0], t = table(y);
+function isWorkday(key, db) {
+  var y = ymd(key)[0], t = table(y), c = customOf(db, y);
+  /* 补班日排在最前：哪怕这天落在内置假期段里，用户说了算 */
+  if (c && c.work && inSpan(key, c.work)) return true;
+  if (c && c.off && inSpan(key, c.off)) return false;
   if (!t) return !isWeekendKey(key);
   if (t.makeup.indexOf(key) >= 0) return true;
   if (isWeekendKey(key)) return false;
   if (inSpan(key, t.spans)) return false;
   return true;
 }
-function autoWorkdays(y, m) {
+function autoWorkdays(y, m, db) {
   var n = new Date(y, m, 0).getDate(), c = 0;
-  for (var d = 1; d <= n; d++) { if (isWorkday(dk(y, m, d))) c++; }
+  for (var d = 1; d <= n; d++) { if (isWorkday(dk(y, m, d), db)) c++; }
   return c;
 }
-function isHoliday(key) {
-  var y = ymd(key)[0], t = table(y);
+function isHoliday(key, db) {
+  var y = ymd(key)[0], t = table(y), c = customOf(db, y);
+  if (c && c.work && inSpan(key, c.work)) return false;
+  if (c && c.off && inSpan(key, c.off)) return true;
   if (!t) return false;
   return inSpan(key, t.spans);
 }
+
+/* ---------- 自定义放假安排 ----------
+   存 db.settings.holidays[年] = { off: [[起, 止], ...], work: [[起, 止], ...] }
+   和内置表同构（段数组），所以判定可以直接复用 inSpan，展示时也能整段删。 */
+function holidayOf(db, y) {
+  if (!db.settings.holidays) { db.settings.holidays = {}; }
+  var e = db.settings.holidays[y];
+  if (!e) { e = db.settings.holidays[y] = { off: [], work: [] }; }
+  if (!e.off) { e.off = []; }
+  if (!e.work) { e.work = []; }
+  return e;
+}
+function addHolidaySpan(db, y, kind, from, to) {
+  if (!from) { return false; }
+  if (!to) { to = from; }
+  if (to < from) { var t = from; from = to; to = t; }
+  var e = holidayOf(db, y);
+  var arr = kind === 'work' ? e.work : e.off;
+  arr.push([from, to]);
+  arr.sort(function (a, b) { return a[0] < b[0] ? -1 : (a[0] > b[0] ? 1 : 0); });
+  return true;
+}
+function delHolidaySpan(db, y, kind, idx) {
+  var e = holidayOf(db, y);
+  var arr = kind === 'work' ? e.work : e.off;
+  if (idx < 0 || idx >= arr.length) { return false; }
+  arr.splice(idx, 1);
+  return true;
+}
+function clearHolidayYear(db, y) {
+  if (db.settings.holidays && db.settings.holidays[y]) {
+    delete db.settings.holidays[y];
+    return true;
+  }
+  return false;
+}
+/* 自定义了哪几年：设置页和提示语要显示 */
+function holidayYears(db) {
+  var h = (db.settings && db.settings.holidays) || {};
+  return Object.keys(h).filter(function (y) {
+    var e = h[y];
+    return e && ((e.off && e.off.length) || (e.work && e.work.length));
+  }).map(function (y) { return parseInt(y, 10); }).sort();
+}
+
 function dowOf(key) {
   var p = ymd(key);
   return new Date(p[0], p[1] - 1, p[2]).getDay();
-}
-function weekdayOf(key) { return ((dowOf(key) + 6) % 7) + 1; }
+}function weekdayOf(key) { return ((dowOf(key) + 6) % 7) + 1; }
 function dateNum(key) {
   var p = ymd(key);
   return new Date(p[0], p[1] - 1, p[2]).getTime();
@@ -107,7 +165,7 @@ function lessonsFor(db, key) {
   if (preStart(db, key)) return 0;
   var w = weekOf(db, key);
   if (w === null || w < 1) return 0;
-  if (isHoliday(key)) return 0;
+  if (isHoliday(key, db)) return 0;
   var wd = weekdayOf(key), sum = 0;
   var cs = db.courses || [];
   for (var i = 0; i < cs.length; i++) {
@@ -281,8 +339,8 @@ function dayCount(db) {
 function defaultHalf(db, key, which) {
   if (!db.settings.autoWork) return '';
   if (preStart(db, key)) return '';
-  if (isWorkday(key)) return 'work';
-  if (isHoliday(key)) return '';
+  if (isWorkday(key, db)) return 'work';
+  if (isHoliday(key, db)) return '';
   var wp = db.settings.weekPattern || [];
   var v = wp[dowOf(key)];
   if (v >= 1) return 'work';
@@ -322,7 +380,7 @@ function fillLessonsFromCourses(db, ym) {
   var filled = 0, skipped = 0, hol = 0;
   for (var d = 1; d <= n; d++) {
     var k = dk(y, m, d);
-    if (isHoliday(k)) { hol++; continue; }
+    if (isHoliday(k, db)) { hol++; continue; }
     var v = lessonsFor(db, k);
     if (v <= 0) continue;
     var ex = db.days[k];
@@ -357,8 +415,11 @@ function monthP(db, ym) {
   var p = db.months[ym];
   if (!p) { p = db.months[ym] = {}; }
   var q = ymd(ym + '-01'), y = q[0], m = q[1];
-  if (p.workdays == null) { p.workdays = autoWorkdays(y, m); }
   if (p.checked == null) { p.checked = false; }
+  /* workdays 同理：只有这月真记过东西才落盘。不这样的话，先翻看到 2027 年 2 月
+     （那时还没填放假安排，按朴素规则算出 20 天），之后补了春节假期，这个月也
+     不会重算——用户会以为填了没生效。没记录就每次现算，跟着假期表走。 */
+  if (p.workdays == null && monthTouched(db, ym)) { p.workdays = autoWorkdays(y, m, db); }
   /* base/rate 是「冻结值」：只有这月真记过东西才落盘。翻看了一眼的月份不冻，
      改设置时要跟着走，否则「不影响已记录月份」会变成「打开过就冻住」。
      用 == null 判断：手动把某月工资改成 0 也算已冻结，不能因为 0 是 falsy 又跟回设置值。 */
@@ -396,7 +457,7 @@ function computeMonth(db, ym) {
     }
   }
   var p = monthP(db, ym);
-  var workdays = p.workdays || autoWorkdays(y, m);
+  var workdays = (p.workdays != null) ? p.workdays : autoWorkdays(y, m, db);
   var base = db.settings.enableBase ? (monthBase(db, ym) || 0) : 0;
   var rate = db.settings.enableLesson ? (monthRate(db, ym) || 0) : 0;
   var dailyRate = workdays > 0 ? base / workdays : 0;
@@ -498,6 +559,8 @@ module.exports = {
   pad: pad, dk: dk, ymd: ymd, todayKey: todayKey,
   round2: round2, num2: num2, fmt: fmt, fmtShort: fmtShort, sl: sl,
   isWorkday: isWorkday, autoWorkdays: autoWorkdays, isHoliday: isHoliday,
+  holidayOf: holidayOf, addHolidaySpan: addHolidaySpan, delHolidaySpan: delHolidaySpan,
+  clearHolidayYear: clearHolidayYear, holidayYears: holidayYears,
   dowOf: dowOf, weekdayOf: weekdayOf, dowLabel: dowLabel, isWeekendKey: isWeekendKey,
   weekOf: weekOf, preStart: preStart, lessonsFor: lessonsFor, parseCourses: parseCourses,
   blankDB: blankDB, normalize: normalize, peek: peek, hasContent: hasContent, dayCount: dayCount,

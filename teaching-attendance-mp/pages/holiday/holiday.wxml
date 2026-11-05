@@ -1,0 +1,60 @@
+<view class="page">
+  <view class="card">
+    <view class="yearbar">
+      <view class="nav" bindtap="prevYear" hover-class="nav-hover">‹</view>
+      <text class="yr">{{y}} 年</text>
+      <view class="nav" bindtap="nextYear" hover-class="nav-hover">›</view>
+    </view>
+    <text class="note">{{builtin}}</text>
+  </view>
+
+  <view class="card">
+    <text class="card-title">法定休假</text>
+    <text class="sub">这几天不上班，排课时会跳过，也不计入应上班天数</text>
+    <view class="hlist">
+      <view class="hrow" wx:for="{{off}}" wx:key="i">
+        <text class="hrow-t">{{item.text}}</text>
+        <text class="hrow-x" data-i="{{item.i}}" bindtap="delOff">×</text>
+      </view>
+      <text class="empty" wx:if="{{!off.length}}">还没填。下面选起止日期，加一段</text>
+    </view>
+    <view class="addrow">
+      <picker mode="date" value="{{from}}" start="{{yMin}}" end="{{yMax}}" bindchange="pickFrom">
+        <view class="dt">{{fromText}}</view>
+      </picker>
+      <text class="to">至</text>
+      <picker mode="date" value="{{to}}" start="{{yMin}}" end="{{yMax}}" bindchange="pickTo">
+        <view class="dt">{{toText}}</view>
+      </picker>
+      <view class="add" bindtap="addOff">加入</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <text class="card-title">补班日</text>
+    <text class="sub">周末要上班的日子，算工作日，可以排课</text>
+    <view class="hlist">
+      <view class="hrow" wx:for="{{work}}" wx:key="i">
+        <text class="hrow-t">{{item.text}}</text>
+        <text class="hrow-x" data-i="{{item.i}}" bindtap="delWork">×</text>
+      </view>
+      <text class="empty" wx:if="{{!work.length}}">还没填</text>
+    </view>
+    <view class="addrow">
+      <picker mode="date" value="{{one}}" start="{{yMin}}" end="{{yMax}}" bindchange="pickOne">
+        <view class="dt">{{oneText}}</view>
+      </picker>
+      <view class="add" bindtap="addWork">加入</view>
+    </view>
+  </view>
+
+  <view class="warn" wx:if="{{touched}}">
+    <text>{{touched}}</text>
+  </view>
+
+  <view class="btn danger full" wx:if="{{custom}}" bindtap="clearYear">清空 {{y}} 年的填写</view>
+
+  <view class="tips">
+    <text>填的内容只在这台设备上，会一起进导出的备份。国务院公布下一年安排之前，可以照学校校历先填；公布之后如果有出入，改这里比等小程序更新快。</text>
+  </view>
+</view>

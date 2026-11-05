@@ -10,6 +10,19 @@ function patText(v) {
   return '休';
 }
 
+/* 设置页那一行的小字：说清哪些年内置了、哪些是自己补的 */
+function holidayText(db) {
+  var mine = core.holidayYears(db);
+  var builtin = Object.keys(core.HOLIDAYS).map(function (y) { return parseInt(y, 10); }).sort();
+  if (mine.length) {
+    return '自己补了 ' + mine.join('、') + ' 年' + (builtin.length ? '；内置 ' + builtin.join('、') + ' 年' : '');
+  }
+  if (builtin.length) {
+    return '内置 ' + builtin.join('、') + ' 年，其他年份按周一到周五估';
+  }
+  return '按周一到周五估，可以自己补';
+}
+
 Page({
   data: {
     owner: '',
@@ -27,7 +40,8 @@ Page({
     courseCount: 0,
     dayCount: 0,
     isPC: false,
-    lockOn: false
+    lockOn: false,
+    holidayText: ''
   },
 
   onLoad: function () {
@@ -64,7 +78,8 @@ Page({
       courseCount: db.courses.length,
       dayCount: core.dayCount(db),
       isPC: store.isPC(),
-      lockOn: lock.isOn()
+      lockOn: lock.isOn(),
+      holidayText: holidayText(db)
     });
   },
 
@@ -123,6 +138,10 @@ Page({
      旁边人一眼看到、输入法还会记词；密码页能用 password 框，两次输入也能放在同一屏。 */
   gotoCourses: function () {
     wx.navigateTo({ url: '/pages/courses/courses' });
+  },
+
+  gotoHoliday: function () {
+    wx.navigateTo({ url: '/pages/holiday/holiday' });
   },
 
   openPass: function (mode) {

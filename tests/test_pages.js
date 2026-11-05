@@ -517,6 +517,57 @@ const phy = current().courses.filter(c => c.name === '物理')[0];
 ok(phy && phy.startWeek === 1 && phy.endWeek === (current().term.defaultWeeks || 16),
   '没写周次的课程铺满教学周', phy && (phy.startWeek + '–' + phy.endWeek));
 
+/* 放假安排页：自己填的休假与补班日 */
+const HY0 = new Date().getFullYear();
+const seedDays = {};
+seedDays[HY0 + '-03-02'] = { am: 'work', pm: 'work', lessons: 2, note: '', upd: 1 };
+reset();
+seedDb({ days: seedDays });
+const hol = makePage('holiday');
+hol.onLoad();
+const HY = hol.data.y;
+ok(HY === HY0, '默认停在当年', String(HY));
+ok(hol.data.off.length === 0 && hol.data.custom === false, '新库里没有自定义假期');
+
+hol.pickFrom({ detail: { value: HY + '-02-06' } });
+hol.pickTo({ detail: { value: HY + '-02-12' } });
+hol.addOff();
+ok(current().settings.holidays[HY].off.length === 1, '休假段已落盘', JSON.stringify(current().settings.holidays));
+ok(hol.data.off.length === 1 && /2 月 6 日/.test(hol.data.off[0].text), '列表里显示这一段', hol.data.off[0].text);
+ok(/7 天/.test(hol.data.off[0].text), '跨日段标出天数', hol.data.off[0].text);
+
+/* 判定要跟着变：2026-02-09 是周一，本来该上班 */
+ok(core.isWorkday(HY + '-02-09', current()) === false, '填了休假后那天不上班');
+ok(core.isHoliday(HY + '-02-09', current()) === true, '填了休假后算作法定假期');
+
+hol.pickOne({ detail: { value: HY + '-03-07' } });
+hol.addWork();
+ok(current().settings.holidays[HY].work.length === 1, '补班日已落盘');
+ok(core.isWorkday(HY + '-03-07', current()) === true, '补班的周六算上班');
+
+/* 跨年的段不收：两个 picker 各自限在年内，但用户能先选 12-30 再选次年 1-2 */
+const offBefore = current().settings.holidays[HY].off.length;
+hol.pickFrom({ detail: { value: HY + '-12-30' } });
+hol.pickTo({ detail: { value: (HY + 1) + '-01-02' } });
+hol.addOff();
+ok(current().settings.holidays[HY].off.length === offBefore, '跨年的段拦住了');
+ok(toasts.some(t => /跨年/.test(t)), '跨年给出提示', toasts.join(' / '));
+
+/* 已记过账的月份要提醒不会重算 */
+ok(new RegExp('3 月').test(hol.data.touched), '有记录的月份给出不重算提示', hol.data.touched);
+
+hol.delOff({ currentTarget: { dataset: { i: 0 } } });
+ok(current().settings.holidays[HY].off.length === 0, '休假段可以删');
+hol.delWork({ currentTarget: { dataset: { i: 0 } } });
+ok(current().settings.holidays[HY].work.length === 0, '补班日可以删');
+
+hol.pickFrom({ detail: { value: HY + '-05-01' } });
+hol.pickTo({ detail: { value: HY + '-05-05' } });
+hol.addOff();
+hol.clearYear();
+ok(!current().settings.holidays[HY], '清空这一年后不留空壳');
+ok(hol.data.custom === false, '清空后不再是自定义状态');
+
 /* 导入合并 */
 reset();
 seedDb();

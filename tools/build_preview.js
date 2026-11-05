@@ -22,6 +22,7 @@ const PAGES = [
   { key: 'pages/summary/summary', title: '月汇总', isTab: true },
   { key: 'pages/settings/settings', title: '设置', isTab: true },
   { key: 'pages/courses/courses', title: '课程表', isTab: false },
+  { key: 'pages/holiday/holiday', title: '放假安排', isTab: false },
   { key: 'pages/pass/pass', title: '口令', isTab: false },
   { key: 'pages/lock/lock', title: '口令', isTab: false }
 ];

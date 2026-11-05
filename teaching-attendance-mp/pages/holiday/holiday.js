@@ -1,0 +1,170 @@
+var core = require('../../utils/core.js');
+var store = require('../../utils/store.js');
+var lock = require('../../utils/lock.js');
+
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+function ymOfYear(y, m) { return y + '-' + pad(m); }
+
+/* '2027-02-06' → '2/6'，picker 里要短 */
+function short(k) {
+  var p = core.ymd(k);
+  return p[1] + '/' + p[2];
+}
+
+/* 列表里要看得懂：单日带星期，跨日带天数 */
+function spanText(from, to) {
+  var a = core.ymd(from), b = core.ymd(to);
+  var head = a[1] + ' 月 ' + a[2] + ' 日';
+  if (from === to) { return head + '（周' + core.dowLabel(from) + '）'; }
+  var days = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1;
+  return head + ' – ' + b[1] + ' 月 ' + b[2] + ' 日 · ' + days + ' 天';
+}
+
+Page({
+  data: {
+    y: 0,
+    yMin: '', yMax: '',
+    off: [],
+    work: [],
+    from: '', to: '', one: '',
+    fromText: '', toText: '', oneText: '',
+    builtin: '', custom: false, touched: '',
+    ready: false
+  },
+
+  onLoad: function () {
+    var y = new Date().getFullYear();
+    this.db = store.load();
+    this.setYear(y);
+  },
+
+  onShow: function () {
+    if (!lock.guard()) { return; }
+    this.db = store.load();
+    this.render();
+  },
+
+  setYear: function (y) {
+    this.setData({
+      y: y,
+      yMin: y + '-01-01', yMax: y + '-12-31',
+      from: y + '-01-01', to: y + '-01-01', one: y + '-01-01',
+      fromText: '1/1', toText: '1/1', oneText: '1/1'
+    });
+    this.render();
+  },
+
+  render: function () {
+    var db = this.db, y = this.data.y, that = this;
+    var e = core.holidayOf(db, y);
+
+    var off = e.off.map(function (s, i) {
+      return { i: i, text: spanText(s[0], s[1]) };
+    });
+    var work = e.work.map(function (s, i) {
+      return { i: i, text: spanText(s[0], s[1]) };
+    });
+
+    /* 内置表里有这年就说清楚，没有就说明现在是按周一到周五估的 */
+    var t = core.HOLIDAYS[y];
+    var builtin = t
+      ? '内置国办发安排：' + t.note
+      : y + ' 年的国办发安排还没内置，没填的日子里按周一到周五算上班';
+
+    /* 已经记过账的月份，应上班天数被固定了，改假期不会回头重算 */
+    var touched = [];
+    for (var m = 1; m <= 12; m++) {
+      if (core.monthTouched(db, ymOfYear(y, m))) { touched.push(m); }
+    }
+
+    this.setData({
+      off: off,
+      work: work,
+      custom: off.length + work.length > 0,
+      builtin: builtin,
+      touched: touched.length ? (touched.join('、') + ' 月已经记过账，应上班天数已固定；改这里不会回头重算，需要重算请到汇总页改「法定工作日」') : '',
+      ready: true
+    });
+  },
+
+  prevYear: function () { this.setYear(this.data.y - 1); },
+  nextYear: function () { this.setYear(this.data.y + 1); },
+
+  pickFrom: function (e) {
+    var v = e.detail.value;
+    var patch = { from: v, fromText: short(v) };
+    if (this.data.to < v) { patch.to = v; patch.toText = short(v); }
+    this.setData(patch);
+  },
+  pickTo: function (e) {
+    var v = e.detail.value;
+    if (v < this.data.from) {
+      wx.showToast({ title: '结束日期不能早于开始', icon: 'none' });
+      return;
+    }
+    this.setData({ to: v, toText: short(v) });
+  },
+  pickOne: function (e) {
+    var v = e.detail.value;
+    this.setData({ one: v, oneText: short(v) });
+  },
+
+  addOff: function () {
+    var f = this.data.from, t = this.data.to, y = this.data.y;
+    if (!this._sameYear(f, y) || !this._sameYear(t, y)) {
+      wx.showToast({ title: '跨年的假期请分两次填', icon: 'none' });
+      return;
+    }
+    core.addHolidaySpan(this.db, y, 'off', f, t);
+    store.save(this.db);
+    this.render();
+    wx.showToast({ title: '已加入', icon: 'none' });
+  },
+
+  addWork: function () {
+    var k = this.data.one, y = this.data.y;
+    if (!this._sameYear(k, y)) {
+      wx.showToast({ title: '日期要在 ' + y + ' 年内', icon: 'none' });
+      return;
+    }
+    core.addHolidaySpan(this.db, y, 'work', k, k);
+    store.save(this.db);
+    this.render();
+    wx.showToast({ title: '已加入', icon: 'none' });
+  },
+
+  _sameYear: function (k, y) {
+    return core.ymd(k)[0] === y;
+  },
+
+  delOff: function (e) {
+    var i = parseInt(e.currentTarget.dataset.i, 10);
+    core.delHolidaySpan(this.db, this.data.y, 'off', i);
+    store.save(this.db);
+    this.render();
+  },
+
+  delWork: function (e) {
+    var i = parseInt(e.currentTarget.dataset.i, 10);
+    core.delHolidaySpan(this.db, this.data.y, 'work', i);
+    store.save(this.db);
+    this.render();
+  },
+
+  clearYear: function () {
+    var that = this, y = this.data.y;
+    wx.showModal({
+      title: '清空 ' + y + ' 年',
+      content: '会删掉你自己填的全部休假与补班日，内置的国办发安排不受影响。',
+      confirmText: '清空',
+      confirmColor: '#A33A28',
+      success: function (res) {
+        if (!res.confirm) { return; }
+        core.clearHolidayYear(that.db, y);
+        store.save(that.db);
+        that.render();
+        wx.showToast({ title: '已清空', icon: 'none' });
+      }
+    });
+  }
+});

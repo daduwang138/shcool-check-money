@@ -230,6 +230,14 @@ tr.hi:hover td{background:#F4F8FC}
 .fields{display:grid;grid-template-columns:1fr 1fr;column-gap:38px}
 .fields .field{border-bottom:0;padding:9px 0}
 @media(max-width:840px){.fields{grid-template-columns:1fr;column-gap:0}}
+.hol-list{margin:2px 0 8px}
+.hol-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:13px}
+.hol-row:last-child{border-bottom:0}
+.hol-t{font-variant-numeric:tabular-nums}
+.hol-del{height:22px!important;padding:0 8px!important;font-size:13px;line-height:1}
+.hol-add{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0 2px}
+.hol-add input[type=date]{width:150px}
 table.detail{table-layout:fixed}
 table.detail td:nth-child(1),table.detail th:nth-child(1){width:26%}
 table.detail td:nth-child(2),table.detail th:nth-child(2),
@@ -606,10 +614,14 @@ function fmtShort(n){var r=Math.round(n*100)/100;return Number.isInteger(r)?Stri
 function toast(msg){var t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("show");},1900);}
 
 function table(y){return HOLIDAYS[y]||null;}
+/* 自定义放假安排优先于内置表：国务院没公布前、或学校校历跟国办发不一样时用 */
+function customOf(y){var h=DB.settings.holidays;return (h&&h[y])||null;}
 function isWeekendKey(key){var p=ymd(key);var w=new Date(p[0],p[1]-1,p[2]).getDay();return w===0||w===6;}
 function inSpan(key,spans){for(var i=0;i<spans.length;i++){if(key>=spans[i][0]&&key<=spans[i][1])return true;}return false;}
 function isWorkday(key){
-  var y=ymd(key)[0], t=table(y);
+  var y=ymd(key)[0], t=table(y), c=customOf(y);
+  if(c&&c.work&&inSpan(key,c.work)) return true;
+  if(c&&c.off&&inSpan(key,c.off)) return false;
   if(!t) return !isWeekendKey(key);
   if(t.makeup.indexOf(key)>=0) return true;
   if(isWeekendKey(key)) return false;
@@ -726,7 +738,9 @@ function weekOf(key){
   return Math.floor(diff/7)+1;
 }
 function isHoliday(key){
-  var y=ymd(key)[0], t=table(y);
+  var y=ymd(key)[0], t=table(y), c=customOf(y);
+  if(c&&c.work&&inSpan(key,c.work))return false;
+  if(c&&c.off&&inSpan(key,c.off))return true;
   if(!t)return false;
   return inSpan(key,t.spans);
 }
@@ -883,7 +897,9 @@ function monthP(ym){
   var p=DB.months[ym];
   if(!p){p=DB.months[ym]={};}
   var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
-  if(p.workdays==null)p.workdays=autoWorkdays(y,m);
+  /* workdays 同理：只有这月真记过东西才落盘，否则先翻看到 2027 年 2 月（按朴素规则
+     算出 20 天）之后再补春节假期，这个月也不会重算，用户会以为填了没生效。 */
+  if(p.workdays==null&&monthTouched(ym))p.workdays=autoWorkdays(y,m);
   if(p.checked==null)p.checked=false;
   /* base/rate 是「冻结值」：只有这月真记过东西才落盘。翻看了一眼的月份不冻，
      改设置时要跟着走，否则「不影响已记录月份」会变成「打开过就冻住」。
@@ -913,7 +929,7 @@ function computeMonth(ym){
     }
   }
   var p=monthP(ym);
-  var workdays=p.workdays||autoWorkdays(y,m);
+  var workdays=(p.workdays!=null)?p.workdays:autoWorkdays(y,m);
   var base=DB.settings.enableBase?(monthBase(ym)||0):0;
   var rate=DB.settings.enableLesson?(monthRate(ym)||0):0;
   var dailyRate=workdays>0?base/workdays:0;
@@ -1670,7 +1686,10 @@ function renderCal(){
     ch+='<span class="chip" style="color:#854F0B;border-color:#EF9F27">'+sd[1]+'/'+sd[2]+' 起算</span>';
   }
   if(c.checked)ch+='<span class="chip" style="color:#0F6E56;border-color:#5DCAA5">已核对</span>';
-  if(!hasTable)ch+='<span class="chip" style="color:#854F0B;border-color:#EF9F27">该年放假安排未内置，按周一至周五估算</span>';
+  var he=DB.settings.holidays&&DB.settings.holidays[y];
+  var hasMine=!!(he&&((he.off&&he.off.length)||(he.work&&he.work.length)));
+  if(hasMine)ch+='<span class="chip" style="color:#854F0B;border-color:#EF9F27">放假安排按你填的算</span>';
+  else if(!hasTable)ch+='<span class="chip" style="color:#854F0B;border-color:#EF9F27">该年放假安排未内置，按周一至周五估算</span>';
   chips.innerHTML=ch;
 }
 
@@ -2192,6 +2211,102 @@ function syncCourse(row){
   if(par)c.parity=par.value||"all";
   if(c.endWeek<c.startWeek)c.endWeek=c.startWeek;
 }
+/* ---------- 放假安排 ---------- */
+var HOL_YEAR=0;
+var DOW_CH=["日","一","二","三","四","五","六"];
+function holYearList(){
+  var set={};
+  Object.keys(HOLIDAYS).forEach(function(y){set[y]=1;});
+  var cy=new Date().getFullYear();
+  set[cy]=1;set[cy+1]=1;
+  Object.keys(DB.settings.holidays||{}).forEach(function(y){set[y]=1;});
+  return Object.keys(set).map(Number).sort();
+}
+function holText(from,to){
+  var a=ymd(from),b=ymd(to);
+  var head=a[1]+" 月 "+a[2]+" 日";
+  if(from===to)return head+"（周"+DOW_CH[dowOf(from)]+"）";
+  var days=Math.round((new Date(to).getTime()-new Date(from).getTime())/86400000)+1;
+  return head+" – "+b[1]+" 月 "+b[2]+" 日 · "+days+" 天";
+}
+function holRows(arr,kind){
+  if(!arr||!arr.length)return '<div class="faint" style="padding:4px 0">还没填</div>';
+  return arr.map(function(s,i){
+    return '<div class="hol-row"><span class="hol-t">'+holText(s[0],s[1])+'</span>'
+      +'<button class="btn sm danger hol-del" data-kind="'+kind+'" data-i="'+i+'">×</button></div>';
+  }).join("");
+}
+function holidayHtml(){
+  var ys=holYearList();
+  if(!HOL_YEAR||ys.indexOf(HOL_YEAR)<0)HOL_YEAR=ys[ys.length-1];
+  var y=HOL_YEAR;
+  var e=((DB.settings.holidays||{})[y])||{off:[],work:[]};
+  var t=HOLIDAYS[y];
+  var d0=y+"-01-01",d1=y+"-12-31";
+  var has=(e.off&&e.off.length)||(e.work&&e.work.length);
+  var h="";
+  h+='<div class="card"><h2>放假安排</h2>';
+  h+='<p class="muted">内置的是国办发公布的那几年（'+Object.keys(HOLIDAYS).sort().join("、")+'）。还没公布的年份可以照学校校历先填，填了优先于内置；同一天既填了休假又填了补班，以补班为准。</p>';
+  h+='<div class="fields"><div class="field"><div><label>年份</label><div class="desc">'+(t?"内置："+t.note:"这一年没有内置安排，没填的日子按周一到周五算上班")+'</div></div><select id="holYear">'
+    +ys.map(function(v){return '<option value="'+v+'"'+(v===y?" selected":"")+'>'+v+' 年</option>';}).join("")+'</select></div></div>';
+  h+='<h3>法定休假</h3>';
+  h+='<div class="hol-list">'+holRows(e.off,"off")+'</div>';
+  h+='<div class="hol-add"><input type="date" id="holFrom" value="'+d0+'" min="'+d0+'" max="'+d1+'"><span class="faint">至</span><input type="date" id="holTo" value="'+d0+'" min="'+d0+'" max="'+d1+'"><button class="btn sm" id="holAddOff">加入一段</button></div>';
+  h+='<h3>补班日</h3>';
+  h+='<div class="hol-list">'+holRows(e.work,"work")+'</div>';
+  h+='<div class="hol-add"><input type="date" id="holWork" value="'+d0+'" min="'+d0+'" max="'+d1+'"><button class="btn sm" id="holAddWork">加入一天</button>'
+    +(has?'<button class="btn sm danger" id="holClear" style="margin-left:auto">清空这一年</button>':'')+'</div>';
+  h+='</div>';
+  return h;
+}
+function holPush(kind,from,to){
+  var y=HOL_YEAR;
+  if(!DB.settings.holidays)DB.settings.holidays={};
+  var e=DB.settings.holidays[y];
+  if(!e)e=DB.settings.holidays[y]={off:[],work:[]};
+  if(!e[kind])e[kind]=[];
+  e[kind].push([from,to]);
+  e[kind].sort(function(a,b){return a[0]<b[0]?-1:(a[0]>b[0]?1:0);});
+  persist().then(function(){
+    renderSet();renderCal();
+    if(!$("view-sum").hidden)renderSum();
+    toast("已加入");
+  });
+}
+function bindHoliday(){
+  var sel=$("holYear");
+  if(sel)sel.addEventListener("change",function(){HOL_YEAR=parseInt(this.value,10);renderSet();});
+  var ao=$("holAddOff");
+  if(ao)ao.addEventListener("click",function(){
+    var f=$("holFrom").value,t=$("holTo").value||f;
+    if(!f){toast("先选开始日期");return;}
+    if(t<f){var x=f;f=t;t=x;}
+    if(ymd(f)[0]!==HOL_YEAR||ymd(t)[0]!==HOL_YEAR){toast("跨年的假期请分两次填");return;}
+    holPush("off",f,t);
+  });
+  var aw=$("holAddWork");
+  if(aw)aw.addEventListener("click",function(){
+    var k=$("holWork").value;
+    if(!k){toast("先选日期");return;}
+    if(ymd(k)[0]!==HOL_YEAR){toast("日期要在 "+HOL_YEAR+" 年内");return;}
+    holPush("work",k,k);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#view-set .hol-del"),function(b){
+    b.addEventListener("click",function(){
+      var kind=this.dataset.kind,i=parseInt(this.dataset.i,10);
+      var arr=DB.settings.holidays[HOL_YEAR][kind];
+      arr.splice(i,1);
+      persist().then(function(){renderSet();renderCal();if(!$("view-sum").hidden)renderSum();});
+    });
+  });
+  var cl=$("holClear");
+  if(cl)cl.addEventListener("click",function(){
+    if(!confirm("清空 "+HOL_YEAR+" 年自己填的休假与补班日？内置的国办发安排不受影响。"))return;
+    delete DB.settings.holidays[HOL_YEAR];
+    persist().then(function(){renderSet();renderCal();if(!$("view-sum").hidden)renderSum();toast("已清空");});
+  });
+}
+
 function renderSet(){
   var s=DB.settings;
   var h="";
@@ -2222,6 +2337,7 @@ function renderSet(){
   h+='</div>';
   h+='<div style="margin-top:16px"><button class="btn sm" id="applyToCur">把当前参数同步到本月</button> <span class="faint">用于先填设置、后补记录的情况</span></div>';
   h+='</div>';
+  h+=holidayHtml();
 
   h+='<div class="card"><h2>课程表与教学周</h2>';
   h+='<p class="muted">配一次，整个学期不用再想今天几节。配完在记账页点「按课程表填课时」，一次填满整月。</p>';
@@ -2350,6 +2466,7 @@ function renderSet(){
     var q=ymd(CUR+"-01");p.workdays=autoWorkdays(q[0],q[1]);
     persist().then(function(){toast("已同步到 "+CUR);renderCal();if(!$("view-sum").hidden)renderSum();});
   });
+  bindHoliday();
   $("termStart").addEventListener("change",function(){
     DB.term.start=this.value;
     persist().then(function(){$("coursePreview").textContent=coursePreviewText();toast("已保存");});

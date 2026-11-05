@@ -71,7 +71,23 @@ function mkAuto() {
   };
 }
 
-const cases = [['空库', mkEmpty()], ['典型', mkLegacy()], ['半天周', mkAuto()]];
+/* 自己填的放假安排：2027 春节（国办发还没公布）+ 2026 末尾补一天 + 一个补班周六 */
+function mkCustom() {
+  const db = mkLegacy();
+  db.settings.holidays = {
+    '2027': {
+      off: [['2027-02-06', '2027-02-12']],
+      work: [['2027-02-13', '2027-02-13']]
+    },
+    '2026': {
+      off: [['2026-12-31', '2026-12-31']],
+      work: [['2026-11-14', '2026-11-14']]
+    }
+  };
+  return db;
+}
+
+const cases = [['空库', mkEmpty()], ['典型', mkLegacy()], ['半天周', mkAuto()], ['自定义假期', mkCustom()]];
 
 /* 1. 逐日判定：2025-01 ~ 2027-12 每一天 */
 let dayChecked = 0;
@@ -84,13 +100,13 @@ for (const [label, raw] of cases) {
 
   for (let y = 2025; y <= 2027; y++) {
     for (let m = 1; m <= 12; m++) {
-      eq(label + '·autoWorkdays ' + y + '-' + m, ctx.autoWorkdays(y, m), core.autoWorkdays(y, m));
+      eq(label + '·autoWorkdays ' + y + '-' + m, ctx.autoWorkdays(y, m), core.autoWorkdays(y, m, cdb));
       const n = new Date(y, m, 0).getDate();
       for (let d = 1; d <= n; d++) {
         const k = y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
         dayChecked++;
-        eq(label + '·isWorkday ' + k, ctx.isWorkday(k), core.isWorkday(k));
-        eq(label + '·isHoliday ' + k, ctx.isHoliday(k), core.isHoliday(k));
+        eq(label + '·isWorkday ' + k, ctx.isWorkday(k), core.isWorkday(k, cdb));
+        eq(label + '·isHoliday ' + k, ctx.isHoliday(k), core.isHoliday(k, cdb));
         eq(label + '·defaultHalf ' + k, [ctx.defaultHalf(k, 'am'), ctx.defaultHalf(k, 'pm')],
           [core.defaultHalf(cdb, k, 'am'), core.defaultHalf(cdb, k, 'pm')]);
         eq(label + '·effHalf ' + k, [ctx.effHalf(k, 'am'), ctx.effHalf(k, 'pm')],
@@ -173,6 +189,26 @@ courseSamples.forEach(function (t, i) {
 /* 默认周次单独钉一下：跨版本比对只能证明两版一样，证明不了它对 */
 eq('parseCourses 默认周次', [1, 16, 12, 20],
   (function (r) { return [r.ok[0].startWeek, r.ok[0].endWeek, r.ok[1].startWeek, r.ok[1].endWeek]; })(core.parseCourses('周三\t数学\t3节\n周五\t英语\t2节\t20-12周', 16)));
+
+/* 6.5 自定义放假安排的语义：同样只能钉死期望值，两版一致不代表对 */
+{
+  const db = core.normalize(mkCustom());
+  const wd = k => core.isWorkday(k, db);
+  const hol = k => core.isHoliday(k, db);
+  eq('自定义·春节里的周一不上班', false, wd('2027-02-08'));
+  eq('自定义·春节算法定假期', true, hol('2027-02-08'));
+  eq('自定义·补班的周六要上班', true, wd('2027-02-13'));
+  eq('自定义·补班日不算假期', false, hol('2027-02-13'));
+  /* 20 个周一到周五，减掉 2/8–2/12 五天假，加回 2/13 一天补班 */
+  eq('自定义·2027 年 2 月应上班天数', 16, core.autoWorkdays(2027, 2, db));
+  /* 内置有表的年份，自定义照样能改 */
+  eq('自定义·能覆盖内置年份的单日', false, wd('2026-12-31'));
+  eq('自定义·2026 的补班周六生效', true, wd('2026-11-14'));
+  /* 没填的日子继续走内置表，不能因为填了自定义就整年失效 */
+  eq('自定义·2026 国庆仍按内置表', false, wd('2026-10-01'));
+  /* 2027 表外的工作日仍按朴素规则 */
+  eq('自定义·2027-03-01 普通周一上班', true, wd('2027-03-01'));
+}
 
 /* 7. 工资参数冻结：只有「真记过」的月份才冻住，只是翻看过的不冻 */
 {
