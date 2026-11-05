@@ -883,6 +883,17 @@ lk2.setData({ pass: 'abcd' });
 lk2.submit();
 ok(lock.isUnlocked() === false, '冷却期间即使口令对也先拦住');
 
+/* ---------- 转发：五个业务页都能发，落点必须是 app.json 里真实存在的页面 ---------- */
+const appJson = JSON.parse(require('fs').readFileSync(path.join(ROOT, 'app.json'), 'utf8'));
+['calendar', 'summary', 'settings', 'courses', 'holiday'].forEach(function (name) {
+  reset();
+  const p = makePage(name);
+  ok(typeof p.onShareAppMessage === 'function', name + ' 定义了转发');
+  const s = p.onShareAppMessage ? p.onShareAppMessage({ from: 'menu' }) : {};
+  ok(appJson.pages.indexOf(s.path) >= 0, name + ' 转发落点存在', s.path);
+  ok(!!s.title && s.title.length <= 30, name + ' 转发标题长度合适', s.title);
+});
+
 /* 冷却倒计时是 setInterval，不收掉的话 node 要空等 30 秒才退出 */
 lk.onUnload();
 lk2.onUnload();

@@ -300,5 +300,13 @@ Page({
     run();
   },
 
+  /* 右上角「转发」：发给同事各自记账 */
+  onShareAppMessage: function () {
+    return {
+      title: '教学考勤记账本：出勤和课时分开记，工资自动算',
+      path: 'pages/calendar/calendar'
+    };
+  },
+
   noop: function () {}
 });
