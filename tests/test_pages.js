@@ -568,6 +568,42 @@ hol.clearYear();
 ok(!current().settings.holidays[HY], '清空这一年后不留空壳');
 ok(hol.data.custom === false, '清空后不再是自定义状态');
 
+/* 从电脑粘贴导入：小程序配不了未备案的域名，联网获取只能放电脑版，
+   这边负责把电脑版写出的那一串接住 */
+{
+  const PY = HY + 1;
+  const packet = JSON.stringify({
+    year: PY,
+    off: [[PY + '-02-06', PY + '-02-12']],
+    work: [[PY + '-02-20', PY + '-02-20']]
+  });
+  hol.openPaste();
+  ok(hol.data.showPaste === true, '粘贴框能打开');
+  hol.onPaste({ detail: { value: packet } });
+  hol.doPaste();
+  ok(hol.data.showPaste === false, '导入后自动收起');
+  ok(current().settings.holidays[PY] && current().settings.holidays[PY].off.length === 1, '导入的年份已落盘');
+  ok(hol.data.y === PY, '粘的是哪年就跳到哪年', String(hol.data.y));
+  ok(hol.data.off.length === 1 && /2 月 6 日/.test(hol.data.off[0].text), '导入后列表即时刷新', hol.data.off[0] && hol.data.off[0].text);
+  ok(core.isWorkday(PY + '-02-09', current()) === false, '导入的假期立刻影响判定');
+
+  /* 看不懂的内容不许动已有数据 */
+  const before = JSON.stringify(current().settings.holidays[PY]);
+  hol.openPaste();
+  hol.onPaste({ detail: { value: '春节放七天' } });
+  hol.doPaste();
+  ok(JSON.stringify(current().settings.holidays[PY]) === before, '看不懂的内容不改数据');
+  ok(modals.some(m => /合法的 JSON/.test(m)), '看不懂时说明原因', modals[modals.length - 1]);
+
+  /* 空着点导入 */
+  hol.openPaste();
+  hol.onPaste({ detail: { value: '   ' } });
+  hol.doPaste();
+  ok(toasts.some(t => /先粘贴/.test(t)), '空内容给提示');
+  hol.closePaste();
+  ok(hol.data.showPaste === false && hol.data.pasteText === '', '取消后清空输入');
+}
+
 /* 导入合并 */
 reset();
 seedDb();

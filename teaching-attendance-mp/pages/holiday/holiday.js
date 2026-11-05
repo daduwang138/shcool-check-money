@@ -29,6 +29,7 @@ Page({
     from: '', to: '', one: '',
     fromText: '', toText: '', oneText: '',
     builtin: '', custom: false, touched: '',
+    showPaste: false, pasteText: '',
     ready: false
   },
 
@@ -149,6 +150,49 @@ Page({
     core.delHolidaySpan(this.db, this.data.y, 'work', i);
     store.save(this.db);
     this.render();
+  },
+
+  /* 小程序不能自己联网：request 合法域名必须是备案过的，公共数据源没备案，
+     配不进去。所以自动获取放在电脑版，这边负责把结果接住。 */
+  openPaste: function () {
+    this.setData({ showPaste: true, pasteText: '' });
+  },
+  closePaste: function () {
+    this.setData({ showPaste: false, pasteText: '' });
+  },
+  onPaste: function (e) {
+    this.setData({ pasteText: e.detail.value });
+  },
+  doPaste: function () {
+    var that = this;
+    var txt = String(this.data.pasteText || '').trim();
+    if (!txt) {
+      wx.showToast({ title: '先粘贴内容', icon: 'none' });
+      return;
+    }
+    /* 不限定年份：粘的是哪一年就导入哪一年，省得先切过去 */
+    var r = core.parseHolidayPacket(txt, 0);
+    if (!r.ok) {
+      wx.showModal({ title: '这份内容用不了', content: r.err, showCancel: false, confirmText: '知道了' });
+      return;
+    }
+    var y = r.year;
+    wx.showModal({
+      title: '导入 ' + y + ' 年',
+      content: '休 ' + r.off.length + ' 段、补班 ' + r.work.length + ' 天'
+        + (r.skipped ? '，另有 ' + r.skipped + ' 条格式不对会忽略' : '')
+        + '。会覆盖 ' + y + ' 年现在填的内容。',
+      confirmText: '覆盖导入',
+      success: function (res) {
+        if (!res.confirm) { return; }
+        if (!that.db.settings.holidays) { that.db.settings.holidays = {}; }
+        that.db.settings.holidays[y] = { off: r.off, work: r.work };
+        store.save(that.db);
+        that.setData({ showPaste: false, pasteText: '' });
+        if (that.data.y !== y) { that.setYear(y); } else { that.render(); }
+        wx.showToast({ title: '已导入', icon: 'none' });
+      }
+    });
   },
 
   clearYear: function () {

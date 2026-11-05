@@ -269,6 +269,83 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   }
 }
 
+/* ---------- 8. 联网 / 粘贴进来的放假安排 ---------- */
+{
+  /* 2026 的真实摘录（把国办发明电〔2025〕7号拆成逐日），
+     用它折回来的结果必须和内置表一字不差 —— 这是解析逻辑唯一的对错标准 */
+  const D26 = [['2026-01-01', 1], ['2026-01-02', 1], ['2026-01-03', 1], ['2026-01-04', 0], ['2026-02-14', 0], ['2026-02-15', 1], ['2026-02-16', 1], ['2026-02-17', 1], ['2026-02-18', 1], ['2026-02-19', 1], ['2026-02-20', 1], ['2026-02-21', 1], ['2026-02-22', 1], ['2026-02-23', 1], ['2026-02-28', 0], ['2026-04-04', 1], ['2026-04-05', 1], ['2026-04-06', 1], ['2026-05-01', 1], ['2026-05-02', 1], ['2026-05-03', 1], ['2026-05-04', 1], ['2026-05-05', 1], ['2026-05-09', 0], ['2026-06-19', 1], ['2026-06-20', 1], ['2026-06-21', 1], ['2026-09-20', 0], ['2026-09-25', 1], ['2026-09-26', 1], ['2026-09-27', 1], ['2026-10-01', 1], ['2026-10-02', 1], ['2026-10-03', 1], ['2026-10-04', 1], ['2026-10-05', 1], ['2026-10-06', 1], ['2026-10-07', 1], ['2026-10-10', 0]];
+  const pack = (arr, y) => JSON.stringify({
+    year: y || 2026,
+    papers: ['https://www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm'],
+    days: arr.map((d) => ({ date: d[0], isOffDay: !!d[1] }))
+  });
+  const raw = pack(D26);
+
+  const h = ctx.parseHolidayJson(raw, 2026);
+  const c = core.parseHolidayJson(raw, 2026);
+  eq('解析·两版逐字段一致', h, c);
+  eq('解析·成功', h.ok, true);
+  eq('解析·休假段与原表一致', h.off, core.HOLIDAYS[2026].spans);
+  eq('解析·补班日与原表一致', h.work.map((s) => s[0]), core.HOLIDAYS[2026].makeup);
+  eq('解析·休假天数', h.offDays, 33);
+  eq('解析·补班天数', h.workDays, 6);
+  eq('解析·带上原文链接', /gov\.cn/.test(h.note), true);
+
+  /* 还没公布：文件在、但 days 是空的 */
+  const e1 = core.parseHolidayJson(JSON.stringify({ year: 2027 }), 2027);
+  eq('解析·没公布要说清楚', e1.ok === false && /还没公布/.test(e1.err), true);
+  eq('解析·没公布两版一致', ctx.parseHolidayJson(JSON.stringify({ year: 2027 }), 2027).err, e1.err);
+
+  eq('解析·年份不符要拒绝', core.parseHolidayJson(raw, 2027).ok, false);
+  eq('解析·年份不符提到实际年份', /2026/.test(core.parseHolidayJson(raw, 2027).err), true);
+  eq('解析·非 JSON 拒绝', core.parseHolidayJson('休 2月6到12', 2027).ok, false);
+  eq('解析·脏输入两版同判', ctx.parseHolidayJson('x').ok, core.parseHolidayJson('x').ok);
+
+  const mx = core.parseHolidayJson(pack(D26.concat([['2027-01-01', 1], ['bad-date', 1]]), 2026), 2026);
+  eq('解析·跨年与坏日期被跳过', mx.skipped, 2);
+  eq('解析·跳过不影响正常段', mx.off.length, 7);
+
+  const seg = core.parseHolidayJson(pack([['2027-03-01', 1], ['2027-03-02', 1], ['2027-03-03', 1], ['2027-03-05', 1]], 2027), 2027);
+  eq('解析·连续日并段、断开另起', seg.off, [['2027-03-01', '2027-03-03'], ['2027-03-05', '2027-03-05']]);
+}
+
+{
+  /* 粘贴码：电脑版写出的东西，手机端洗一遍再落库 */
+  const p = JSON.stringify({
+    year: 2027,
+    off: [['2027-02-06', '2027-02-12'], ['2027-02-10', '2027-02-09']],
+    work: [['2027-02-20', '2027-02-20']],
+    junk: 1
+  });
+  const c = core.parseHolidayPacket(p, 0);
+  eq('粘贴·两版一致', ctx.parseHolidayPacket(p, 0), c);
+  eq('粘贴·年份', c.year, 2027);
+  eq('粘贴·起止颠倒会纠正', c.off[1], ['2027-02-09', '2027-02-10']);
+  eq('粘贴·按开始日期排序', c.off.map((s) => s[0]), ['2027-02-06', '2027-02-09']);
+  eq('粘贴·补班', c.work, [['2027-02-20', '2027-02-20']]);
+  eq('粘贴·多余的键不管', c.skipped, 0);
+
+  const x = core.parseHolidayPacket(JSON.stringify({ year: 2027, off: [['2027-12-30', '2028-01-02']] }), 0);
+  eq('粘贴·跨年的段整份不认', x.ok === false && /没有可用/.test(x.err), true);
+  eq('粘贴·跨年两版同判', ctx.parseHolidayPacket(JSON.stringify({ year: 2027, off: [['2027-12-30', '2028-01-02']] }), 0).err, x.err);
+  eq('粘贴·年份不符拒绝', core.parseHolidayPacket(p, 2026).ok, false);
+  eq('粘贴·缺年份拒绝', core.parseHolidayPacket(JSON.stringify({ off: [] })).ok, false);
+  eq('粘贴·空的拒绝', core.parseHolidayPacket(JSON.stringify({ year: 2027, off: [], work: [] })).ok, false);
+  eq('粘贴·非 JSON 拒绝', core.parseHolidayPacket('春节 2 月 6 日到 12 日').ok, false);
+  eq('粘贴·两版同判空', ctx.parseHolidayPacket('{}').err, core.parseHolidayPacket('{}').err);
+
+  /* 落库之后要真的影响判定 */
+  const db = core.blankDB();
+  const q = core.parseHolidayPacket(JSON.stringify({
+    year: 2027, off: [['2027-02-06', '2027-02-12']], work: [['2027-02-20', '2027-02-20']]
+  }), 0);
+  db.settings.holidays = { 2027: { off: q.off, work: q.work } };
+  eq('粘贴·导入后春节算休息', core.isWorkday('2027-02-08', db), false);
+  eq('粘贴·导入后补班日算上班', core.isWorkday('2027-02-20', db), true);
+  eq('粘贴·导入后 2 月应上班', core.autoWorkdays(2027, 2, db), 16);
+  eq('粘贴·没导入时 2 月应上班', core.autoWorkdays(2027, 2, core.blankDB()), 20);
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项；逐日核对 ' + dayChecked + ' 天');
 if (bad.length) { console.log('\n失败样例：\n' + bad.join('\n')); process.exit(1); }
 console.log('内核与 HTML 版完全一致');

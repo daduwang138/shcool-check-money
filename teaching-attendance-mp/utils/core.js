@@ -140,6 +140,80 @@ function holidayYears(db) {
   }).map(function (y) { return parseInt(y, 10); }).sort();
 }
 
+/* ---------- 联网拿到的放假安排 ----------
+   上游把国办发原文拆成逐日记录：{ year, papers: [原文链接], days: [{ name, date, isOffDay }] }
+   这里折成和内置表同构的段，好在同一套判定里直接用。
+   解析只认结构，不认来源，所以粘贴码和联网拿到的内容走的是同一条路。 */
+function parseHolidayJson(raw, wantYear) {
+  var o;
+  try { o = (typeof raw === 'string') ? JSON.parse(raw) : raw; } catch (e) {
+    return { ok: false, err: '内容不是合法的 JSON' };
+  }
+  if (!o || typeof o !== 'object') { return { ok: false, err: '内容不是合法的 JSON' }; }
+  var y = parseInt(o.year, 10);
+  if (wantYear && y && y !== wantYear) { return { ok: false, err: '拿到的是 ' + y + ' 年的数据' }; }
+  if (!wantYear) { wantYear = y; }
+  if (!o.days || !o.days.length) { return { ok: false, err: '这一年国务院还没公布，数据是空的' }; }
+  var off = [], work = [], skipped = 0;
+  for (var i = 0; i < o.days.length; i++) {
+    var d = o.days[i] || {}, k = String(d.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) { skipped++; continue; }
+    if (wantYear && ymd(k)[0] !== wantYear) { skipped++; continue; }
+    (d.isOffDay ? off : work).push(k);
+  }
+  if (!off.length && !work.length) { return { ok: false, err: '没有可用的日期' }; }
+  off.sort();
+  work.sort();
+  var spans = [];
+  for (var j = 0; j < off.length; j++) {
+    if (j && dateNum(off[j]) - dateNum(off[j - 1]) === 86400000) {
+      spans[spans.length - 1][1] = off[j];
+    } else {
+      spans.push([off[j], off[j]]);
+    }
+  }
+  return {
+    ok: true, year: wantYear, off: spans,
+    work: work.map(function (k) { return [k, k]; }),
+    offDays: off.length, workDays: work.length, skipped: skipped,
+    note: (o.papers && o.papers.length) ? String(o.papers[0]) : ''
+  };
+}
+
+/* 粘贴码：{ year, off: [[起, 止], ...], work: [[起, 止], ...] }
+   和存储同构，一串一百多字节，从电脑版搬到手机上用。
+   外部来的东西一律当脏数据洗一遍：格式不对、跨年、起止颠倒的都剔掉。 */
+function parseHolidayPacket(raw, wantYear) {
+  var o;
+  try { o = (typeof raw === 'string') ? JSON.parse(raw) : raw; } catch (e) {
+    return { ok: false, err: '内容不是合法的 JSON' };
+  }
+  if (!o || typeof o !== 'object') { return { ok: false, err: '内容不是合法的 JSON' }; }
+  var y = parseInt(o.year, 10);
+  if (!y) { return { ok: false, err: '缺少年份' }; }
+  if (wantYear && y !== wantYear) { return { ok: false, err: '拿到的是 ' + y + ' 年的' }; }
+  var bad = 0, off = [], work = [];
+  var clean = function (arr, into) {
+    if (!arr || !arr.length) { return; }
+    for (var i = 0; i < arr.length; i++) {
+      var s = arr[i];
+      if (!s || s.length < 2) { bad++; continue; }
+      var from = String(s[0] || ''), to = String(s[1] || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) { bad++; continue; }
+      if (from > to) { var t = from; from = to; to = t; }
+      if (ymd(from)[0] !== y || ymd(to)[0] !== y) { bad++; continue; }
+      into.push([from, to]);
+    }
+  };
+  clean(o.off, off);
+  clean(o.work, work);
+  if (!off.length && !work.length) { return { ok: false, err: '里面没有可用的日期' }; }
+  var byFrom = function (a, b) { return a[0] < b[0] ? -1 : (a[0] > b[0] ? 1 : 0); };
+  off.sort(byFrom);
+  work.sort(byFrom);
+  return { ok: true, year: y, off: off, work: work, skipped: bad };
+}
+
 function dowOf(key) {
   var p = ymd(key);
   return new Date(p[0], p[1] - 1, p[2]).getDay();
@@ -561,6 +635,7 @@ module.exports = {
   isWorkday: isWorkday, autoWorkdays: autoWorkdays, isHoliday: isHoliday,
   holidayOf: holidayOf, addHolidaySpan: addHolidaySpan, delHolidaySpan: delHolidaySpan,
   clearHolidayYear: clearHolidayYear, holidayYears: holidayYears,
+  parseHolidayJson: parseHolidayJson, parseHolidayPacket: parseHolidayPacket,
   dowOf: dowOf, weekdayOf: weekdayOf, dowLabel: dowLabel, isWeekendKey: isWeekendKey,
   weekOf: weekOf, preStart: preStart, lessonsFor: lessonsFor, parseCourses: parseCourses,
   blankDB: blankDB, normalize: normalize, peek: peek, hasContent: hasContent, dayCount: dayCount,

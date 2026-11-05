@@ -54,6 +54,18 @@
 
   <view class="btn danger full" wx:if="{{custom}}" bindtap="clearYear">清空 {{y}} 年的填写</view>
 
+  <view class="paste-box" wx:if="{{showPaste}}">
+    <text class="paste-t">粘贴电脑版复制的内容</text>
+    <text class="paste-sub">电脑版设置页 → 放假安排 → 复制给手机，粘到这里就能整年一次填完，不用逐天选</text>
+    <textarea class="paste-ta" value="{{pasteText}}" bindinput="onPaste" maxlength="4000"
+      placeholder="把电脑上复制的那一串粘在这里" />
+    <view class="paste-btns">
+      <view class="btn" bindtap="closePaste">取消</view>
+      <view class="btn primary" bindtap="doPaste">导入</view>
+    </view>
+  </view>
+  <view class="btn full" wx:else bindtap="openPaste">从电脑粘贴导入</view>
+
   <view class="tips">
     <text>填的内容只在这台设备上，会一起进导出的备份。国务院公布下一年安排之前，可以照学校校历先填；公布之后如果有出入，改这里比等小程序更新快。</text>
   </view>

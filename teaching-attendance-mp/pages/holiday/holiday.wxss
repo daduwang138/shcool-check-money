@@ -150,6 +150,55 @@
   margin: 0 24rpx 22rpx;
 }
 
+/* ---------- 从电脑粘贴导入 ---------- */
+.paste-box {
+  margin: 0 24rpx 22rpx;
+  padding: 20rpx 22rpx;
+  border: 1rpx solid #E7E5DD;
+  border-radius: 18rpx;
+  background: #FFFFFF;
+}
+
+.paste-t {
+  display: block;
+  color: #191C20;
+  font-size: 25rpx;
+  font-weight: 500;
+}
+
+.paste-sub {
+  display: block;
+  margin-top: 6rpx;
+  color: #7C8188;
+  font-size: 21rpx;
+  line-height: 1.65;
+}
+
+.paste-ta {
+  width: 100%;
+  height: 220rpx;
+  margin-top: 14rpx;
+  padding: 16rpx 18rpx;
+  box-sizing: border-box;
+  border: 1rpx solid #E4E1D8;
+  border-radius: 12rpx;
+  background: #FAF9F4;
+  color: #2E3238;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
+.paste-btns {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 16rpx;
+}
+
+.paste-btns .btn {
+  flex: 1;
+  margin: 0;
+}
+
 .tips {
   padding: 2rpx 24rpx 0;
   color: #8A8E96;

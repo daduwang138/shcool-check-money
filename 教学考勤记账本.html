@@ -238,6 +238,15 @@ tr.hi:hover td{background:#F4F8FC}
 .hol-del{height:22px!important;padding:0 8px!important;font-size:13px;line-height:1}
 .hol-add{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0 2px}
 .hol-add input[type=date]{width:150px}
+.hol-net{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:2px 0 2px}
+.hol-pv{margin:8px 0 4px;padding:10px 12px 8px;border:1px solid var(--line);border-radius:12px;background:#FCFBF7}
+.hol-pv .pv-hd{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px}
+.hol-pv .pv-sub{font-size:12px;color:var(--muted);margin-bottom:6px}
+.hol-pv .pv-body{max-height:180px;overflow:auto;margin-bottom:8px}
+.hol-pv .pv-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hol-pv .pv-src{font-size:11.5px;color:var(--faint);word-break:break-all}
+.hol-pv .pv-src a{color:var(--blue);text-decoration:none}
+.hol-pv.warn{border-color:#EFD3D3;background:#FEF8F8}
 table.detail{table-layout:fixed}
 table.detail td:nth-child(1),table.detail th:nth-child(1){width:26%}
 table.detail td:nth-child(2),table.detail th:nth-child(2),
@@ -628,6 +637,80 @@ function isWorkday(key){
   if(inSpan(key,t.spans)) return false;
   return true;
 }
+/* ---------- 联网拿到的放假安排 ----------
+   上游把国办发原文拆成逐日记录：{ year, papers: [原文链接], days: [{ name, date, isOffDay }] }
+   这里折成和内置表同构的段，好在同一套判定里直接用。
+   解析只认结构，不认来源，所以粘贴码和联网拿到的内容走的是同一条路。 */
+function parseHolidayJson(raw, wantYear) {
+  var o;
+  try { o = (typeof raw === 'string') ? JSON.parse(raw) : raw; } catch (e) {
+    return { ok: false, err: '内容不是合法的 JSON' };
+  }
+  if (!o || typeof o !== 'object') { return { ok: false, err: '内容不是合法的 JSON' }; }
+  var y = parseInt(o.year, 10);
+  if (wantYear && y && y !== wantYear) { return { ok: false, err: '拿到的是 ' + y + ' 年的数据' }; }
+  if (!wantYear) { wantYear = y; }
+  if (!o.days || !o.days.length) { return { ok: false, err: '这一年国务院还没公布，数据是空的' }; }
+  var off = [], work = [], skipped = 0;
+  for (var i = 0; i < o.days.length; i++) {
+    var d = o.days[i] || {}, k = String(d.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) { skipped++; continue; }
+    if (wantYear && ymd(k)[0] !== wantYear) { skipped++; continue; }
+    (d.isOffDay ? off : work).push(k);
+  }
+  if (!off.length && !work.length) { return { ok: false, err: '没有可用的日期' }; }
+  off.sort();
+  work.sort();
+  var spans = [];
+  for (var j = 0; j < off.length; j++) {
+    if (j && dateNum(off[j]) - dateNum(off[j - 1]) === 86400000) {
+      spans[spans.length - 1][1] = off[j];
+    } else {
+      spans.push([off[j], off[j]]);
+    }
+  }
+  return {
+    ok: true, year: wantYear, off: spans,
+    work: work.map(function (k) { return [k, k]; }),
+    offDays: off.length, workDays: work.length, skipped: skipped,
+    note: (o.papers && o.papers.length) ? String(o.papers[0]) : ''
+  };
+}
+
+/* 粘贴码：{ year, off: [[起, 止], ...], work: [[起, 止], ...] }
+   和存储同构，一串一百多字节，从电脑版搬到手机上用。
+   外部来的东西一律当脏数据洗一遍：格式不对、跨年、起止颠倒的都剔掉。 */
+function parseHolidayPacket(raw, wantYear) {
+  var o;
+  try { o = (typeof raw === 'string') ? JSON.parse(raw) : raw; } catch (e) {
+    return { ok: false, err: '内容不是合法的 JSON' };
+  }
+  if (!o || typeof o !== 'object') { return { ok: false, err: '内容不是合法的 JSON' }; }
+  var y = parseInt(o.year, 10);
+  if (!y) { return { ok: false, err: '缺少年份' }; }
+  if (wantYear && y !== wantYear) { return { ok: false, err: '拿到的是 ' + y + ' 年的' }; }
+  var bad = 0, off = [], work = [];
+  var clean = function (arr, into) {
+    if (!arr || !arr.length) { return; }
+    for (var i = 0; i < arr.length; i++) {
+      var s = arr[i];
+      if (!s || s.length < 2) { bad++; continue; }
+      var from = String(s[0] || ''), to = String(s[1] || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) { bad++; continue; }
+      if (from > to) { var t = from; from = to; to = t; }
+      if (ymd(from)[0] !== y || ymd(to)[0] !== y) { bad++; continue; }
+      into.push([from, to]);
+    }
+  };
+  clean(o.off, off);
+  clean(o.work, work);
+  if (!off.length && !work.length) { return { ok: false, err: '里面没有可用的日期' }; }
+  var byFrom = function (a, b) { return a[0] < b[0] ? -1 : (a[0] > b[0] ? 1 : 0); };
+  off.sort(byFrom);
+  work.sort(byFrom);
+  return { ok: true, year: y, off: off, work: work, skipped: bad };
+}
+
 function autoWorkdays(y,m){
   var n=new Date(y,m,0).getDate(),c=0;
   for(var d=1;d<=n;d++){if(isWorkday(dk(y,m,d)))c++;}
@@ -2236,6 +2319,138 @@ function holRows(arr,kind){
       +'<button class="btn sm danger hol-del" data-kind="'+kind+'" data-i="'+i+'">×</button></div>';
   }).join("");
 }
+/* ---------- 联网获取 ----------
+   来源是 holiday-cn：把国办发原文拆成逐日记录、附原文链接，每年 11 月更新。
+   走公共 CDN，几个源依次试；全不通就明说，不猜也不静默降级。 */
+var HOL_SRC=[
+  "https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/",
+  "https://fastly.jsdelivr.net/gh/NateScarlet/holiday-cn@master/",
+  "https://gcore.jsdelivr.net/gh/NateScarlet/holiday-cn@master/",
+  "https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/"
+];
+var HOL_FETCH=null;   /* {ok, year, off, work, offDays, workDays, note, err} */
+var HOL_BUSY=false;
+
+function holNetHtml(y,has,t){
+  var b="";
+  b+='<div class="hol-net"><button class="btn sm" id="holFetch"'+(HOL_BUSY?' disabled':'')+'>'
+    +(HOL_BUSY?'正在获取…':'联网获取 '+y+' 年')+'</button>';
+  if(has)b+='<button class="btn sm" id="holCopy">复制给手机</button>';
+  b+='</div>';
+  b+='<div class="faint" style="margin:-2px 0 9px">抓的是公开摘录（附国办发原文链接），拿到先给你看，确认了才写进去；连不上就照下面的办法手动填，判定规则一样。</div>';
+  b+=holPreviewHtml(y,t);
+  return b;
+}
+function holPreviewHtml(y,t){
+  var f=HOL_FETCH;
+  if(!f)return "";
+  if(!f.ok){
+    return '<div class="hol-pv warn"><div class="pv-hd">没取到 '+y+' 年的安排</div>'
+      +'<div class="pv-sub">'+(esc(f.err)||'网络不通')+'。</div>'
+      +'<div class="pv-foot"><span class="pv-src">可以照下面的办法手动填，判定规则一样；过段时间再点一次也行。</span>'
+      +'<button class="btn sm" id="holPvClose" style="margin-left:auto">知道了</button></div></div>';
+  }
+  var same=!!(t&&JSON.stringify(t.spans)===JSON.stringify(f.off)
+    &&JSON.stringify(t.makeup)===JSON.stringify(f.work.map(function(s){return s[0];})));
+  var b="";
+  b+='<div class="hol-pv"><div class="pv-hd">'+f.year+' 年：休 '+f.off.length+' 段共 '+f.offDays+' 天，补班 '+f.workDays+' 天</div>';
+  b+='<div class="pv-sub">'+(same?'和内置的完全一致，不用写':'以下是抓到的内容，确认没问题再写进去')+'</div>';
+  b+='<div class="pv-body">';
+  b+=f.off.map(function(s){return '<div class="hol-row"><span class="hol-t">休 '+holText(s[0],s[1])+'</span></div>';}).join("");
+  b+=f.work.map(function(s){return '<div class="hol-row"><span class="hol-t">班 '+holText(s[0],s[1])+'</span></div>';}).join("");
+  b+='</div>';
+  b+='<div class="pv-foot">'
+    +(same?'<button class="btn sm" id="holPvClose">知道了</button>'
+           :'<button class="btn sm primary" id="holPvUse">采用这份安排</button><button class="btn sm" id="holPvClose">不用</button>')
+    +'</div>';
+  if(f.note)b+='<div class="pv-src" style="margin-top:7px">依据：<a href="'+esc(f.note)+'" target="_blank" rel="noopener">'+esc(f.note)+'</a></div>';
+  b+='</div>';
+  return b;
+}
+function holErrText(e){
+  var m=String((e&&e.message)||e||"");
+  if(/Failed to fetch|NetworkError|Load failed|network|fetch/i.test(m)){return "连不上数据源，多半是没联网，或者被防火墙拦了";}
+  if(/超时/.test(m)){return "等了 8 秒没响应，网速太慢或者这条线不通";}
+  if(/HTTP 4\d\d/.test(m)){return "数据源上没有这一年的文件，也就是还没整理出来";}
+  if(/HTTP 5\d\d/.test(m)){return "数据源那边暂时出问题了（HTTP "+m.replace(/[^0-9]/g,"")+"）";}
+  return m||"网络不通";
+}
+function holGet(url,ms){
+  return new Promise(function(res,rej){
+    var ctl=null,done=false;
+    try{ if(typeof AbortController!=="undefined")ctl=new AbortController(); }catch(e){}
+    var t=setTimeout(function(){done=true;if(ctl)ctl.abort();rej(new Error("连接超时"));},ms||8000);
+    var o={cache:"no-store"};
+    if(ctl)o.signal=ctl.signal;
+    fetch(url,o).then(function(r){
+      if(done)return;
+      if(!r.ok){done=true;clearTimeout(t);rej(new Error("HTTP "+r.status));return;}
+      r.text().then(function(x){done=true;clearTimeout(t);res(x);},
+        function(e){done=true;clearTimeout(t);rej(e);});
+    },function(e){if(done)return;done=true;clearTimeout(t);rej(e);});
+  });
+}
+function holDoFetch(y){
+  if(HOL_BUSY)return;
+  HOL_BUSY=true;
+  HOL_FETCH=null;
+  renderSet();
+  var i=0,lastErr=null;
+  function next(){
+    if(i>=HOL_SRC.length)return Promise.reject(lastErr||new Error("数据源都不通"));
+    var url=HOL_SRC[i++]+y+".json";
+    return holGet(url,8000).then(function(txt){return txt;},function(e){lastErr=e;return next();});
+  }
+  next().then(function(txt){
+    var r=parseHolidayJson(txt,y);
+    if(r.ok)HOL_FETCH={ok:true,year:r.year,off:r.off,work:r.work,offDays:r.offDays,workDays:r.workDays,note:r.note};
+    else HOL_FETCH={ok:false,err:r.err};
+  }).catch(function(e){
+    HOL_FETCH={ok:false,err:holErrText(e)};
+  }).then(function(){
+    HOL_BUSY=false;
+    renderSet();
+  });
+}
+function holApply(){
+  var f=HOL_FETCH;
+  if(!f||!f.ok)return;
+  var y=f.year;
+  if(!DB.settings.holidays)DB.settings.holidays={};
+  DB.settings.holidays[y]={
+    off:f.off.map(function(s){return [s[0],s[1]];}),
+    work:f.work.map(function(s){return [s[0],s[1]];})
+  };
+  HOL_FETCH=null;
+  HOL_YEAR=y;
+  persist().then(function(){
+    renderSet();renderCal();
+    if(!$("view-sum").hidden)renderSum();
+    toast("已写入 "+y+" 年："+f.offDays+" 天休假、"+f.workDays+" 天补班");
+  });
+}
+function holPacketText(y){
+  var e=(DB.settings.holidays||{})[y];
+  if(!e)return "";
+  return JSON.stringify({year:y,off:e.off||[],work:e.work||[]});
+}
+function copyText(t){
+  function fb(){
+    var ta=document.createElement("textarea");
+    ta.value=t;ta.style.position="fixed";ta.style.top="-9999px";ta.style.opacity="0";
+    document.body.appendChild(ta);ta.focus();ta.select();
+    var ok=false;
+    try{ok=document.execCommand("copy");}catch(e){}
+    document.body.removeChild(ta);
+    return ok;
+  }
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      return navigator.clipboard.writeText(t).then(function(){return true;},function(){return fb();});
+    }
+  }catch(e){}
+  return Promise.resolve(fb());
+}
 function holidayHtml(){
   var ys=holYearList();
   if(!HOL_YEAR||ys.indexOf(HOL_YEAR)<0)HOL_YEAR=ys[ys.length-1];
@@ -2246,9 +2461,10 @@ function holidayHtml(){
   var has=(e.off&&e.off.length)||(e.work&&e.work.length);
   var h="";
   h+='<div class="card"><h2>放假安排</h2>';
-  h+='<p class="muted">内置的是国办发公布的那几年（'+Object.keys(HOLIDAYS).sort().join("、")+'）。还没公布的年份可以照学校校历先填，填了优先于内置；同一天既填了休假又填了补班，以补班为准。</p>';
+  h+='<p class="muted">内置的是国办发公布的那几年（'+Object.keys(HOLIDAYS).sort().join("、")+'）。新一年的安排公布后，点「联网获取」把国办发原文的摘录抓下来，核对过再写入；抓不到、或者学校校历跟国办发不一样，就在下面手动填，填了优先于内置。同一天既填了休假又填了补班，以补班为准。</p>';
   h+='<div class="fields"><div class="field"><div><label>年份</label><div class="desc">'+(t?"内置："+t.note:"这一年没有内置安排，没填的日子按周一到周五算上班")+'</div></div><select id="holYear">'
     +ys.map(function(v){return '<option value="'+v+'"'+(v===y?" selected":"")+'>'+v+' 年</option>';}).join("")+'</select></div></div>';
+  h+=holNetHtml(y,has,t);
   h+='<h3>法定休假</h3>';
   h+='<div class="hol-list">'+holRows(e.off,"off")+'</div>';
   h+='<div class="hol-add"><input type="date" id="holFrom" value="'+d0+'" min="'+d0+'" max="'+d1+'"><span class="faint">至</span><input type="date" id="holTo" value="'+d0+'" min="'+d0+'" max="'+d1+'"><button class="btn sm" id="holAddOff">加入一段</button></div>';
@@ -2275,7 +2491,22 @@ function holPush(kind,from,to){
 }
 function bindHoliday(){
   var sel=$("holYear");
-  if(sel)sel.addEventListener("change",function(){HOL_YEAR=parseInt(this.value,10);renderSet();});
+  if(sel)sel.addEventListener("change",function(){HOL_YEAR=parseInt(this.value,10);HOL_FETCH=null;renderSet();});
+  var hf=$("holFetch");
+  if(hf)hf.addEventListener("click",function(){holDoFetch(HOL_YEAR);});
+  var hc=$("holCopy");
+  if(hc)hc.addEventListener("click",function(){
+    var txt=holPacketText(HOL_YEAR);
+    if(!txt){toast("这一年还没填，先填或者先获取");return;}
+    copyText(txt).then(function(ok){
+      if(ok)toast("已复制，粘到小程序「放假安排」里的粘贴导入");
+      else alert("没能自动复制，手动全选这段也可以：\n\n"+txt);
+    });
+  });
+  var pu=$("holPvUse");
+  if(pu)pu.addEventListener("click",holApply);
+  var pc=$("holPvClose");
+  if(pc)pc.addEventListener("click",function(){HOL_FETCH=null;renderSet();});
   var ao=$("holAddOff");
   if(ao)ao.addEventListener("click",function(){
     var f=$("holFrom").value,t=$("holTo").value||f;
