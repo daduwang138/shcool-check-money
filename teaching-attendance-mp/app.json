@@ -9,7 +9,7 @@
     "pages/lock/lock"
   ],
   "window": {
-    "navigationBarTitleText": "教学考勤记账本",
+    "navigationBarTitleText": "考勤记账本-个人版",
     "navigationBarBackgroundColor": "#F5F4F0",
     "navigationBarTextStyle": "black",
     "backgroundColor": "#F5F4F0",

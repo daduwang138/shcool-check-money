@@ -221,7 +221,7 @@ Page({
   /* 右上角「转发」：发给同事各自记账，对方的库是空的，不会看到这边的账 */
   onShareAppMessage: function () {
     return {
-      title: '教学考勤记账本：出勤和课时分开记，工资自动算',
+      title: '考勤记账本-个人版：出勤和课时分开记，工资自动算',
       path: 'pages/calendar/calendar'
     };
   }

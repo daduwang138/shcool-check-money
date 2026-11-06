@@ -1,5 +1,5 @@
 {
-  "description": "教学考勤记账本 · 微信小程序（本地存储，数据不上传）",
+  "description": "考勤记账本-个人版 · 微信小程序（本地存储，数据不上传）",
   "packOptions": {
     "ignore": [
       {

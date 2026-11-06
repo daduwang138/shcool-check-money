@@ -85,5 +85,34 @@ function near(src, marker, back, fwd) {
   if (!/不再自动填/.test(t)) bad.push(p[0] + '自动落账说明没写「撤销后本月不再自动填」');
 });
 
+/* 名称哨兵：账号/备案名是「考勤记账本-个人版」，两版用户可见的名称必须一致。
+   磁盘文件名「教学考勤记账本.html」只是本地路径、不进微信包，特意保留，别当残留误报。 */
+const APP_NAME = '考勤记账本-个人版';
+const OLD_NAME = '教学考勤记账本';
+const MP_ROOT = path.resolve(__dirname, '..', 'teaching-attendance-mp');
+[['app.json', /"navigationBarTitleText":\s*"([^"]+)"/],
+ ['app.js', /appName:\s*'([^']+)'/],
+ ['project.config.json', /"description":\s*"([^"]+)"/]].forEach(function (f) {
+  const m = fs.readFileSync(path.join(MP_ROOT, f[0]), 'utf8').match(f[1]);
+  if (!m || m[1].indexOf(APP_NAME) !== 0) bad.push('小程序 ' + f[0] + ' 的名称不是「' + APP_NAME + '」');
+});
+const SHARE_PAGES = ['calendar', 'summary', 'settings', 'courses', 'holiday'];
+SHARE_PAGES.forEach(function (pg) {
+  const src = fs.readFileSync(path.join(PAGES, pg, pg + '.js'), 'utf8');
+  if (src.indexOf("title: '" + APP_NAME) < 0) bad.push('页面 ' + pg + ' 的转发标题没用新名称');
+});
+if (fs.readFileSync(path.join(PAGES, 'lock', 'lock.wxml'), 'utf8').indexOf(APP_NAME) < 0) bad.push('口令锁页标题没用新名称');
+if (htmlSrc.indexOf('<title>' + APP_NAME + '</title>') < 0) bad.push('电脑版 <title> 没用新名称');
+[path.join(MP_ROOT, 'app.json'), path.join(MP_ROOT, 'app.js'),
+ path.join(MP_ROOT, 'project.config.json'), path.join(PAGES, 'lock', 'lock.wxml'),
+ path.resolve(__dirname, '..', 'README.md'), path.resolve(__dirname, '..', '功能逻辑.md'), HTML_SRC]
+  .concat(SHARE_PAGES.map(function (pg) { return path.join(PAGES, pg, pg + '.js'); }))
+  .forEach(function (p) {
+    const src = fs.readFileSync(p, 'utf8');
+    if (src.split(OLD_NAME + '.html').join('').indexOf(OLD_NAME) >= 0) {
+      bad.push(path.basename(p) + ' 里还有旧名称「' + OLD_NAME + '」（文件名引用除外）');
+    }
+  });
+
 if (bad.length) { console.log('FAIL\n' + bad.join('\n')); process.exit(1); }
 console.log('结构自检通过：' + hCount + ' 个事件方法、' + cCount + ' 个 class、wxss ' + rCount + ' 条规则');

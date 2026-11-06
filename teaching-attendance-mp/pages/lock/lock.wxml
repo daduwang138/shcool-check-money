@@ -1,6 +1,6 @@
 <view class="lock" wx:if="{{hasPass}}">
   <view class="lk-icon">🔒</view>
-  <text class="lk-title">教学考勤记账本</text>
+  <text class="lk-title">考勤记账本-个人版</text>
   <text class="lk-sub">这台手机上开了口令，输入后查看记录</text>
 
   <view class="lk-field">

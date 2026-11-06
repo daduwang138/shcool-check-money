@@ -2,7 +2,7 @@ var lock = require('./utils/lock.js');
 
 App({
   globalData: {
-    appName: '教学考勤记账本',
+    appName: '考勤记账本-个人版',
     version: '1.0.0'
   },
   onLaunch: function () {

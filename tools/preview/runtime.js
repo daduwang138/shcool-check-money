@@ -790,7 +790,7 @@
   function titleOf(path) {
     var cfg = registry[path];
     var t = cfg.__title;
-    return t || '教学考勤记账本';
+    return t || '考勤记账本-个人版';
   }
 
   function updateChrome() {
@@ -980,7 +980,7 @@
       var info = cfg.pages[p];
       registry[p] = {
         __ast: parseWXML(info.wxml),
-        __title: info.title || '教学考勤记账本',
+        __title: info.title || '考勤记账本-个人版',
         __isTab: !!info.isTab,
         __cfg: null,
         __data: null
