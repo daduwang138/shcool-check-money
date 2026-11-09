@@ -664,6 +664,23 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('文件裁决·文件独有的天补进来', [n3, local.days['2026-11-20'].note], [1, '文件独有的天']);
 }
 
+/* ---------- 10.6 金额与口径：分项对得上、默认推算看得见、删档不伪装 ---------- */
+{
+  const r2 = function (x) { return Math.round(x * 100) / 100; };
+  const amtDb = core.normalize(mkRates());
+  ['2026-10', '2026-11', '2026-12'].forEach(function (ym) {
+    const cc = core.computeMonth(amtDb, ym);
+    eq('金额·' + ym + ' ①+② 等于一次舍入', r2(cc.basePart + cc.extraPart), r2(cc.dailyRate * cc.actual));
+  });
+  const g = core.blankDB();
+  const gm = core.computeMonth(g, '2026-11');
+  eq('默认推算·空库整月都被标出来', gm.ghostDays, gm.workdays);
+  const g2 = ctx.normalize(core.blankDB());
+  ctx.DB = g2;
+  eq('默认推算·两版一致', ctx.computeMonth('2026-11').ghostDays, gm.ghostDays);
+  eq('档位·删掉的档位不再伪装成正课', core.rateName(g, 'gone'), '已删除档位');
+}
+
 /* ---------- 11. 覆盖哨兵：不许新函数悄悄落到测试之外 ----------
    以前「46564 项通过」只说明「切片里的函数两版一样」，不代表 core.js 全被覆盖：
    实际有 9 个小程序专属的辅助函数从来没进过比对。这里把清单钉死，

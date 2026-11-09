@@ -88,6 +88,7 @@ Page({
         base: String(core.monthBase(db, ym)),
         rate: String(core.monthRate(db, ym))
       },
+      ghostDays: core.fmtShort(c.ghostDays),
       checked: c.checked,
       dayCount: c.filledDays,
       hasRecord: c.filledDays > 0

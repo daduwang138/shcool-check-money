@@ -614,7 +614,8 @@ function ratesOf(db) {
 function rateName(db, rid) {
   var l = ratesOf(db);
   for (var i = 0; i < l.length; i++) { if (l[i].id === rid) { return l[i].name; } }
-  return l[0].name;
+  /* 档位被删掉后，旧记录不能伪装成「正课」把数据缺失盖住 */
+  return '已删除档位';
 }
 /* 某天某档的单价：默认档走月度冻结价，附加档走月度快照，没快照才用设置里的现价 */
 function priceOf(db, ym, rid) {
@@ -640,11 +641,14 @@ function nightOf(db, ym) {
 function computeMonth(db, ym) {
   var q = ymd(ym + '-01'), y = q[0], m = q[1];
   var n = new Date(y, m, 0).getDate();
-  var half = 0, lessons = 0, filledDays = 0, byMap = {}, nightCount = 0;
+  var half = 0, lessons = 0, filledDays = 0, byMap = {}, nightCount = 0, ghostHalf = 0;
   var counted = { work: 0, inv: 0, ot: 0, leave: 0 };
   for (var d = 1; d <= n; d++) {
     var k = dk(y, m, d), rec0 = peek(db, k);
     if (preStart(db, k)) continue;
+    /* 「默认全勤」是推算出来的、没有点开确认过，单独记下来给核对单提醒 */
+    if (isGhostHalf(db, k, 'am')) { ghostHalf++; }
+    if (isGhostHalf(db, k, 'pm')) { ghostHalf++; }
     var a = effHalf(db, k, 'am'), b = effHalf(db, k, 'pm');
     if (a === 'work' || a === 'inv' || a === 'ot') { half++; counted[a]++; }
     else if (a === 'leave') { counted.leave++; }
@@ -677,7 +681,9 @@ function computeMonth(db, ym) {
   var capped = Math.min(actual, workdays);
   var extra = Math.max(actual - workdays, 0);
   var basePart = round2(dailyRate * capped);
-  var extraPart = round2(dailyRate * extra);
+  /* ①② 其实是同一个日薪的拆分：先对「实际出勤 × 日薪」一次舍入，
+     尾差归到 ②，保证 ①+② 与合计严格对得上，不会各舍各的差 1 分 */
+  var extraPart = round2(round2(dailyRate * actual) - basePart);
   var byRate = [], lessonFee = 0;
   if (db.settings.enableLesson) {
     ratesOf(db).forEach(function (r) { if (byMap[r.id]) { byRate.push(byMap[r.id]); } });
@@ -695,6 +701,7 @@ function computeMonth(db, ym) {
   var nightFee = round2(nightCount * np.fee);
   return {
     ym: ym, workdays: workdays, actual: actual, half: half, lessons: lessons, filledDays: filledDays,
+    ghostDays: ghostHalf / 2,
     dailyRate: dailyRate, base: base, rate: rate, byRate: byRate,
     capped: capped, extra: extra, basePart: basePart, extraPart: extraPart, lessonFee: lessonFee,
     nightCount: nightCount, nightHours: nightHours, nightFee: nightFee,
@@ -712,6 +719,7 @@ function sumText(c){
   L.push("————————————————");
   L.push("法定工作日："+c.workdays+" 天");
   L.push("实际出勤："+fmtShort(c.actual)+" 天（上班 "+c.counted.work+" / 监考 "+c.counted.inv+" / 加班 "+c.counted.ot+" 半天，请假 "+c.counted.leave+" 半天）");
+  if(c.ghostDays>0)L.push("注意：其中 "+fmtShort(c.ghostDays)+" 天是系统默认推算的上班、尚未点开确认，请假或调休请先改日历");
   L.push("课时合计："+c.lessons+" 节");
   /* 用了多档单价才列明细，只有一档时不必多一行 */
   if(c.byRate&&c.byRate.length>1){
