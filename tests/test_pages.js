@@ -660,9 +660,11 @@ sumN.db.settings.rates = [
   { id: 'default', name: '正课', price: 120 }, { id: 'eve', name: '晚自习', price: 80 }
 ];
 sumN.db.settings.nightFee = 10;
-delete sumN.db.months[ymN].rates;
-delete sumN.db.months[ymN].night;
-sumN.render();                                   /* 这一遍把 80 / 10 冻进本月 */
+var mpN = core.monthP(sumN.db, ymN);
+delete mpN.rates;
+delete mpN.night;
+/* 渲染不再写库：改由写路径显式把 80 / 10 冻进本月 */
+core.freezeMonth(sumN.db, ymN);
 sumN.db.settings.rates[1].price = 150;
 sumN.db.settings.nightFee = 25;
 sumN.render();

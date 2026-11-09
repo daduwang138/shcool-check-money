@@ -193,8 +193,8 @@ for (const [label, raw] of cases) {
   eq('多档·课时费合计', cc.lessonFee, 2 * 120 + (4 + 6) * 80);
   eq('多档·总额', cc.total, Math.round((cc.basePart + cc.extraPart + cc.lessonFee) * 100) / 100);
 
-  /* 记过账的月份把附加档价格也冻住 */
-  ctx.computeMonth('2026-10'); core.computeMonth(c, '2026-10');
+  /* 记过账的月份把附加档价格也冻住：冻结是写操作，由 freezeMonth 显式完成 */
+  ctx.freezeMonth('2026-10'); core.freezeMonth(c, '2026-10');
   c.settings.rates[1].price = 999; h.settings.rates[1].price = 999;
   eq('多档·改价不影响记过的月份', core.computeMonth(c, '2026-10').lessonFee, cc.lessonFee);
   eq('多档·两版冻结一致', ctx.computeMonth('2026-10').lessonFee, core.computeMonth(c, '2026-10').lessonFee);
@@ -307,7 +307,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     eq('冻结·两版一致', ctx.computeMonth('2026-11').base, core.computeMonth(c, '2026-11').base);
   }
 
-  /* 7.2 记过一天：第一次渲染时落盘，之后改设置不影响 */
+  /* 7.2 记过一天：写记录时就落定，之后改设置不影响 */
   {
     const { h, c } = fresh();
     ctx.DB = h;
@@ -325,7 +325,8 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     ctx.DB = h;
     ctx.monthP('2026-11').checked = true;
     core.monthP(c, '2026-11').checked = true;
-    ctx.computeMonth('2026-11'); core.computeMonth(c, '2026-11');
+    /* 标记已核对是写操作，页面会在落盘前显式冻结 */
+    ctx.freezeMonth('2026-11'); core.freezeMonth(c, '2026-11');
     h.settings.rate = 300; c.settings.rate = 300;
     eq('冻结·标过核对的月份不跟设置变', core.computeMonth(c, '2026-11').rate, 120);
     eq('冻结·两版一致', ctx.computeMonth('2026-11').rate, core.computeMonth(c, '2026-11').rate);
@@ -340,6 +341,24 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     h.settings.baseSalary = 20000; c.settings.baseSalary = 20000;
     eq('冻结·手填 0 也算已定', core.computeMonth(c, '2026-11').base, 0);
     eq('冻结·两版一致', ctx.computeMonth('2026-11').base, core.computeMonth(c, '2026-11').base);
+  }
+
+  /* 7.5 只读不改库：算工资、导出都是纯读；只有写记录才把参数定下来 */
+  {
+    const { h, c } = fresh();
+    ctx.DB = h;
+    const before = JSON.stringify(c.months);
+    core.computeMonth(c, '2026-11');
+    ctx.computeMonth('2026-11');
+    eq('冻结·computeMonth 不改库(内核)', JSON.stringify(c.months), before);
+    eq('冻结·computeMonth 不改库(电脑版)', JSON.stringify(h.months), before);
+    core.buildExportCsv(c, ['2026-11'], true, true);
+    eq('冻结·导出 CSV 不改库', JSON.stringify(c.months), before);
+    /* 写一天后才定参数，且两版一致 */
+    ctx.setRecord('2026-11-03', 'work', 'work', 2, '');
+    core.setRecord(c, '2026-11-03', 'work', 'work', 2, '');
+    eq('冻结·写记录才冻', core.monthP(c, '2026-11').base, 8000);
+    eq('冻结·写记录两版一致', ctx.monthP('2026-11').base, core.monthP(c, '2026-11').base);
   }
 }
 
@@ -528,6 +547,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     csv.split('\r\n').filter(l => l.indexOf('导出时间') < 0).join('\r\n'));
 
   /* 记过账的月份按当时的价冻着，学校后来调价不追溯改旧账 */
+  ctx.freezeMonth('2026-10'); core.freezeMonth(c, '2026-10');
   c.settings.nightFee = 25; h.settings.nightFee = 25;
   c.settings.nightHours = 3; h.settings.nightHours = 3;
   eq('晚修·改价不影响记过的月份', [core.computeMonth(c, '2026-10').nightFee, core.computeMonth(c, '2026-10').nightHours], [40, 8]);
@@ -592,8 +612,9 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   };
   const { c, h } = mkBoth();
   ctx.DB = h;
+  /* 预置的账相当于「已经写过」，冻结走显式入口，不再靠渲染顺带触发 */
   ['2026-10', '2026-11', '2026-12'].forEach(function (ym) {
-    core.computeMonth(c, ym); ctx.computeMonth(ym);
+    core.freezeMonth(c, ym); ctx.freezeMonth(ym);
   });
   /* 学校从 11 月起涨价：正课 200、晚自习 150、晚修 3 小时 25 元/次 */
   [c, h].forEach(function (d) {

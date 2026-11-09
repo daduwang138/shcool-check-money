@@ -902,6 +902,7 @@ function autoFillLessons(ym,today){
     r.lessons=v;r.lset=true;r.upd=Date.now();
     res.filled++;
   }
+  if(res.filled>0)freezeMonth(ym);
   return res;
 }
 function coursePreviewText(){
@@ -1046,6 +1047,8 @@ function setRecord(key,am,pm,lessons,note,lset,rid,night){
     /* 0 次不写字段，跟 rid 一个道理：数据能少一个键就少一个 */
     if(ni>0)DB.days[key].night=ni;
   }
+  /* 写过这个月，就把当月计薪参数定下来；不靠「什么时候渲染」来决定 */
+  if(typeof key==="string"&&key.length>=7)freezeMonth(key.slice(0,7));
 }
 /* 这月有没有经手过：落过任意一条日记录，或标记过已核对。
    用来区分「真的记过」和「只是翻看了一眼」——只有前者才冻结工资参数。 */
@@ -1056,29 +1059,30 @@ function monthTouched(ym){
   for(var k in days){if(k.slice(0,7)===ym)return true;}
   return false;
 }
+/* 只负责「拿到这个月可写的参数对象」，不填价格、不冻结。
+   读参数一律直接用 DB.months[ym] || {}；渲染、汇总、导出都不许改库。
+   冻结是写操作，统一由 freezeMonth() 在写日记录 / 标记核对时显式调用。 */
 function monthP(ym){
+  if(!DB.months)DB.months={};
   var p=DB.months[ym];
   if(!p){p=DB.months[ym]={};}
-  var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
-  /* workdays 同理：只有这月真记过东西才落盘，否则先翻看到 2027 年 2 月（按朴素规则
-     算出 20 天）之后再补春节假期，这个月也不会重算，用户会以为填了没生效。 */
-  if(p.workdays==null&&monthTouched(ym))p.workdays=autoWorkdays(y,m);
   if(p.checked==null)p.checked=false;
-  /* base/rate 是「冻结值」：只有这月真记过东西才落盘。翻看了一眼的月份不冻，
-     改设置时要跟着走，否则「不影响已记录月份」会变成「打开过就冻住」。
-     用 == null 判断：手动把某月工资改成 0 也算已冻结，不能因为 0 是 falsy 又跟回设置值。 */
-  if(p.base==null&&monthTouched(ym))p.base=DB.settings.baseSalary;
-  if(p.rate==null&&monthTouched(ym))p.rate=DB.settings.rate;
-  /* 附加档位（晚自习之类）的价格也一样冻：记过账的月份不能因为后来调价而变钱 */
-  if(p.rates==null&&monthTouched(ym)){
+  return p;
+}
+/* 冻结当月参数：只有「真经手过」的月份才定下来；只补缺失字段，手填 0 也算已定 */
+function freezeMonth(ym){
+  var p=monthP(ym);
+  if(!monthTouched(ym))return p;
+  var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
+  if(p.workdays==null)p.workdays=autoWorkdays(y,m);
+  if(p.base==null)p.base=DB.settings.baseSalary;
+  if(p.rate==null)p.rate=DB.settings.rate;
+  if(p.rates==null){
     var snap={};
     ratesOf(DB).forEach(function(r){if(r.id!=="default")snap[r.id]=r.price;});
     p.rates=snap;
   }
-  /* 晚修监考的次数单价同理：学校调价不该追溯改旧账 */
-  if(p.night==null&&monthTouched(ym)){
-    p.night={hours:parseFloat(DB.settings.nightHours)||0,fee:parseFloat(DB.settings.nightFee)||0};
-  }
+  if(p.night==null)p.night={hours:parseFloat(DB.settings.nightHours)||0,fee:parseFloat(DB.settings.nightFee)||0};
   return p;
 }
 /* 本月实际生效的基数与单价：有冻结值用冻结值，没有就跟当前设置 */
@@ -1148,7 +1152,8 @@ function computeMonth(ym){
       if(rec0.am||rec0.pm||rec0.lessons||rec0.note||rec0.night)filledDays++;
     }
   }
-  var p=monthP(ym);
+  /* 纯读：算工资、导出、复制核对单都不许顺手把当月参数冻上 */
+  var p=DB.months[ym]||{};
   var workdays=(p.workdays!=null)?p.workdays:autoWorkdays(y,m);
   var base=DB.settings.enableBase?(monthBase(ym)||0):0;
   var rate=DB.settings.enableLesson?(monthRate(ym)||0):0;
@@ -1906,7 +1911,10 @@ function shiftMonth(delta){
 /* 渲染前把当月已过去的日子按课程表补齐。
    函数是幂等的（填过的日子有 lset，不会再写），每次 render 跑一遍很便宜；
    撤销会把这个月记进 AUTO_BLOCKED，不会又自动填回来。 */
+var SKIP_AUTO_ONCE=false;
 function maybeAutoFill(){
+  /* 撤销后紧跟的那次渲染不许把刚回滚的课时又自动填回来 */
+  if(SKIP_AUTO_ONCE){SKIP_AUTO_ONCE=false;return;}
   if(!DB||!CUR||AUTO_BLOCKED[CUR])return;
   var ym=CUR,snap={},msnap=snapMonths();
   var q=ymd(ym+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate();
@@ -2037,7 +2045,8 @@ function showSelBar(){
    本次打开页面里每个月只问一次，之后这一轮编辑直接放行（刷新页面重新问）。 */
 var CHECKED_OK={};
 function editOK(ym,msg){
-  if(!monthP(ym).checked||CHECKED_OK[ym])return true;
+  /* 只读 checked，别为了看一眼就把当月参数冻上 */
+  if(!(DB.months[ym]&&DB.months[ym].checked)||CHECKED_OK[ym])return true;
   if(!confirm(msg))return false;
   CHECKED_OK[ym]=true;
   return true;
@@ -2061,6 +2070,7 @@ function showUndo(msg,snap,msnap){
 }
 function undoApply(){
   if(!UNDO)return;
+  SKIP_AUTO_ONCE=true;
   /* 撤销自动落账 = 这个月别再自动填回来；想以后都不填，去设置里关开关 */
   var autoUndo=!!(UNDO.auto&&UNDO.ym);
   if(autoUndo)AUTO_BLOCKED[UNDO.ym]=true;
@@ -2084,7 +2094,7 @@ function applyKeys(keys,am,pm,clearLes,quiet){
   keys=keys.filter(function(k){return !preStart(k);});
   if(!keys.length)return false;
   var checked={};
-  keys.forEach(function(k){var ym=k.slice(0,7);if(monthP(ym).checked)checked[ym]=1;});
+  keys.forEach(function(k){var ym=k.slice(0,7);var mp=DB.months[ym]||{};if(mp.checked)checked[ym]=1;});
   var cm=Object.keys(checked);
   if(cm.length&&!editOKList(cm,"选中范围包含已标记核对的月份（"+cm.join("、")+"），仍要修改吗？"))return false;
   var msnap=snapMonths();
@@ -2317,7 +2327,7 @@ function stepDay(delta){
 /* 明细表「只看有课或有备注」：这是个看表的姿势，不属于数据，不落库 */
 var SUM_ONLY=false;
 function renderSum(){
-  var c=computeMonth(CUR), p=monthP(CUR);
+  var c=computeMonth(CUR);
   var v=$("view-sum");
   var rows="";
   var y=ymd(CUR+"-01")[0],m=ymd(CUR+"-01")[1],n=new Date(y,m,0).getDate();
@@ -2371,7 +2381,7 @@ function renderSum(){
   html+='<div class="card">';
   html+='<h2>计算过程</h2>';
   html+='<table><tbody>';
-  html+='<tr class="hi"><td>① 基本工资部分<br><span class="faint">'+fmt(c.dailyRate)+' × ¥'+fmtShort(c.base)+' ÷ '+c.workdays+' 天，取 '+fmtShort(c.capped)+' 天</span></td><td class="num">¥'+fmt(c.basePart)+'</td></tr>';
+  html+='<tr class="hi"><td>① 基本工资部分<br><span class="faint">¥'+fmtShort(c.base)+' ÷ '+c.workdays+' 天 × '+fmtShort(c.capped)+' 天</span></td><td class="num">¥'+fmt(c.basePart)+'</td></tr>';
   html+='<tr class="hi"><td>② 超出天数部分<br><span class="faint">超出 '+fmtShort(c.extra)+' 天（实际 '+fmtShort(c.actual)+' − 应上 '+c.workdays+'）</span></td><td class="num">¥'+fmt(c.extraPart)+'</td></tr>';
   /* 只有一档时写「N 节 × 单价」；分了档就得把每档列出来，
      否则 64 节 × 120 算不出按档累加的真实金额，用户会以为算错 */
@@ -2401,21 +2411,21 @@ function renderSum(){
 
   $("sumWorkdays").addEventListener("change",function(){
     var val=parseFloat(this.value); if(isNaN(val)||val<0)val=0;
-    p.workdays=val; persist().then(function(){renderSum();renderCal();});
+    var p=monthP(CUR); p.workdays=val; freezeMonth(CUR); persist().then(function(){renderSum();renderCal();});
   });
   $("sumBase").addEventListener("change",function(){
     var val=parseFloat(this.value); if(isNaN(val)||val<0)val=0;
-    p.base=val; persist().then(function(){renderSum();renderCal();});
+    var p=monthP(CUR); p.base=val; freezeMonth(CUR); persist().then(function(){renderSum();renderCal();});
   });
   $("sumRate").addEventListener("change",function(){
     var val=parseFloat(this.value); if(isNaN(val)||val<0)val=0;
-    p.rate=val; persist().then(function(){renderSum();renderCal();});
+    var p=monthP(CUR); p.rate=val; freezeMonth(CUR); persist().then(function(){renderSum();renderCal();});
   });
   $("sumCopy").addEventListener("click",function(){copySummary(c);});
   $("sumCsv").addEventListener("click",function(){exportCsv(CUR);});
   $("sumExport").addEventListener("click",function(){openExport("cur");});
   $("sumToggleCheck").addEventListener("click",function(){
-    p.checked=!p.checked;
+    var p=monthP(CUR); p.checked=!p.checked; freezeMonth(CUR);
     persist().then(function(){renderSum();renderCal();});
   });
   $("sumOnly").addEventListener("change",function(){
@@ -3726,6 +3736,7 @@ function bindEvents(){
       if(!r.pm)r.pm=b0||"";
       r.lessons=v;r.lset=true;r.upd=Date.now();filled++;
     }
+    if(filled>0)freezeMonth(CUR);
     persist().then(function(){
       toast("已填 "+filled+" 天课时"+(skipped?"，跳过 "+skipped+" 天已有记录":"")+(hol?"，法定节假日 "+hol+" 天不填":""));
       renderCal();
@@ -3745,6 +3756,7 @@ function bindEvents(){
       cnt++;
     }
     if(!cnt){toast("本月没有需要恢复的日子");return;}
+    freezeMonth(CUR);
     showUndo("已恢复默认出勤 "+cnt+" 天",snap,msnap);
     persist().then(function(){toast("已恢复 "+cnt+" 天默认出勤");renderCal();});
   });
@@ -3762,7 +3774,9 @@ function bindEvents(){
         delete DB.days[k];
       }
     }
-    p.checked=false;
+    /* 这里原先写的是未定义的 p，清空会在落盘前抛异常、连撤销条都不出来 */
+    monthP(CUR).checked=false;
+    freezeMonth(CUR);
     showUndo("已清空 "+CUR,snap,msnap);
     persist().then(function(){toast("已清空，出勤归 0");renderCal();});
   });

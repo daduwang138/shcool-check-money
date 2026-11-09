@@ -34,7 +34,7 @@ Page({
   render: function () {
     var db = this.db, ym = this.data.ym;
     var c = core.computeMonth(db, ym);
-    var p = core.monthP(db, ym);
+    /* 只读渲染：不再借 monthP 顺手把当月参数冻上 */
     var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
 
     var rows = [
@@ -107,6 +107,7 @@ Page({
     if (isNaN(v) || v < 0 || v > 31) { this.render(); return; }
     var p = core.monthP(this.db, this.data.ym);
     p.workdays = v;
+    core.freezeMonth(this.db, this.data.ym);
     store.save(this.db);
     this.render();
   },
@@ -116,6 +117,7 @@ Page({
     if (isNaN(v) || v < 0) { this.render(); return; }
     var p = core.monthP(this.db, this.data.ym);
     p.base = v;
+    core.freezeMonth(this.db, this.data.ym);
     store.save(this.db);
     this.render();
   },
@@ -125,6 +127,7 @@ Page({
     if (isNaN(v) || v < 0) { this.render(); return; }
     var p = core.monthP(this.db, this.data.ym);
     p.rate = v;
+    core.freezeMonth(this.db, this.data.ym);
     store.save(this.db);
     this.render();
   },
@@ -132,6 +135,7 @@ Page({
   toggleChecked: function (e) {
     var p = core.monthP(this.db, this.data.ym);
     p.checked = !!e.detail.value;
+    core.freezeMonth(this.db, this.data.ym);
     store.save(this.db);
     this.render();
     wx.showToast({ title: p.checked ? '本月已标记核对' : '已取消核对标记', icon: 'none' });
