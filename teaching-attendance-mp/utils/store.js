@@ -131,7 +131,9 @@ function exportText(name, text) {
       wx.setClipboardData({
         data: text,
         success: function () { resolve('已复制到剪贴板（当前客户端不支持存文件），粘贴到记事本另存即可'); },
-        fail: function () { reject(err); }
+        fail: function () {
+          reject(new Error('导出失败：当前客户端既不能存文件、也无法写入剪贴板。请换客户端导出，或先不要清理本机数据'));
+        }
       });
     });
   });

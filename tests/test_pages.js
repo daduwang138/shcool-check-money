@@ -1206,6 +1206,23 @@ ok(mres.future === 1, '返回未来时间戳的条数');
 ok(mres.conflicts >= 1, '两边不一致的日子被记为冲突');
 ok(!!mLocal.days['2026-11-04'], '没有冲突的新日子照常导入');
 
+/* 连续操作合并为一个撤销点：撤销条还在时沿用最早那份快照 */
+reset();
+mem['kqzb_db_v1'] = JSON.stringify(seedDb());
+const uCal = makePage('calendar');
+uCal.db = stShared.load();
+uCal.data.ym = '2026-11';
+uCal.hideUndo();
+uCal._beginUndo('sheet-A');
+const snapFirst = uCal._undo.snap;
+uCal.showUndo('第一次');
+uCal.db.days['2026-11-05'] = { am: 'work', pm: 'work', lessons: 1, note: '第二次操作', upd: Date.now() };
+uCal._beginUndo('sheet-A');
+ok(uCal._undo.snap === snapFirst, '同一批连续操作沿用最早的快照');
+uCal._beginUndo('sheet-B');
+ok(uCal._undo.snap !== snapFirst, '不同批次重新拍快照');
+uCal.hideUndo();
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }
 console.log('页面逻辑全部通过');

@@ -594,6 +594,8 @@ Page({
   },
 
   openSheet: function (k) {
+    /* 同一次面板会话里的翻天补记算一批，撤销一次就能全回去 */
+    this._sheetBatch = 'sheet-' + k + '-' + Date.now();
     var db = this.db, r = core.peek(db, k);
     var am = r ? (r.am || '') : core.effHalf(db, k, 'am');
     var pm = r ? (r.pm || '') : core.effHalf(db, k, 'pm');
@@ -745,7 +747,7 @@ Page({
     var s = this.data.sheet;
     if (!s) { return; }
     var note = (this._note === undefined ? s.note : this._note) || '';
-    this._beginUndo();
+    this._beginUndo(this._sheetBatch);
     core.setRecord(this.db, s.key, s.am, s.pm, s.lessons, note, undefined, s.rid, s.night);
     store.save(this.db);
   },
@@ -889,7 +891,11 @@ Page({
     this.showUndo('已按课程表自动记入 ' + r.filled + ' 天课时');
   },
 
-  _beginUndo: function () {
+  _beginUndo: function (batchKey) {
+    /* 只有同一批连续操作（面板里翻天补记）才沿用第一次的快照：
+       一次撤销回到这一批操作之前，而不是只回滚最后一天。
+       其它操作各自独立拍快照，别把已经做完的改动一起撤掉。 */
+    if (batchKey && this._undo && this._undoTimer && this._undo.batchKey === batchKey) { return; }
     var db = this.db, ym = this.data.ym;
     var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
     var n = core.daysInMonth(ym), snap = {};
@@ -897,7 +903,7 @@ Page({
       var k = core.dk(y, m, d);
       snap[k] = db.days[k] ? JSON.parse(JSON.stringify(db.days[k])) : null;
     }
-    this._undo = { msg: ym, snap: snap, msnap: JSON.parse(JSON.stringify(db.months || {})) };
+    this._undo = { msg: ym, snap: snap, msnap: JSON.parse(JSON.stringify(db.months || {})), batchKey: batchKey || null };
   },
 
   showUndo: function (label) {
