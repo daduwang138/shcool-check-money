@@ -39,7 +39,8 @@ function extractFn(text, mark) {
 }
 const EXTRA_FNS = [
   'function ymOf(k){', 'function isYm(v){', 'function monthKeysOf(db){',
-  'function hasContent(r){', 'function dayCount(db){', 'function localKeys(){'
+  'function hasContent(r){', 'function dayCount(db){', 'function localKeys(){',
+  'function mergeMissingDays(src){'
 ];
 vm.runInContext(EXTRA_FNS.map(m => extractFn(html, m)).join('\n'), ctx);
 
@@ -640,6 +641,27 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     && l.indexOf('晚修监考 3 小时 25 元/次') >= 0), true);
   eq('对账·10 月晚修补贴按 10 元算', core.computeMonth(c, '2026-10').nightFee, 20);
   eq('对账·2027-02 没记录不产生晚修费', core.computeMonth(c, '2027-02').nightFee, 0);
+}
+
+/* ---------- 10.5 文件合并：逐日按 upd 裁决，删除不被旧文件复活 ---------- */
+{
+  const local = ctx.normalize(mkLegacy());
+  ctx.DB = local;
+  const tomb = { am: '', pm: '', lessons: 0, note: '', off: true, upd: 9999999999999 };
+  local.days['2026-10-08'] = tomb;
+  const n1 = ctx.mergeMissingDays({ days: {
+    '2026-10-08': { am: 'work', pm: 'work', lessons: 4, note: '文件里的旧记录', upd: 100 }
+  }});
+  eq('文件裁决·删除墓碑不被旧记录复活', local.days['2026-10-08'], tomb);
+  eq('文件裁决·复活不算改动', n1, 0);
+  ctx.mergeMissingDays({ days: {
+    '2026-10-09': { am: 'inv', pm: 'inv', lessons: 1, note: '另一台电脑改的', upd: 9999999999998 }
+  }});
+  eq('文件裁决·文件较新的天被采用', local.days['2026-10-09'].note, '另一台电脑改的');
+  const n3 = ctx.mergeMissingDays({ days: {
+    '2026-11-20': { am: 'work', pm: 'work', lessons: 2, note: '文件独有的天', upd: 1 }
+  }});
+  eq('文件裁决·文件独有的天补进来', [n3, local.days['2026-11-20'].note], [1, '文件独有的天']);
 }
 
 /* ---------- 11. 覆盖哨兵：不许新函数悄悄落到测试之外 ----------

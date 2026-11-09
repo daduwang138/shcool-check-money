@@ -621,6 +621,7 @@ var EXP={from:"",to:""};
 var CALCELLS=[], POS={};
 var DRAG={on:false,moved:false,sx:0,sy:0,startKey:null}, SELKEYS=[], SUPPRESS_CLICK=false, UNDO=null;
 var AUTO_BLOCKED={};   /* 撤销过自动落账的月份：本次打开不再自动填 */
+var LAST_WRITE=0, OTHER_TAB_WARNED=false;  /* 多标签页检测：本页最后一次写入的 savedAt */
 
 var STATES={
   "":{label:"空",cls:"s-empty",ch:""},
@@ -1372,11 +1373,19 @@ function dayCount(db){
     return hasContent(db.days[k]);
   }).length;
 }
-/* 把文件里有、本机没有的天补进来（本机已有的以本机为准）。返回补了几条 */
+/* 逐日裁决：文件独有的天补进来；两边都有的按 upd 取较新。返回改了几条。
+   本机刚删掉的天会留下 off 墓碑和新的 upd，所以不会被文件里的旧记录「复活」；
+   另一台电脑改过的天也能同步进来，不再一律「本机优先」。 */
 function mergeMissingDays(src){
   var n=0;
   Object.keys((src&&src.days)||{}).forEach(function(k){
-    if(!hasContent(DB.days[k])&&hasContent(src.days[k])){DB.days[k]=src.days[k];n++;}
+    var a=DB.days[k], b=src.days[k];
+    if(!b)return;
+    if(!a){
+      if(hasContent(b)){DB.days[k]=b;n++;}
+      return;
+    }
+    if((b.upd||0)>(a.upd||0)){DB.days[k]=b;n++;}
   });
   return n;
 }
@@ -1632,8 +1641,18 @@ function writeDbToDir(force){
   });
 }
 function persist(){
+  /* 另一个标签页已经写过这份账本时，本页内存是旧快照，直接写会把它覆盖掉 */
+  if(otherTabNewer()){
+    if(!OTHER_TAB_WARNED){
+      OTHER_TAB_WARNED=true;
+      toast("检测到另一个标签页也在记账，本页已暂停写盘以免互相覆盖。请只保留一个标签页后刷新");
+    }
+    return Promise.resolve();
+  }
   return serialize().then(function(raw){
     localStorage.setItem(DB_KEY,raw);
+    META.savedAt=DB.savedAt;
+    LAST_WRITE=DB.savedAt;
     localStorage.setItem(META_KEY,JSON.stringify(META));
     if(DIR&&FILE_LOCKED){
       if(!DIRWARNED){
@@ -1859,9 +1878,18 @@ function downloadJson(){
     toast("已下载 "+name+"："+(n?n+" 天记录":"空记录")+" · 整库一个文件，在「下载」文件夹");
   });
 }
+/* 别的标签页写过吗？META 始终是明文，savedAt 可以跨加密/明文状态比较 */
+function otherTabNewer(){
+  try{
+    var meta=localStorage.getItem(META_KEY);
+    var m=meta?JSON.parse(meta):null;
+    return !!(m&&m.savedAt&&m.savedAt>LAST_WRITE);
+  }catch(e){return false;}
+}
 function loadRaw(){
   var meta=localStorage.getItem(META_KEY);
   if(meta){try{META=JSON.parse(meta);}catch(e){}}
+  LAST_WRITE=(META&&META.savedAt)||0;
   return localStorage.getItem(DB_KEY);
 }
 function idbGet(k){
