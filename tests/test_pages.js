@@ -1180,6 +1180,32 @@ ok(current().settings.autoLessons === true && afSet.data.autoLessons === true,
 /* 批量套用留下的撤销条计时器也收掉，否则 node 要多等 10 秒才退出 */
 if (typeof bcal !== 'undefined' && bcal.hideUndo) { bcal.hideUndo(); }
 
+/* 跨页面共用一份数据引用：避免 A 页面的旧副本把 B 页面刚写的数据整库盖掉 */
+reset();
+const stShared = require(path.join(ROOT, 'utils/store.js'));
+mem['kqzb_db_v1'] = JSON.stringify(seedDb());
+const sharedA = stShared.load();
+const sharedB = stShared.load();
+ok(sharedA === sharedB, 'store.load 内容未变时共用同一份数据引用');
+sharedA.days['2026-11-20'] = { am: 'work', pm: 'work', lessons: 1, note: 'A 页面写的', upd: Date.now() };
+stShared.save(sharedA);
+const sharedC = stShared.load();
+ok(sharedB.days['2026-11-20'] && sharedB.days['2026-11-20'].note === 'A 页面写的',
+  'B 页面持有的引用能看到 A 页面刚保存的记录');
+ok(sharedC === sharedB, '保存后 load 仍是同一份引用');
+
+/* 导入合并：时钟超前的设备不能吞掉本机新账，冲突要看得见 */
+const mLocal = core.blankDB();
+mLocal.days['2026-11-03'] = { am: 'work', pm: 'work', lessons: 2, note: '本机新', upd: Date.now() };
+const mIncoming = core.blankDB();
+mIncoming.days['2026-11-03'] = { am: 'work', pm: 'work', lessons: 9, note: '时钟快一天', upd: Date.now() + 86400000 };
+mIncoming.days['2026-11-04'] = { am: 'work', pm: 'work', lessons: 1, note: '新的一天', upd: Date.now() };
+const mres = stShared.mergeInto(mLocal, mIncoming);
+ok(mLocal.days['2026-11-03'].lessons === 2, '时间戳超前的导入记录不覆盖本机新账');
+ok(mres.future === 1, '返回未来时间戳的条数');
+ok(mres.conflicts >= 1, '两边不一致的日子被记为冲突');
+ok(!!mLocal.days['2026-11-04'], '没有冲突的新日子照常导入');
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }
 console.log('页面逻辑全部通过');
