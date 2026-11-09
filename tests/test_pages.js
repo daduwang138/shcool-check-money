@@ -839,8 +839,9 @@ hol.addOff();
 ok(current().settings.holidays[HY].off.length === offBefore, '跨年的段拦住了');
 ok(toasts.some(t => /跨年/.test(t)), '跨年给出提示', toasts.join(' / '));
 
-/* 已记过账的月份要提醒不会重算 */
-ok(new RegExp('3 月').test(hol.data.touched), '有记录的月份给出不重算提示', hol.data.touched);
+/* 已记过账的月份要说明：自动算出的天数会重算，手填的保留 */
+ok(new RegExp('3 月').test(hol.data.touched) && /重算/.test(hol.data.touched),
+  '有记录的月份说明重算口径', hol.data.touched);
 
 hol.delOff({ currentTarget: { dataset: { i: 0 } } });
 ok(current().settings.holidays[HY].off.length === 0, '休假段可以删');

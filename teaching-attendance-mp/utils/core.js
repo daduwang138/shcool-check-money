@@ -590,6 +590,21 @@ function freezeMonth(db, ym) {
   return p;
 }
 
+/* 手工导入 / 修改放假安排「之前」调用：让该年自动算出来的应上班天数能跟着重算。
+   用旧假期表算一遍，与该月冻结值相同就说明是自动值，删掉后 computeMonth 会按新表重算；
+   用户在汇总页手填过的值与自动值不同，保留不动。不这么做，导入了也看不出变化。 */
+function refreshWorkdays(db, y) {
+  var n = 0;
+  Object.keys(db.months || {}).forEach(function (ym) {
+    if (parseInt(ym.slice(0, 4), 10) !== y) { return; }
+    var p = db.months[ym];
+    if (!p || p.workdays == null) { return; }
+    var m = parseInt(ym.slice(5, 7), 10);
+    if (p.workdays === autoWorkdays(y, m, db)) { delete p.workdays; n++; }
+  });
+  return n;
+}
+
 /* 本月实际生效的基数与单价：有冻结值用冻结值，没有就跟当前设置 */
 function monthBase(db, ym) {
   var p = db.months[ym];
@@ -842,7 +857,7 @@ module.exports = {
   STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS,
   pad: pad, dk: dk, ymd: ymd, todayKey: todayKey,
   round2: round2, num2: num2, fmt: fmt, fmtShort: fmtShort, sl: sl,
-  isWorkday: isWorkday, autoWorkdays: autoWorkdays, isHoliday: isHoliday,
+  isWorkday: isWorkday, autoWorkdays: autoWorkdays, refreshWorkdays: refreshWorkdays, isHoliday: isHoliday,
   holidayOf: holidayOf, addHolidaySpan: addHolidaySpan, delHolidaySpan: delHolidaySpan,
   clearHolidayYear: clearHolidayYear, holidayYears: holidayYears,
   parseHolidayJson: parseHolidayJson, parseHolidayPacket: parseHolidayPacket,

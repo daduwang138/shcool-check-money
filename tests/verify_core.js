@@ -681,6 +681,34 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('档位·删掉的档位不再伪装成正课', core.rateName(g, 'gone'), '已删除档位');
 }
 
+/* ---------- 10.7 口径：全勤只拿基本工资，课时费只来自真记的课时 ---------- */
+{
+  const q = core.blankDB();
+  const qm = core.computeMonth(q, '2026-11');
+  eq('口径·默认全勤只给基本工资', [qm.lessons, qm.lessonFee, qm.total], [0, 0, qm.base]);
+  core.setRecord(q, '2026-11-03', 'work', 'work', 0, '');
+  eq('口径·只记出勤没有课时费', core.computeMonth(q, '2026-11').lessonFee, 0);
+  core.setRecord(q, '2026-11-04', 'work', 'work', 2, '');
+  eq('口径·记 2 节才有 2 节的钱', core.computeMonth(q, '2026-11').lessonFee, 2 * core.monthRate(q, '2026-11'));
+}
+
+/* ---------- 10.8 手工导入放假安排：自动工作日重算，手填值保留 ---------- */
+{
+  const hw = core.blankDB();
+  hw.months['2027-02'] = { workdays: core.autoWorkdays(2027, 2, hw), base: 8000, rate: 120 };
+  hw.months['2027-03'] = { workdays: 17, base: 8000, rate: 120 };
+  const hn = core.refreshWorkdays(hw, 2027);
+  eq('放假导入·清掉自动值的月份数', hn, 1);
+  eq('放假导入·自动值被清掉待重算', 'workdays' in hw.months['2027-02'], false);
+  eq('放假导入·手填值保留', hw.months['2027-03'].workdays, 17);
+  const hh = ctx.normalize(core.blankDB());
+  ctx.DB = hh;
+  hh.months['2027-02'] = { workdays: ctx.autoWorkdays(2027, 2), base: 8000, rate: 120 };
+  hh.months['2027-03'] = { workdays: 17, base: 8000, rate: 120 };
+  eq('放假导入·两版一致', ctx.refreshWorkdays(2027), hn);
+  eq('放假导入·电脑版手填值也保留', hh.months['2027-03'].workdays, 17);
+}
+
 /* ---------- 11. 覆盖哨兵：不许新函数悄悄落到测试之外 ----------
    以前「46564 项通过」只说明「切片里的函数两版一样」，不代表 core.js 全被覆盖：
    实际有 9 个小程序专属的辅助函数从来没进过比对。这里把清单钉死，

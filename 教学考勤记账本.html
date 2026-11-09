@@ -1086,6 +1086,19 @@ function freezeMonth(ym){
   if(p.night==null)p.night={hours:parseFloat(DB.settings.nightHours)||0,fee:parseFloat(DB.settings.nightFee)||0};
   return p;
 }
+/* 手工导入 / 修改放假安排「之前」调用：该年自动算出的应上班天数要跟着重算，
+   用户在汇总页手填过的值（与旧表自动值不同）保留不动 */
+function refreshWorkdays(y){
+  var n=0;
+  Object.keys(DB.months||{}).forEach(function(ym){
+    if(parseInt(ym.slice(0,4),10)!==y)return;
+    var p=DB.months[ym];
+    if(!p||p.workdays==null)return;
+    var m=parseInt(ym.slice(5,7),10);
+    if(p.workdays===autoWorkdays(y,m)){delete p.workdays;n++;}
+  });
+  return n;
+}
 /* 本月实际生效的基数与单价：有冻结值用冻结值，没有就跟当前设置 */
 function monthBase(ym){var p=DB.months[ym];return (p&&p.base!=null)?p.base:DB.settings.baseSalary;}
 function monthRate(ym){var p=DB.months[ym];return (p&&p.rate!=null)?p.rate:DB.settings.rate;}
@@ -2825,6 +2838,7 @@ function holApply(){
   var f=HOL_FETCH;
   if(!f||!f.ok)return;
   var y=f.year;
+  refreshWorkdays(y);
   if(!DB.settings.holidays)DB.settings.holidays={};
   DB.settings.holidays[y]={
     off:f.off.map(function(s){return [s[0],s[1]];}),
@@ -2870,7 +2884,7 @@ function holidayHtml(){
   var has=(e.off&&e.off.length)||(e.work&&e.work.length);
   var h="";
   h+='<div class="card"><h2>放假安排</h2>';
-  h+='<p class="muted">内置的是国办发公布的那几年（'+Object.keys(HOLIDAYS).sort().join("、")+'）。新一年的安排公布后，点「联网获取」把国办发原文的摘录抓下来，核对过再写入；抓不到、或者学校校历跟国办发不一样，就在下面手动填，填了优先于内置。同一天既填了休假又填了补班，以补班为准。</p>';
+  h+='<p class="muted">内置的是国办发公布的那几年（'+Object.keys(HOLIDAYS).sort().join("、")+'）。新一年的安排公布后，点「联网获取」把国办发原文的摘录抓下来，核对过再写入；抓不到、或者学校校历跟国办发不一样，就在下面手动填，填了优先于内置。同一天既填了休假又填了补班，以补班为准。改完放假安排，该年自动算出的应上班天数会跟着重算；汇总页里手填过的「法定工作日」保持不变。</p>';
   h+='<div class="fields"><div class="field"><div><label>年份</label><div class="desc">'+(t?"内置："+t.note:"这一年没有内置安排，没填的日子按周一到周五算上班")+'</div></div><select id="holYear">'
     +ys.map(function(v){return '<option value="'+v+'"'+(v===y?" selected":"")+'>'+v+' 年</option>';}).join("")+'</select></div></div>';
   h+=holNetHtml(y,has,t);
@@ -2886,6 +2900,7 @@ function holidayHtml(){
 }
 function holPush(kind,from,to){
   var y=HOL_YEAR;
+  refreshWorkdays(y);
   if(!DB.settings.holidays)DB.settings.holidays={};
   var e=DB.settings.holidays[y];
   if(!e)e=DB.settings.holidays[y]={off:[],work:[]};
@@ -2935,6 +2950,7 @@ function bindHoliday(){
     b.addEventListener("click",function(){
       var kind=this.dataset.kind,i=parseInt(this.dataset.i,10);
       var arr=DB.settings.holidays[HOL_YEAR][kind];
+      refreshWorkdays(HOL_YEAR);
       arr.splice(i,1);
       persist().then(function(){renderSet();renderCal();if(!$("view-sum").hidden)renderSum();});
     });
@@ -2942,6 +2958,7 @@ function bindHoliday(){
   var cl=$("holClear");
   if(cl)cl.addEventListener("click",function(){
     if(!confirm("清空 "+HOL_YEAR+" 年自己填的休假与补班日？内置的国办发安排不受影响。"))return;
+    refreshWorkdays(HOL_YEAR);
     delete DB.settings.holidays[HOL_YEAR];
     persist().then(function(){renderSet();renderCal();if(!$("view-sum").hidden)renderSum();toast("已清空");});
   });
