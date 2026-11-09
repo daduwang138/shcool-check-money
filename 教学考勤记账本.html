@@ -1566,25 +1566,60 @@ function renderAll(){
   if(!$("view-sum").hidden)renderSum();
   if(!$("view-set").hidden)renderSet();
 }
+/* 口令一律走自绘的 password 输入框：window.prompt 是明文，旁边人一眼看到，
+   输入法还会把它记进词库；小程序端早就用了 password 页，这里补齐。 */
+function askPass(title,hint){
+  return new Promise(function(resolve){
+    var box=document.createElement("div");
+    box.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(20,24,32,.55);display:flex;align-items:center;justify-content:center;padding:16px";
+    var card=document.createElement("div");
+    card.style.cssText="background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.28);padding:22px;max-width:380px;width:100%";
+    var h=document.createElement("h3");h.textContent=title;
+    h.style.cssText="margin:0 0 8px;font-size:17px";
+    var p=document.createElement("p");p.textContent=hint||"";
+    p.style.cssText="margin:0 0 14px;color:#6b7280;font-size:13px;line-height:1.6;white-space:pre-line";
+    var inp=document.createElement("input");
+    inp.type="password";inp.autocomplete="new-password";inp.placeholder="口令";
+    inp.style.cssText="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:15px";
+    var row=document.createElement("div");
+    row.style.cssText="display:flex;gap:8px;justify-content:flex-end;margin-top:16px";
+    var cancel=document.createElement("button");cancel.textContent="取消";cancel.className="btn";
+    var ok=document.createElement("button");ok.textContent="确定";ok.className="btn primary";
+    row.appendChild(cancel);row.appendChild(ok);
+    card.appendChild(h);card.appendChild(p);card.appendChild(inp);card.appendChild(row);
+    box.appendChild(card);document.body.appendChild(box);
+    inp.focus();
+    var settled=false;
+    function done(v){if(settled)return;settled=true;box.remove();resolve(v);}
+    cancel.onclick=function(){done(null);};
+    ok.onclick=function(){done(inp.value);};
+    inp.onkeydown=function(e){
+      if(e.key==="Enter"){e.preventDefault();done(inp.value);}
+      else if(e.key==="Escape"){done(null);}
+    };
+    box.onclick=function(e){if(e.target===box)done(null);};
+  });
+}
 /* 数据文件是加密的、本机又没有口令时，让用户就地输一次口令把它打开 */
 function unlockFile(){
-  var p=prompt("这个数据文件设置了打开口令，请输入口令读取：\n（口令只在本机校验，输错不会改动文件）","");
-  if(!p)return Promise.resolve(false);
-  return readDirFile(cfgFileName()).then(function(txt){
-    if(txt==null)return readDirFile(dataFileName());     /* 旧版单文件也认 */
-    return txt;
-  }).then(function(txt){
-    if(!txt)return false;
-    var env={};try{env=JSON.parse(txt);}catch(e){}
-    if(!env.enc)return false;
-    return decryptText(txt,env.salt||"",p).then(function(){
-      META={pass:true,salt:env.salt||""};
-      PASS=p;
-      localStorage.setItem(META_KEY,JSON.stringify(META));
-      FILE_LOCKED=false;
-      return hydrateFromDir(true).then(function(){return true;});
-    });
-  }).catch(function(){return false;});
+  return askPass("这个数据文件设置了打开口令","口令只在本机校验，输错不会改动文件。").then(function(p){
+    if(!p)return false;
+    return readDirFile(cfgFileName()).then(function(txt){
+      if(txt==null)return readDirFile(dataFileName());     /* 旧版单文件也认 */
+      return txt;
+    }).then(function(txt){
+      if(!txt)return false;
+      var env={};try{env=JSON.parse(txt);}catch(e){}
+      if(!env.enc)return false;
+      return decryptText(txt,env.salt||"",p).then(function(){
+        META={pass:true,salt:env.salt||""};
+        PASS=p;
+        localStorage.setItem(META_KEY,JSON.stringify(META));
+        FILE_LOCKED=false;
+        return hydrateFromDir(true).then(function(){return true;});
+      });
+    }).catch(function(){return false;});
+  });
 }
 /* ---------- 按文件落盘：每月一份，只重写真正改动的文件 ---------- */
 var LASTRAW={};   /* 文件名 → 上次写入的主体（不含 savedAt），用来跳过没变的月份 */
@@ -1657,7 +1692,7 @@ function persist(){
     if(DIR&&FILE_LOCKED){
       if(!DIRWARNED){
         DIRWARNED=true;
-        toast("数据文件是加密的、当前口令读不出，本次不覆盖它；先在设置里用口令打开");
+        toast("硬盘那份加密文件用的是另一个口令，本次改动只存在浏览器里、没写进硬盘。请先用口令解锁该文件，或导出一份备份，别误以为两边已同步");
       }
       return;
     }
@@ -3480,10 +3515,11 @@ function importJson(){
       try{
         var obj=JSON.parse(raw);
         if(obj&&obj.enc){
-          var pass=prompt("这份备份是加密的，请输入当时的口令：");
-          if(!pass)return;
-          decryptText(raw,META.salt||"",pass).then(function(txt){done(JSON.parse(txt));})
-            .catch(function(){alert("口令不对，或文件已损坏");});
+          askPass("这份备份是加密的","请输入备份当时的口令。").then(function(pass){
+            if(!pass)return;
+            decryptText(raw,META.salt||"",pass).then(function(txt){done(JSON.parse(txt));})
+              .catch(function(){alert("口令不对，或文件已损坏");});
+          });
         }else done(obj);
       }catch(e){alert("文件格式不对，无法导入");}
     };
@@ -3494,15 +3530,17 @@ function importJson(){
 
 function askSetPass(){
   if(!hasCrypto()){alert("当前浏览器不支持本地加密，请改用 Chrome 或 Edge 打开本文件，再设置口令。");return;}
-  var p=prompt("设置打开口令（建议 6 位以上）。\n注意：忘记口令将无法解密数据，只能靠明文备份恢复。","");
-  if(p==null)return;
-  p=p.trim();
-  if(p.length<4){alert("口令太短，至少 4 位");return;}
-  var p2=prompt("再输一次确认：","");
-  if(p2!==p){alert("两次输入不一致");return;}
-  var salt=b64(crypto.getRandomValues(new Uint8Array(16)));
-  META={pass:true,salt:salt};PASS=p;
-  persist().then(function(){toast("口令已开启");renderSet();});
+  askPass("设置打开口令","建议 6 位以上。注意：忘记口令将无法解密数据，只能靠明文备份恢复。").then(function(p){
+    if(p==null)return;
+    p=p.trim();
+    if(p.length<4){alert("口令太短，至少 4 位");return;}
+    return askPass("再输一次确认","").then(function(p2){
+      if(p2!==p){alert("两次输入不一致");return;}
+      var salt=b64(crypto.getRandomValues(new Uint8Array(16)));
+      META={pass:true,salt:salt};PASS=p;
+      persist().then(function(){toast("口令已开启");renderSet();});
+    });
+  });
 }
 
 /* ---------- 启动 ---------- */

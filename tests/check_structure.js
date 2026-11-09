@@ -114,5 +114,9 @@ if (htmlSrc.indexOf('<title>' + APP_NAME + '</title>') < 0) bad.push('电脑版 
     }
   });
 
+/* 口令不能退回 window.prompt：明文可见、输入法还会记词 */
+if (/\bprompt\s*\(/.test(htmlSrc)) bad.push('电脑版还在用 window.prompt 收口令，必须走 password 输入框');
+if (htmlSrc.indexOf('function askPass(') < 0) bad.push('电脑版缺少自绘的口令输入框 askPass()');
+
 if (bad.length) { console.log('FAIL\n' + bad.join('\n')); process.exit(1); }
 console.log('结构自检通过：' + hCount + ' 个事件方法、' + cCount + ' 个 class、wxss ' + rCount + ' 条规则');
