@@ -22,6 +22,8 @@ Page({
     var ym = core.todayKey().slice(0, 7);
     this.db = store.load();
     this.setData({ ym: ym });
+    /* 锁着就先别画：应发金额别在跳锁屏前闪一帧 */
+    if (!lock.guard()) { return; }
     this.render();
   },
 

@@ -50,6 +50,8 @@ Page({
 
   onLoad: function () {
     this.db = store.load();
+    /* 锁着就先别画：工资参数别在跳锁屏前闪一帧 */
+    if (!lock.guard()) { return; }
     this.render();
   },
 

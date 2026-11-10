@@ -51,6 +51,8 @@ Page({
     var ym = core.todayKey().slice(0, 7);
     this.db = store.load();
     this.setData({ ym: ym });
+    /* 锁着就别先画：onShow 的 guard 会跳锁屏，但那一帧已经把整月的账目画出来了 */
+    if (!lock.guard()) { return; }
     this.render();
   },
 
@@ -454,7 +456,9 @@ Page({
     var b = {
       from: core.dk(y, m, 1),
       to: core.dk(y, m, core.daysInMonth(ym)),
-      wd: [0, 1, 2, 3, 4, 5, 6],
+      /* 默认只勾周一到周五：跟滑动连选「默认跳过周末」一个口径。
+         以前默认七天全勾 + 上班，点开就「应用」等于把整月周末也记成上班。 */
+      wd: [1, 2, 3, 4, 5],
       st: 'work',
       clearLes: false,
       count: 0,
@@ -738,23 +742,26 @@ Page({
 
   saveSheet: function () {
     var s = this.data.sheet;
-    if (!s) { return; }
-    this._allowEdit(this.data.ym, this.writeSheet);
+    if (!s || !s.key) { return; }
+    /* 管的是「这一天所在的月份」，不是当前翻到的月份：
+       面板可以按「前一天 / 后一天」跨月，拿 data.ym 去查会把已核对的月份绕过去。
+       电脑版 saveEditor 也是按 key 的月份查的，两边同口径。 */
+    this._allowEdit(s.key.slice(0, 7), this.writeSheet);
   },
 
   /* 把面板内容写进库，关不关面板由调用方决定（翻天时要留着） */
   _commitSheet: function () {
     var s = this.data.sheet;
-    if (!s) { return; }
+    if (!s || !s.key) { return; }
     var note = (this._note === undefined ? s.note : this._note) || '';
-    this._beginUndo(this._sheetBatch);
+    this._beginUndo(this._sheetBatch, s.key.slice(0, 7));
     core.setRecord(this.db, s.key, s.am, s.pm, s.lessons, note, undefined, s.rid, s.night);
     store.save(this.db);
   },
 
   writeSheet: function () {
     var s = this.data.sheet;
-    if (!s) { return; }
+    if (!s || !s.key) { return; }
     this._commitSheet();
     this.setData({ sheet: null });
     this._note = undefined;
@@ -765,7 +772,7 @@ Page({
   /* 连续补记一周是最常见的动作：翻天前先存下当前这天，面板不关，每天少两次点击 */
   stepDay: function (e) {
     var s = this.data.sheet;
-    if (!s) { return; }
+    if (!s || !s.key) { return; }
     var delta = parseInt(e.currentTarget.dataset.d, 10);
     var p = s.key.split('-');
     var dt = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10) + delta);
@@ -777,6 +784,10 @@ Page({
     var that = this;
     this._allowEdit(s.key.slice(0, 7), function () {
       that._commitSheet();
+      /* 翻天翻到别的月份，日历跟着翻过去：面板上的日期和背后的格子要对得上，
+         不然「已核对」的确认问的是看不见的那个月，撤销也会拍错月份 */
+      var kym = k.slice(0, 7);
+      if (kym !== that.data.ym) { that.setData({ ym: kym }); }
       that.openSheet(k);
       that.render();
     });
@@ -879,6 +890,9 @@ Page({
   _maybeAutoFill: function () {
     /* 撤销后紧跟的那次渲染不许把刚回滚的课时又自动填回来 */
     if (this._skipAutoOnce) { this._skipAutoOnce = false; return; }
+    /* 面板开着就别顺手落账：面板翻天会触发重绘，这时候自动填进去的课时，
+       既看不见也容易被误当成自己记的。关掉面板后的那次重绘本就会补上。 */
+    if (this.data.sheet || this.data.bulk) { return; }
     var db = this.db, ym = this.data.ym;
     if (!db || !ym || (this._autoBlocked && this._autoBlocked[ym])) { return; }
     var prevUndo = this._undo;
@@ -891,19 +905,39 @@ Page({
     this.showUndo('已按课程表自动记入 ' + r.filled + ' 天课时');
   },
 
-  _beginUndo: function (batchKey) {
-    /* 只有同一批连续操作（面板里翻天补记）才沿用第一次的快照：
-       一次撤销回到这一批操作之前，而不是只回滚最后一天。
-       其它操作各自独立拍快照，别把已经做完的改动一起撤掉。 */
-    if (batchKey && this._undo && this._undoTimer && this._undo.batchKey === batchKey) { return; }
-    var db = this.db, ym = this.data.ym;
+  /* 拍一个月的逐日快照。已经拍过的那天不覆盖——一批操作里要保留的是「这批之前」的状态 */
+  _snapMonth: function (snap, ym) {
     var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
-    var n = core.daysInMonth(ym), snap = {};
+    var n = core.daysInMonth(ym);
     for (var d = 1; d <= n; d++) {
       var k = core.dk(y, m, d);
-      snap[k] = db.days[k] ? JSON.parse(JSON.stringify(db.days[k])) : null;
+      if (Object.prototype.hasOwnProperty.call(snap, k)) { continue; }
+      snap[k] = this.db.days[k] ? JSON.parse(JSON.stringify(this.db.days[k])) : null;
     }
-    this._undo = { msg: ym, snap: snap, msnap: JSON.parse(JSON.stringify(db.months || {})), batchKey: batchKey || null };
+  },
+
+  _beginUndo: function (batchKey, ym) {
+    /* 面板翻天可以跨月，所以快照要按「真正要改的那天」所在的月份拍，
+       不能一律拍 data.ym——否则撤销把错的月份还原回去，改过的那天还在，还照样提示「已撤销」。 */
+    ym = ym || this.data.ym;
+    /* 同一批连续操作（面板里翻天补记）沿用第一次的快照：
+       一次撤销回到这一批操作之前，而不是只回滚最后一天；跨月的月份补进同一份快照。 */
+    if (batchKey && this._undo && this._undo.batchKey === batchKey) {
+      if (!this._undo.months) { this._undo.months = [this._undo.ym]; }
+      if (this._undo.months.indexOf(ym) < 0) {
+        this._snapMonth(this._undo.snap, ym);
+        this._undo.months.push(ym);
+      }
+      this._undo.ym = ym;
+      return;
+    }
+    var snap = {};
+    this._snapMonth(snap, ym);
+    this._undo = {
+      msg: ym, ym: ym, months: [ym], snap: snap,
+      msnap: JSON.parse(JSON.stringify(this.db.months || {})),
+      batchKey: batchKey || null
+    };
   },
 
   showUndo: function (label) {

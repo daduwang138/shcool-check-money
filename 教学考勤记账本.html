@@ -2282,12 +2282,14 @@ function impCoursesApply(mode){
 }
 
 /* ---------- 批量设置（日期范围 + 星期） ---------- */
-var BK={wd:{0:true,1:true,2:true,3:true,4:true,5:true,6:true},state:"work"};
+var BK={wd:{1:true,2:true,3:true,4:true,5:true},state:"work"};
 function openBulk(){
   var q=ymd(CUR+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate();
   $("bkFrom").value=dk(y,m,1);
   $("bkTo").value=dk(y,m,n);
-  BK.wd={0:true,1:true,2:true,3:true,4:true,5:true,6:true};
+  /* 默认只勾周一到周五：跟日历拖选「默认跳过周末」同一口径。
+     以前默认七天全勾 + 上班，点开就「应用」等于把整月周末也记成上班。 */
+  BK.wd={1:true,2:true,3:true,4:true,5:true};
   BK.state="work";
   $("bkClearLes").checked=false;
   renderBkOpts();

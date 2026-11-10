@@ -399,7 +399,7 @@ const am18 = current().days['2026-11-18'];
 ok(am18 && am18.am === 'work' && am18.pm === '', '「只上午」只设上午', JSON.stringify(am18));
 ok(core.effHalf(core.normalize(current()), '2026-11-18', 'pm') === '', '下午仍为空，没被顺手设成上班');
 
-bcal.tapCell({ currentTarget: { dataset: { key: '2026-11-19' } } });
+bcal.openSheet('2026-11-19');
 bcal.setData({ 'sheet.lessons': 4 });
 bcal.saveSheet();
 bcal.toggleSel();
@@ -484,6 +484,9 @@ bcal3.openBulk();
 ok(bcal3.data.bulk.from === '2026-09-01' && bcal3.data.bulk.to === '2026-09-30',
   '批量·默认填当前整月', bcal3.data.bulk.from + '~' + bcal3.data.bulk.to);
 ok(bcal3.data.bulk.count > 0, '批量·打开就算出影响天数', bcal3.data.bulk.count);
+ok(bcal3.data.bulkWd.filter(x => x.on).map(x => x.v).join(',') === '1,2,3,4,5',
+  '批量·默认只勾周一到周五（别一下把周末也记成上班）',
+  bcal3.data.bulkWd.filter(x => x.on).map(x => x.v).join(','));
 
 bcal3.setData({
   bulk: Object.assign({}, bcal3.data.bulk, {
@@ -510,6 +513,55 @@ ok(bcal3.data.bulk === null, '批量·应用后关掉面板');
 bcal3.doUndo();
 const budb = core.normalize(current());
 ok(!budb.days['2026-09-23'], '批量·跨月改动也能撤销');
+
+/* 面板按「后一天」跨到别的月份：已核对的确认不能失效，撤销也得真撤掉那天 */
+reset();
+seedDb();
+const xdb = current();
+xdb.settings.startDate = '';
+xdb.months = { '2026-06': { checked: true } };
+mem['kqzb_db_v1'] = JSON.stringify(xdb);
+const xcal = makePage('calendar');
+xcal.onLoad();
+xcal.setData({ ym: '2026-05' });
+xcal.render();
+xcal.openSheet('2026-05-31');
+ok(xcal.data.sheet.key === '2026-05-31', '面板·打开 5/31', xcal.data.sheet.key);
+
+xcal.stepDay({ currentTarget: { dataset: { d: '1' } } });
+ok(xcal.data.sheet.key === '2026-06-01', '面板·「后一天」落到 6/1', xcal.data.sheet.key);
+ok(xcal.data.ym === '2026-06', '面板·跨月后日历跟着翻到 6 月', xcal.data.ym);
+
+modals.length = 0;
+xcal.setData({ 'sheet.lessons': 4 });
+xcal.saveSheet();
+ok(modals.some(m => m.indexOf('核对') >= 0),
+  '面板·跨月后已核对的月份仍要二次确认', JSON.stringify(modals));
+
+const xdb1 = core.normalize(current());
+ok(!!(xdb1.days['2026-06-01'] && xdb1.days['2026-06-01'].lessons === 4),
+  '面板·确认后照常写入 6/1', JSON.stringify(xdb1.days['2026-06-01'] || null));
+
+xcal.doUndo();
+const xdb2 = core.normalize(current());
+ok(!xdb2.days['2026-06-01'], '面板·撤销要真的撤掉 6/1',
+  JSON.stringify(xdb2.days['2026-06-01'] || null));
+ok(!xdb2.days['2026-05-31'], '面板·同一批撤销连 5/31 一起回滚',
+  JSON.stringify(xdb2.days['2026-05-31'] || null));
+
+/* 冷启动先判锁：锁着不许把整月账目先画出来再跳锁屏 */
+reset();
+seedDb();
+/* 直接摆一份口令元数据，省掉 20000 次派生；guard 只看「有没有口令 + 解没解锁」 */
+mem['kqzb_lock_v1'] = JSON.stringify({ v: 1, salt: '00'.repeat(16), iter: 1, hash: '00'.repeat(32) });
+require(path.join(ROOT, 'utils/lock.js')).lockNow();
+relaunched.length = 0;
+const lcal = makePage('calendar');
+lcal.onLoad();
+ok(lcal.data.cells.length === 0 && lcal.data.ready === false,
+  '锁屏·冷启动不先渲染账目', '格子 ' + lcal.data.cells.length);
+ok(relaunched.indexOf('/pages/lock/lock') >= 0, '锁屏·冷启动直接跳锁屏', relaunched.join(','));
+relaunched.length = 0;   /* 后面锁屏页用例要数跳转次数，这里清干净 */
 
 /* 只上午：下午清空 */
 reset();
