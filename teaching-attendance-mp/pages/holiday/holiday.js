@@ -83,7 +83,7 @@ Page({
       work: work,
       custom: off.length + work.length > 0,
       builtin: builtin,
-      touched: touched.length ? (touched.join('、') + ' 月已经记过账，应上班天数已固定；改这里不会回头重算，需要重算请到汇总页改「法定工作日」') : '',
+      touched: touched.length ? (touched.join('、') + ' 月已经记过账；改这里会按新假期重算自动算出的应上班天数，汇总页手填过的「法定工作日」保持不变') : '',
       ready: true
     });
   },
@@ -116,6 +116,7 @@ Page({
       wx.showToast({ title: '跨年的假期请分两次填', icon: 'none' });
       return;
     }
+    core.refreshWorkdays(this.db, y);
     core.addHolidaySpan(this.db, y, 'off', f, t);
     store.save(this.db);
     this.render();
@@ -128,6 +129,7 @@ Page({
       wx.showToast({ title: '日期要在 ' + y + ' 年内', icon: 'none' });
       return;
     }
+    core.refreshWorkdays(this.db, y);
     core.addHolidaySpan(this.db, y, 'work', k, k);
     store.save(this.db);
     this.render();
@@ -140,6 +142,7 @@ Page({
 
   delOff: function (e) {
     var i = parseInt(e.currentTarget.dataset.i, 10);
+    core.refreshWorkdays(this.db, this.data.y);
     core.delHolidaySpan(this.db, this.data.y, 'off', i);
     store.save(this.db);
     this.render();
@@ -147,6 +150,7 @@ Page({
 
   delWork: function (e) {
     var i = parseInt(e.currentTarget.dataset.i, 10);
+    core.refreshWorkdays(this.db, this.data.y);
     core.delHolidaySpan(this.db, this.data.y, 'work', i);
     store.save(this.db);
     this.render();
@@ -186,6 +190,7 @@ Page({
       success: function (res) {
         if (!res.confirm) { return; }
         if (!that.db.settings.holidays) { that.db.settings.holidays = {}; }
+        core.refreshWorkdays(that.db, y);
         that.db.settings.holidays[y] = { off: r.off, work: r.work };
         store.save(that.db);
         that.setData({ showPaste: false, pasteText: '' });
@@ -204,6 +209,7 @@ Page({
       confirmColor: '#A33A28',
       success: function (res) {
         if (!res.confirm) { return; }
+        core.refreshWorkdays(that.db, y);
         core.clearHolidayYear(that.db, y);
         store.save(that.db);
         that.render();

@@ -496,6 +496,8 @@ function setRecord(db, key, am, pm, lessons, note, lset, rid, night) {
     /* 0 次不写字段，跟 rid 一个道理：数据能少一个键就少一个 */
     if (ni > 0) { db.days[key].night = ni; }
   }
+  /* 写过这个月，就把当月计薪参数定下来；不靠「什么时候渲染」来决定 */
+  if (typeof key === 'string' && key.length >= 7) { freezeMonth(db, key.slice(0, 7)); }
 }
 /* 按课程表填本月课时。
    注意：新建记录时必须把当天"原本会默认上班"的状态写进去，
@@ -522,6 +524,7 @@ function fillLessonsFromCourses(db, ym) {
     r.upd = Date.now();
     filled++;
   }
+  if (filled > 0) { freezeMonth(db, ym); }
   return { filled: filled, skipped: skipped, hol: hol };
 }
 
@@ -557,6 +560,7 @@ function autoFillLessons(db, ym, today) {
     r.upd = Date.now();
     res.filled++;
   }
+  if (res.filled > 0) { freezeMonth(db, ym); }
   return res;
 }
 
@@ -572,31 +576,53 @@ function monthTouched(db, ym) {
   return false;
 }
 
+/* 只负责「拿到这个月可写的参数对象」，不填价格、不冻结。
+   读参数一律直接用 db.months[ym] || {}；渲染、汇总、导出都不许改库。
+   冻结是写操作，统一由 freezeMonth() 在写日记录 / 标记核对时显式调用。 */
 function monthP(db, ym) {
+  if (!db.months) { db.months = {}; }
   var p = db.months[ym];
   if (!p) { p = db.months[ym] = {}; }
-  var q = ymd(ym + '-01'), y = q[0], m = q[1];
   if (p.checked == null) { p.checked = false; }
-  /* workdays 同理：只有这月真记过东西才落盘。不这样的话，先翻看到 2027 年 2 月
-     （那时还没填放假安排，按朴素规则算出 20 天），之后补了春节假期，这个月也
-     不会重算——用户会以为填了没生效。没记录就每次现算，跟着假期表走。 */
-  if (p.workdays == null && monthTouched(db, ym)) { p.workdays = autoWorkdays(y, m, db); }
-  /* base/rate 是「冻结值」：只有这月真记过东西才落盘。翻看了一眼的月份不冻，
-     改设置时要跟着走，否则「不影响已记录月份」会变成「打开过就冻住」。
-     用 == null 判断：手动把某月工资改成 0 也算已冻结，不能因为 0 是 falsy 又跟回设置值。 */
-  if (p.base == null && monthTouched(db, ym)) { p.base = db.settings.baseSalary; }
-  if (p.rate == null && monthTouched(db, ym)) { p.rate = db.settings.rate; }
-  /* 附加档位（晚自习之类）的价格也一样冻：记过账的月份不能因为后来调价而变钱 */
-  if (p.rates == null && monthTouched(db, ym)) {
+  return p;
+}
+
+/* 冻结当月参数：只有「真经手过」的月份才定下来（落过日记录或标过已核对）。
+   只补缺失的字段：手动把某月工资改成 0 也算已定，不能因为 0 是 falsy 又跟回设置值。
+   workdays 也一起冻：不然先记完账再补春节假期，这月不会重算，用户会以为填了没生效。 */
+function freezeMonth(db, ym) {
+  var p = monthP(db, ym);
+  if (!monthTouched(db, ym)) { return p; }
+  var q = ymd(ym + '-01'), y = q[0], m = q[1];
+  if (p.workdays == null) { p.workdays = autoWorkdays(y, m, db); }
+  if (p.base == null) { p.base = db.settings.baseSalary; }
+  if (p.rate == null) { p.rate = db.settings.rate; }
+  /* 附加档位（晚自习之类）：记过账的月份不能因为后来调价而变钱 */
+  if (p.rates == null) {
     var snap = {};
     ratesOf(db).forEach(function (r) { if (r.id !== 'default') { snap[r.id] = r.price; } });
     p.rates = snap;
   }
-  /* 晚修监考的次数单价同理：学校调价不该追溯改旧账 */
-  if (p.night == null && monthTouched(db, ym)) {
+  /* 晚修监考的次数单价同理 */
+  if (p.night == null) {
     p.night = { hours: parseFloat(db.settings.nightHours) || 0, fee: parseFloat(db.settings.nightFee) || 0 };
   }
   return p;
+}
+
+/* 手工导入 / 修改放假安排「之前」调用：让该年自动算出来的应上班天数能跟着重算。
+   用旧假期表算一遍，与该月冻结值相同就说明是自动值，删掉后 computeMonth 会按新表重算；
+   用户在汇总页手填过的值与自动值不同，保留不动。不这么做，导入了也看不出变化。 */
+function refreshWorkdays(db, y) {
+  var n = 0;
+  Object.keys(db.months || {}).forEach(function (ym) {
+    if (parseInt(ym.slice(0, 4), 10) !== y) { return; }
+    var p = db.months[ym];
+    if (!p || p.workdays == null) { return; }
+    var m = parseInt(ym.slice(5, 7), 10);
+    if (p.workdays === autoWorkdays(y, m, db)) { delete p.workdays; n++; }
+  });
+  return n;
 }
 
 /* 本月实际生效的基数与单价：有冻结值用冻结值，没有就跟当前设置 */
@@ -623,7 +649,8 @@ function ratesOf(db) {
 function rateName(db, rid) {
   var l = ratesOf(db);
   for (var i = 0; i < l.length; i++) { if (l[i].id === rid) { return l[i].name; } }
-  return l[0].name;
+  /* 档位被删掉后，旧记录不能伪装成「正课」把数据缺失盖住 */
+  return '已删除档位';
 }
 /* 某天某档的单价：默认档走月度冻结价，附加档走月度快照，没快照才用设置里的现价 */
 function priceOf(db, ym, rid) {
@@ -649,11 +676,14 @@ function nightOf(db, ym) {
 function computeMonth(db, ym) {
   var q = ymd(ym + '-01'), y = q[0], m = q[1];
   var n = new Date(y, m, 0).getDate();
-  var half = 0, lessons = 0, filledDays = 0, byMap = {}, nightCount = 0;
+  var half = 0, lessons = 0, filledDays = 0, byMap = {}, nightCount = 0, ghostHalf = 0;
   var counted = { work: 0, inv: 0, ot: 0, leave: 0 };
   for (var d = 1; d <= n; d++) {
     var k = dk(y, m, d), rec0 = peek(db, k);
     if (preStart(db, k)) continue;
+    /* 「默认全勤」是推算出来的、没有点开确认过，单独记下来给核对单提醒 */
+    if (isGhostHalf(db, k, 'am')) { ghostHalf++; }
+    if (isGhostHalf(db, k, 'pm')) { ghostHalf++; }
     var a = effHalf(db, k, 'am'), b = effHalf(db, k, 'pm');
     if (a === 'work' || a === 'inv' || a === 'ot') { half++; counted[a]++; }
     else if (a === 'leave') { counted.leave++; }
@@ -676,7 +706,8 @@ function computeMonth(db, ym) {
       if (rec0.am || rec0.pm || rec0.lessons || rec0.note || rec0.night) filledDays++;
     }
   }
-  var p = monthP(db, ym);
+  /* 纯读：算工资、导出、复制核对单都不许顺手把当月参数冻上 */
+  var p = (db.months || {})[ym] || {};
   var workdays = (p.workdays != null) ? p.workdays : autoWorkdays(y, m, db);
   var base = db.settings.enableBase ? (monthBase(db, ym) || 0) : 0;
   var rate = db.settings.enableLesson ? (monthRate(db, ym) || 0) : 0;
@@ -685,7 +716,9 @@ function computeMonth(db, ym) {
   var capped = Math.min(actual, workdays);
   var extra = Math.max(actual - workdays, 0);
   var basePart = round2(dailyRate * capped);
-  var extraPart = round2(dailyRate * extra);
+  /* ①② 其实是同一个日薪的拆分：先对「实际出勤 × 日薪」一次舍入，
+     尾差归到 ②，保证 ①+② 与合计严格对得上，不会各舍各的差 1 分 */
+  var extraPart = round2(round2(dailyRate * actual) - basePart);
   var byRate = [], lessonFee = 0;
   if (db.settings.enableLesson) {
     ratesOf(db).forEach(function (r) { if (byMap[r.id]) { byRate.push(byMap[r.id]); } });
@@ -703,6 +736,7 @@ function computeMonth(db, ym) {
   var nightFee = round2(nightCount * np.fee);
   return {
     ym: ym, workdays: workdays, actual: actual, half: half, lessons: lessons, filledDays: filledDays,
+    ghostDays: ghostHalf / 2,
     dailyRate: dailyRate, base: base, rate: rate, byRate: byRate,
     capped: capped, extra: extra, basePart: basePart, extraPart: extraPart, lessonFee: lessonFee,
     nightCount: nightCount, nightHours: nightHours, nightFee: nightFee,
@@ -720,6 +754,7 @@ function sumText(c){
   L.push("————————————————");
   L.push("法定工作日："+c.workdays+" 天");
   L.push("实际出勤："+fmtShort(c.actual)+" 天（上班 "+c.counted.work+" / 监考 "+c.counted.inv+" / 加班 "+c.counted.ot+" 半天，请假 "+c.counted.leave+" 半天）");
+  if(c.ghostDays>0)L.push("注意：其中 "+fmtShort(c.ghostDays)+" 天是系统默认推算的上班、尚未点开确认，请假或调休请先改日历");
   L.push("课时合计："+c.lessons+" 节");
   /* 用了多档单价才列明细，只有一档时不必多一行 */
   if(c.byRate&&c.byRate.length>1){
@@ -842,7 +877,7 @@ module.exports = {
   STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS,
   pad: pad, dk: dk, ymd: ymd, todayKey: todayKey,
   round2: round2, num2: num2, fmt: fmt, fmtShort: fmtShort, sl: sl,
-  isWorkday: isWorkday, autoWorkdays: autoWorkdays, isHoliday: isHoliday,
+  isWorkday: isWorkday, autoWorkdays: autoWorkdays, refreshWorkdays: refreshWorkdays, isHoliday: isHoliday,
   holidayOf: holidayOf, addHolidaySpan: addHolidaySpan, delHolidaySpan: delHolidaySpan,
   clearHolidayYear: clearHolidayYear, holidayYears: holidayYears,
   parseHolidayJson: parseHolidayJson, parseHolidayPacket: parseHolidayPacket,
@@ -850,7 +885,7 @@ module.exports = {
   weekOf: weekOf, preStart: preStart, courseDays: courseDays, lessonsFor: lessonsFor, parseCourses: parseCourses,
   blankDB: blankDB, normalize: normalize, peek: peek, hasContent: hasContent, dayCount: dayCount,
   defaultHalf: defaultHalf, effHalf: effHalf, isGhostHalf: isGhostHalf, isGhost: isGhost,
-  setRecord: setRecord, monthP: monthP, computeMonth: computeMonth,
+  setRecord: setRecord, monthP: monthP, freezeMonth: freezeMonth, computeMonth: computeMonth,
   sumText: sumText, ratesOf: ratesOf, rateName: rateName, priceOf: priceOf, nightOf: nightOf,
   monthTouched: monthTouched, monthBase: monthBase, monthRate: monthRate,
   fillLessonsFromCourses: fillLessonsFromCourses, autoFillLessons: autoFillLessons,

@@ -39,7 +39,8 @@ function extractFn(text, mark) {
 }
 const EXTRA_FNS = [
   'function ymOf(k){', 'function isYm(v){', 'function monthKeysOf(db){',
-  'function hasContent(r){', 'function dayCount(db){', 'function localKeys(){'
+  'function hasContent(r){', 'function dayCount(db){', 'function localKeys(){',
+  'function mergeMissingDays(src){'
 ];
 vm.runInContext(EXTRA_FNS.map(m => extractFn(html, m)).join('\n'), ctx);
 
@@ -193,8 +194,8 @@ for (const [label, raw] of cases) {
   eq('多档·课时费合计', cc.lessonFee, 2 * 120 + (4 + 6) * 80);
   eq('多档·总额', cc.total, Math.round((cc.basePart + cc.extraPart + cc.lessonFee) * 100) / 100);
 
-  /* 记过账的月份把附加档价格也冻住 */
-  ctx.computeMonth('2026-10'); core.computeMonth(c, '2026-10');
+  /* 记过账的月份把附加档价格也冻住：冻结是写操作，由 freezeMonth 显式完成 */
+  ctx.freezeMonth('2026-10'); core.freezeMonth(c, '2026-10');
   c.settings.rates[1].price = 999; h.settings.rates[1].price = 999;
   eq('多档·改价不影响记过的月份', core.computeMonth(c, '2026-10').lessonFee, cc.lessonFee);
   eq('多档·两版冻结一致', ctx.computeMonth('2026-10').lessonFee, core.computeMonth(c, '2026-10').lessonFee);
@@ -307,7 +308,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     eq('冻结·两版一致', ctx.computeMonth('2026-11').base, core.computeMonth(c, '2026-11').base);
   }
 
-  /* 7.2 记过一天：第一次渲染时落盘，之后改设置不影响 */
+  /* 7.2 记过一天：写记录时就落定，之后改设置不影响 */
   {
     const { h, c } = fresh();
     ctx.DB = h;
@@ -325,7 +326,8 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     ctx.DB = h;
     ctx.monthP('2026-11').checked = true;
     core.monthP(c, '2026-11').checked = true;
-    ctx.computeMonth('2026-11'); core.computeMonth(c, '2026-11');
+    /* 标记已核对是写操作，页面会在落盘前显式冻结 */
+    ctx.freezeMonth('2026-11'); core.freezeMonth(c, '2026-11');
     h.settings.rate = 300; c.settings.rate = 300;
     eq('冻结·标过核对的月份不跟设置变', core.computeMonth(c, '2026-11').rate, 120);
     eq('冻结·两版一致', ctx.computeMonth('2026-11').rate, core.computeMonth(c, '2026-11').rate);
@@ -340,6 +342,24 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     h.settings.baseSalary = 20000; c.settings.baseSalary = 20000;
     eq('冻结·手填 0 也算已定', core.computeMonth(c, '2026-11').base, 0);
     eq('冻结·两版一致', ctx.computeMonth('2026-11').base, core.computeMonth(c, '2026-11').base);
+  }
+
+  /* 7.5 只读不改库：算工资、导出都是纯读；只有写记录才把参数定下来 */
+  {
+    const { h, c } = fresh();
+    ctx.DB = h;
+    const before = JSON.stringify(c.months);
+    core.computeMonth(c, '2026-11');
+    ctx.computeMonth('2026-11');
+    eq('冻结·computeMonth 不改库(内核)', JSON.stringify(c.months), before);
+    eq('冻结·computeMonth 不改库(电脑版)', JSON.stringify(h.months), before);
+    core.buildExportCsv(c, ['2026-11'], true, true);
+    eq('冻结·导出 CSV 不改库', JSON.stringify(c.months), before);
+    /* 写一天后才定参数，且两版一致 */
+    ctx.setRecord('2026-11-03', 'work', 'work', 2, '');
+    core.setRecord(c, '2026-11-03', 'work', 'work', 2, '');
+    eq('冻结·写记录才冻', core.monthP(c, '2026-11').base, 8000);
+    eq('冻结·写记录两版一致', ctx.monthP('2026-11').base, core.monthP(c, '2026-11').base);
   }
 }
 
@@ -528,6 +548,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     csv.split('\r\n').filter(l => l.indexOf('导出时间') < 0).join('\r\n'));
 
   /* 记过账的月份按当时的价冻着，学校后来调价不追溯改旧账 */
+  ctx.freezeMonth('2026-10'); core.freezeMonth(c, '2026-10');
   c.settings.nightFee = 25; h.settings.nightFee = 25;
   c.settings.nightHours = 3; h.settings.nightHours = 3;
   eq('晚修·改价不影响记过的月份', [core.computeMonth(c, '2026-10').nightFee, core.computeMonth(c, '2026-10').nightHours], [40, 8]);
@@ -592,8 +613,9 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   };
   const { c, h } = mkBoth();
   ctx.DB = h;
+  /* 预置的账相当于「已经写过」，冻结走显式入口，不再靠渲染顺带触发 */
   ['2026-10', '2026-11', '2026-12'].forEach(function (ym) {
-    core.computeMonth(c, ym); ctx.computeMonth(ym);
+    core.freezeMonth(c, ym); ctx.freezeMonth(ym);
   });
   /* 学校从 11 月起涨价：正课 200、晚自习 150、晚修 3 小时 25 元/次 */
   [c, h].forEach(function (d) {
@@ -619,6 +641,72 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     && l.indexOf('晚修监考 3 小时 25 元/次') >= 0), true);
   eq('对账·10 月晚修补贴按 10 元算', core.computeMonth(c, '2026-10').nightFee, 20);
   eq('对账·2027-02 没记录不产生晚修费', core.computeMonth(c, '2027-02').nightFee, 0);
+}
+
+/* ---------- 10.5 文件合并：逐日按 upd 裁决，删除不被旧文件复活 ---------- */
+{
+  const local = ctx.normalize(mkLegacy());
+  ctx.DB = local;
+  const tomb = { am: '', pm: '', lessons: 0, note: '', off: true, upd: 9999999999999 };
+  local.days['2026-10-08'] = tomb;
+  const n1 = ctx.mergeMissingDays({ days: {
+    '2026-10-08': { am: 'work', pm: 'work', lessons: 4, note: '文件里的旧记录', upd: 100 }
+  }});
+  eq('文件裁决·删除墓碑不被旧记录复活', local.days['2026-10-08'], tomb);
+  eq('文件裁决·复活不算改动', n1, 0);
+  ctx.mergeMissingDays({ days: {
+    '2026-10-09': { am: 'inv', pm: 'inv', lessons: 1, note: '另一台电脑改的', upd: 9999999999998 }
+  }});
+  eq('文件裁决·文件较新的天被采用', local.days['2026-10-09'].note, '另一台电脑改的');
+  const n3 = ctx.mergeMissingDays({ days: {
+    '2026-11-20': { am: 'work', pm: 'work', lessons: 2, note: '文件独有的天', upd: 1 }
+  }});
+  eq('文件裁决·文件独有的天补进来', [n3, local.days['2026-11-20'].note], [1, '文件独有的天']);
+}
+
+/* ---------- 10.6 金额与口径：分项对得上、默认推算看得见、删档不伪装 ---------- */
+{
+  const r2 = function (x) { return Math.round(x * 100) / 100; };
+  const amtDb = core.normalize(mkRates());
+  ['2026-10', '2026-11', '2026-12'].forEach(function (ym) {
+    const cc = core.computeMonth(amtDb, ym);
+    eq('金额·' + ym + ' ①+② 等于一次舍入', r2(cc.basePart + cc.extraPart), r2(cc.dailyRate * cc.actual));
+  });
+  const g = core.blankDB();
+  const gm = core.computeMonth(g, '2026-11');
+  eq('默认推算·空库整月都被标出来', gm.ghostDays, gm.workdays);
+  const g2 = ctx.normalize(core.blankDB());
+  ctx.DB = g2;
+  eq('默认推算·两版一致', ctx.computeMonth('2026-11').ghostDays, gm.ghostDays);
+  eq('档位·删掉的档位不再伪装成正课', core.rateName(g, 'gone'), '已删除档位');
+}
+
+/* ---------- 10.7 口径：全勤只拿基本工资，课时费只来自真记的课时 ---------- */
+{
+  const q = core.blankDB();
+  const qm = core.computeMonth(q, '2026-11');
+  eq('口径·默认全勤只给基本工资', [qm.lessons, qm.lessonFee, qm.total], [0, 0, qm.base]);
+  core.setRecord(q, '2026-11-03', 'work', 'work', 0, '');
+  eq('口径·只记出勤没有课时费', core.computeMonth(q, '2026-11').lessonFee, 0);
+  core.setRecord(q, '2026-11-04', 'work', 'work', 2, '');
+  eq('口径·记 2 节才有 2 节的钱', core.computeMonth(q, '2026-11').lessonFee, 2 * core.monthRate(q, '2026-11'));
+}
+
+/* ---------- 10.8 手工导入放假安排：自动工作日重算，手填值保留 ---------- */
+{
+  const hw = core.blankDB();
+  hw.months['2027-02'] = { workdays: core.autoWorkdays(2027, 2, hw), base: 8000, rate: 120 };
+  hw.months['2027-03'] = { workdays: 17, base: 8000, rate: 120 };
+  const hn = core.refreshWorkdays(hw, 2027);
+  eq('放假导入·清掉自动值的月份数', hn, 1);
+  eq('放假导入·自动值被清掉待重算', 'workdays' in hw.months['2027-02'], false);
+  eq('放假导入·手填值保留', hw.months['2027-03'].workdays, 17);
+  const hh = ctx.normalize(core.blankDB());
+  ctx.DB = hh;
+  hh.months['2027-02'] = { workdays: ctx.autoWorkdays(2027, 2), base: 8000, rate: 120 };
+  hh.months['2027-03'] = { workdays: 17, base: 8000, rate: 120 };
+  eq('放假导入·两版一致', ctx.refreshWorkdays(2027), hn);
+  eq('放假导入·电脑版手填值也保留', hh.months['2027-03'].workdays, 17);
 }
 
 /* ---------- 11. 覆盖哨兵：不许新函数悄悄落到测试之外 ----------

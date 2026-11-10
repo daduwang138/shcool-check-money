@@ -31,6 +31,18 @@
     </view>
   </view>
 
+  <view class="card" wx:if="{{ghostDays > 0}}">
+    <text class="card-title">待确认</text>
+    <view class="row">
+      <text class="row-label">默认推算</text>
+      <text class="row-value">{{ghostDays}} 天</text>
+    </view>
+    <view class="row">
+      <text class="row-label">说明</text>
+      <text class="row-value param-ro">这些天是系统按工作日推的上班，尚未点开确认；请假或调休请先改日历</text>
+    </view>
+  </view>
+
   <view class="card">
     <text class="card-title">本月参数</text>
     <view class="row">

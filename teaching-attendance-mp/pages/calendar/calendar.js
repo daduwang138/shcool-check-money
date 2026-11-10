@@ -552,7 +552,8 @@ Page({
     var checked = {};
     keys.forEach(function (k) {
       var ym = k.slice(0, 7);
-      if (core.monthP(db, ym).checked) { checked[ym] = 1; }
+      var mp = db.months[ym] || {};
+      if (mp.checked) { checked[ym] = 1; }
     });
     var cm = Object.keys(checked);
 
@@ -593,13 +594,15 @@ Page({
   },
 
   openSheet: function (k) {
+    /* 同一次面板会话里的翻天补记算一批，撤销一次就能全回去 */
+    this._sheetBatch = 'sheet-' + k + '-' + Date.now();
     var db = this.db, r = core.peek(db, k);
     var am = r ? (r.am || '') : core.effHalf(db, k, 'am');
     var pm = r ? (r.pm || '') : core.effHalf(db, k, 'pm');
     var les = r ? (parseInt(r.lessons, 10) || 0) : 0;
     var note = r ? (r.note || '') : '';
     var exp = core.lessonsFor(db, k);
-    var p = core.monthP(db, k.slice(0, 7));
+    var p = db.months[k.slice(0, 7)] || {};
 
     var kind;
     if (core.isHoliday(k, this.db)) { kind = '法定节假日'; }
@@ -704,7 +707,8 @@ Page({
      本次进入页面里每个月只问一次（重进页面重新问）。 */
   _allowEdit: function (ym, go) {
     if (!this._checkedOk) { this._checkedOk = {}; }
-    if (!core.monthP(this.db, ym).checked || this._checkedOk[ym]) { go.call(this); return; }
+    var mp = this.db.months[ym] || {};
+    if (!mp.checked || this._checkedOk[ym]) { go.call(this); return; }
     var that = this;
     wx.showModal({
       title: '本月已标记核对',
@@ -743,7 +747,7 @@ Page({
     var s = this.data.sheet;
     if (!s) { return; }
     var note = (this._note === undefined ? s.note : this._note) || '';
-    this._beginUndo();
+    this._beginUndo(this._sheetBatch);
     core.setRecord(this.db, s.key, s.am, s.pm, s.lessons, note, undefined, s.rid, s.night);
     store.save(this.db);
   },
@@ -825,6 +829,7 @@ Page({
       wx.showToast({ title: '本月没有需要恢复的日子', icon: 'none' });
       return;
     }
+    core.freezeMonth(db, ym);
     store.save(db);
     this.render();
     this.showUndo('已恢复默认出勤 ' + cnt + ' 天');
@@ -853,6 +858,7 @@ Page({
           }
           /* 清空之后不该还挂着「已核对」——电脑版也是这么处理的 */
           core.monthP(db, ym).checked = false;
+          core.freezeMonth(db, ym);
           store.save(db);
           that.render();
           that.showUndo('已清空 ' + ym);
@@ -871,6 +877,8 @@ Page({
   /* 进入某月时把已过去的日子按课程表补齐。
      幂等（填过的日子有 lset），撤销后本会话不再自动填回来。 */
   _maybeAutoFill: function () {
+    /* 撤销后紧跟的那次渲染不许把刚回滚的课时又自动填回来 */
+    if (this._skipAutoOnce) { this._skipAutoOnce = false; return; }
     var db = this.db, ym = this.data.ym;
     if (!db || !ym || (this._autoBlocked && this._autoBlocked[ym])) { return; }
     var prevUndo = this._undo;
@@ -883,7 +891,11 @@ Page({
     this.showUndo('已按课程表自动记入 ' + r.filled + ' 天课时');
   },
 
-  _beginUndo: function () {
+  _beginUndo: function (batchKey) {
+    /* 只有同一批连续操作（面板里翻天补记）才沿用第一次的快照：
+       一次撤销回到这一批操作之前，而不是只回滚最后一天。
+       其它操作各自独立拍快照，别把已经做完的改动一起撤掉。 */
+    if (batchKey && this._undo && this._undoTimer && this._undo.batchKey === batchKey) { return; }
     var db = this.db, ym = this.data.ym;
     var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
     var n = core.daysInMonth(ym), snap = {};
@@ -891,7 +903,7 @@ Page({
       var k = core.dk(y, m, d);
       snap[k] = db.days[k] ? JSON.parse(JSON.stringify(db.days[k])) : null;
     }
-    this._undo = { msg: ym, snap: snap, msnap: JSON.parse(JSON.stringify(db.months || {})) };
+    this._undo = { msg: ym, snap: snap, msnap: JSON.parse(JSON.stringify(db.months || {})), batchKey: batchKey || null };
   },
 
   showUndo: function (label) {
@@ -912,6 +924,7 @@ Page({
 
   doUndo: function () {
     if (!this._undo) { return; }
+    this._skipAutoOnce = true;
     /* 撤销自动落账：本月别再自动填回来，想永久关掉去设置页 */
     var autoUndo = !!this._undo.auto;
     var autoYm = this._undo.ym;

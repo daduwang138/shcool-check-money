@@ -628,6 +628,7 @@ var EXP={from:"",to:""};
 var CALCELLS=[], POS={};
 var DRAG={on:false,moved:false,sx:0,sy:0,startKey:null}, SELKEYS=[], SUPPRESS_CLICK=false, UNDO=null;
 var AUTO_BLOCKED={};   /* 撤销过自动落账的月份：本次打开不再自动填 */
+var LAST_WRITE=0, OTHER_TAB_WARNED=false;  /* 多标签页检测：本页最后一次写入的 savedAt */
 
 var STATES={
   "":{label:"空",cls:"s-empty",ch:""},
@@ -926,6 +927,7 @@ function autoFillLessons(ym,today){
     r.lessons=v;r.lset=true;r.upd=Date.now();
     res.filled++;
   }
+  if(res.filled>0)freezeMonth(ym);
   return res;
 }
 function coursePreviewText(){
@@ -1072,6 +1074,8 @@ function setRecord(key,am,pm,lessons,note,lset,rid,night){
     /* 0 次不写字段，跟 rid 一个道理：数据能少一个键就少一个 */
     if(ni>0)DB.days[key].night=ni;
   }
+  /* 写过这个月，就把当月计薪参数定下来；不靠「什么时候渲染」来决定 */
+  if(typeof key==="string"&&key.length>=7)freezeMonth(key.slice(0,7));
 }
 /* 这月有没有经手过：落过任意一条日记录，或标记过已核对。
    用来区分「真的记过」和「只是翻看了一眼」——只有前者才冻结工资参数。 */
@@ -1082,30 +1086,44 @@ function monthTouched(ym){
   for(var k in days){if(k.slice(0,7)===ym)return true;}
   return false;
 }
+/* 只负责「拿到这个月可写的参数对象」，不填价格、不冻结。
+   读参数一律直接用 DB.months[ym] || {}；渲染、汇总、导出都不许改库。
+   冻结是写操作，统一由 freezeMonth() 在写日记录 / 标记核对时显式调用。 */
 function monthP(ym){
+  if(!DB.months)DB.months={};
   var p=DB.months[ym];
   if(!p){p=DB.months[ym]={};}
-  var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
-  /* workdays 同理：只有这月真记过东西才落盘，否则先翻看到 2027 年 2 月（按朴素规则
-     算出 20 天）之后再补春节假期，这个月也不会重算，用户会以为填了没生效。 */
-  if(p.workdays==null&&monthTouched(ym))p.workdays=autoWorkdays(y,m);
   if(p.checked==null)p.checked=false;
-  /* base/rate 是「冻结值」：只有这月真记过东西才落盘。翻看了一眼的月份不冻，
-     改设置时要跟着走，否则「不影响已记录月份」会变成「打开过就冻住」。
-     用 == null 判断：手动把某月工资改成 0 也算已冻结，不能因为 0 是 falsy 又跟回设置值。 */
-  if(p.base==null&&monthTouched(ym))p.base=DB.settings.baseSalary;
-  if(p.rate==null&&monthTouched(ym))p.rate=DB.settings.rate;
-  /* 附加档位（晚自习之类）的价格也一样冻：记过账的月份不能因为后来调价而变钱 */
-  if(p.rates==null&&monthTouched(ym)){
+  return p;
+}
+/* 冻结当月参数：只有「真经手过」的月份才定下来；只补缺失字段，手填 0 也算已定 */
+function freezeMonth(ym){
+  var p=monthP(ym);
+  if(!monthTouched(ym))return p;
+  var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
+  if(p.workdays==null)p.workdays=autoWorkdays(y,m);
+  if(p.base==null)p.base=DB.settings.baseSalary;
+  if(p.rate==null)p.rate=DB.settings.rate;
+  if(p.rates==null){
     var snap={};
     ratesOf(DB).forEach(function(r){if(r.id!=="default")snap[r.id]=r.price;});
     p.rates=snap;
   }
-  /* 晚修监考的次数单价同理：学校调价不该追溯改旧账 */
-  if(p.night==null&&monthTouched(ym)){
-    p.night={hours:parseFloat(DB.settings.nightHours)||0,fee:parseFloat(DB.settings.nightFee)||0};
-  }
+  if(p.night==null)p.night={hours:parseFloat(DB.settings.nightHours)||0,fee:parseFloat(DB.settings.nightFee)||0};
   return p;
+}
+/* 手工导入 / 修改放假安排「之前」调用：该年自动算出的应上班天数要跟着重算，
+   用户在汇总页手填过的值（与旧表自动值不同）保留不动 */
+function refreshWorkdays(y){
+  var n=0;
+  Object.keys(DB.months||{}).forEach(function(ym){
+    if(parseInt(ym.slice(0,4),10)!==y)return;
+    var p=DB.months[ym];
+    if(!p||p.workdays==null)return;
+    var m=parseInt(ym.slice(5,7),10);
+    if(p.workdays===autoWorkdays(y,m)){delete p.workdays;n++;}
+  });
+  return n;
 }
 /* 本月实际生效的基数与单价：有冻结值用冻结值，没有就跟当前设置 */
 function monthBase(ym){var p=DB.months[ym];return (p&&p.base!=null)?p.base:DB.settings.baseSalary;}
@@ -1125,7 +1143,8 @@ function ratesOf(db){
 function rateName(db,rid){
   var l=ratesOf(db);
   for(var i=0;i<l.length;i++){if(l[i].id===rid)return l[i].name;}
-  return l[0].name;
+  /* 档位被删掉后，旧记录不能伪装成「正课」把数据缺失盖住 */
+  return "已删除档位";
 }
 /* 某天某档的单价：默认档走月度冻结价，附加档走月度快照，没快照才用设置里的现价 */
 function priceOf(db,ym,rid){
@@ -1148,10 +1167,13 @@ function nightOf(db,ym){
 function computeMonth(ym){
   var y=ymd(ym+"-01")[0], m=ymd(ym+"-01")[1];
   var n=new Date(y,m,0).getDate();
-  var half=0,lessons=0,filledDays=0,byMap={},nightCount=0,counted={work:0,inv:0,ot:0,leave:0};
+  var half=0,lessons=0,filledDays=0,byMap={},nightCount=0,ghostHalf=0,counted={work:0,inv:0,ot:0,leave:0};
   for(var d=1;d<=n;d++){
     var k=dk(y,m,d), rec0=peek(k);
     if(preStart(k))continue;                 // 入职前的日子整个跳过
+    /* 「默认全勤」是推算出来的、没有点开确认过，单独记下来给核对单提醒 */
+    if(isGhostHalf(k,"am"))ghostHalf++;
+    if(isGhostHalf(k,"pm"))ghostHalf++;
     var a=effHalf(k,"am"), b=effHalf(k,"pm");
     if(a==="work"||a==="inv"||a==="ot"){half++;counted[a]++;}
     else if(a==="leave"){counted.leave++;}
@@ -1174,7 +1196,8 @@ function computeMonth(ym){
       if(rec0.am||rec0.pm||rec0.lessons||rec0.note||rec0.night)filledDays++;
     }
   }
-  var p=monthP(ym);
+  /* 纯读：算工资、导出、复制核对单都不许顺手把当月参数冻上 */
+  var p=DB.months[ym]||{};
   var workdays=(p.workdays!=null)?p.workdays:autoWorkdays(y,m);
   var base=DB.settings.enableBase?(monthBase(ym)||0):0;
   var rate=DB.settings.enableLesson?(monthRate(ym)||0):0;
@@ -1183,7 +1206,8 @@ function computeMonth(ym){
   var capped=Math.min(actual,workdays);
   var extra=Math.max(actual-workdays,0);
   var basePart=round2(dailyRate*capped);
-  var extraPart=round2(dailyRate*extra);
+  /* ①② 是同一个日薪的拆分：先对「实际出勤 × 日薪」一次舍入，尾差归到 ②，保证分项与合计严格对得上 */
+  var extraPart=round2(round2(dailyRate*actual)-basePart);
   var byRate=[],lessonFee=0;
   if(DB.settings.enableLesson){
     ratesOf(DB).forEach(function(r){if(byMap[r.id])byRate.push(byMap[r.id]);});
@@ -1200,7 +1224,7 @@ function computeMonth(ym){
   var nightHours=round2(nightCount*np.hours);
   var nightFee=round2(nightCount*np.fee);
   return {
-    ym:ym,workdays:workdays,actual:actual,half:half,lessons:lessons,filledDays:filledDays,
+    ym:ym,workdays:workdays,actual:actual,half:half,lessons:lessons,filledDays:filledDays,ghostDays:ghostHalf/2,
     dailyRate:dailyRate,base:base,rate:rate,byRate:byRate,
     capped:capped,extra:extra,basePart:basePart,extraPart:extraPart,lessonFee:lessonFee,
     nightCount:nightCount,nightHours:nightHours,nightFee:nightFee,
@@ -1218,6 +1242,7 @@ function sumText(c){
   L.push("————————————————");
   L.push("法定工作日："+c.workdays+" 天");
   L.push("实际出勤："+fmtShort(c.actual)+" 天（上班 "+c.counted.work+" / 监考 "+c.counted.inv+" / 加班 "+c.counted.ot+" 半天，请假 "+c.counted.leave+" 半天）");
+  if(c.ghostDays>0)L.push("注意：其中 "+fmtShort(c.ghostDays)+" 天是系统默认推算的上班、尚未点开确认，请假或调休请先改日历");
   L.push("课时合计："+c.lessons+" 节");
   /* 用了多档单价才列明细，只有一档时不必多一行 */
   if(c.byRate&&c.byRate.length>1){
@@ -1393,11 +1418,19 @@ function dayCount(db){
     return hasContent(db.days[k]);
   }).length;
 }
-/* 把文件里有、本机没有的天补进来（本机已有的以本机为准）。返回补了几条 */
+/* 逐日裁决：文件独有的天补进来；两边都有的按 upd 取较新。返回改了几条。
+   本机刚删掉的天会留下 off 墓碑和新的 upd，所以不会被文件里的旧记录「复活」；
+   另一台电脑改过的天也能同步进来，不再一律「本机优先」。 */
 function mergeMissingDays(src){
   var n=0;
   Object.keys((src&&src.days)||{}).forEach(function(k){
-    if(!hasContent(DB.days[k])&&hasContent(src.days[k])){DB.days[k]=src.days[k];n++;}
+    var a=DB.days[k], b=src.days[k];
+    if(!b)return;
+    if(!a){
+      if(hasContent(b)){DB.days[k]=b;n++;}
+      return;
+    }
+    if((b.upd||0)>(a.upd||0)){DB.days[k]=b;n++;}
   });
   return n;
 }
@@ -1578,25 +1611,60 @@ function renderAll(){
   if(!$("view-sum").hidden)renderSum();
   if(!$("view-set").hidden)renderSet();
 }
+/* 口令一律走自绘的 password 输入框：window.prompt 是明文，旁边人一眼看到，
+   输入法还会把它记进词库；小程序端早就用了 password 页，这里补齐。 */
+function askPass(title,hint){
+  return new Promise(function(resolve){
+    var box=document.createElement("div");
+    box.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(20,24,32,.55);display:flex;align-items:center;justify-content:center;padding:16px";
+    var card=document.createElement("div");
+    card.style.cssText="background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.28);padding:22px;max-width:380px;width:100%";
+    var h=document.createElement("h3");h.textContent=title;
+    h.style.cssText="margin:0 0 8px;font-size:17px";
+    var p=document.createElement("p");p.textContent=hint||"";
+    p.style.cssText="margin:0 0 14px;color:#6b7280;font-size:13px;line-height:1.6;white-space:pre-line";
+    var inp=document.createElement("input");
+    inp.type="password";inp.autocomplete="new-password";inp.placeholder="口令";
+    inp.style.cssText="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:15px";
+    var row=document.createElement("div");
+    row.style.cssText="display:flex;gap:8px;justify-content:flex-end;margin-top:16px";
+    var cancel=document.createElement("button");cancel.textContent="取消";cancel.className="btn";
+    var ok=document.createElement("button");ok.textContent="确定";ok.className="btn primary";
+    row.appendChild(cancel);row.appendChild(ok);
+    card.appendChild(h);card.appendChild(p);card.appendChild(inp);card.appendChild(row);
+    box.appendChild(card);document.body.appendChild(box);
+    inp.focus();
+    var settled=false;
+    function done(v){if(settled)return;settled=true;box.remove();resolve(v);}
+    cancel.onclick=function(){done(null);};
+    ok.onclick=function(){done(inp.value);};
+    inp.onkeydown=function(e){
+      if(e.key==="Enter"){e.preventDefault();done(inp.value);}
+      else if(e.key==="Escape"){done(null);}
+    };
+    box.onclick=function(e){if(e.target===box)done(null);};
+  });
+}
 /* 数据文件是加密的、本机又没有口令时，让用户就地输一次口令把它打开 */
 function unlockFile(){
-  var p=prompt("这个数据文件设置了打开口令，请输入口令读取：\n（口令只在本机校验，输错不会改动文件）","");
-  if(!p)return Promise.resolve(false);
-  return readDirFile(cfgFileName()).then(function(txt){
-    if(txt==null)return readDirFile(dataFileName());     /* 旧版单文件也认 */
-    return txt;
-  }).then(function(txt){
-    if(!txt)return false;
-    var env={};try{env=JSON.parse(txt);}catch(e){}
-    if(!env.enc)return false;
-    return decryptText(txt,env.salt||"",p).then(function(){
-      META={pass:true,salt:env.salt||""};
-      PASS=p;
-      localStorage.setItem(META_KEY,JSON.stringify(META));
-      FILE_LOCKED=false;
-      return hydrateFromDir(true).then(function(){return true;});
-    });
-  }).catch(function(){return false;});
+  return askPass("这个数据文件设置了打开口令","口令只在本机校验，输错不会改动文件。").then(function(p){
+    if(!p)return false;
+    return readDirFile(cfgFileName()).then(function(txt){
+      if(txt==null)return readDirFile(dataFileName());     /* 旧版单文件也认 */
+      return txt;
+    }).then(function(txt){
+      if(!txt)return false;
+      var env={};try{env=JSON.parse(txt);}catch(e){}
+      if(!env.enc)return false;
+      return decryptText(txt,env.salt||"",p).then(function(){
+        META={pass:true,salt:env.salt||""};
+        PASS=p;
+        localStorage.setItem(META_KEY,JSON.stringify(META));
+        FILE_LOCKED=false;
+        return hydrateFromDir(true).then(function(){return true;});
+      });
+    }).catch(function(){return false;});
+  });
 }
 /* ---------- 按文件落盘：每月一份，只重写真正改动的文件 ---------- */
 var LASTRAW={};   /* 文件名 → 上次写入的主体（不含 savedAt），用来跳过没变的月份 */
@@ -1653,13 +1721,23 @@ function writeDbToDir(force){
   });
 }
 function persist(){
+  /* 另一个标签页已经写过这份账本时，本页内存是旧快照，直接写会把它覆盖掉 */
+  if(otherTabNewer()){
+    if(!OTHER_TAB_WARNED){
+      OTHER_TAB_WARNED=true;
+      toast("检测到另一个标签页也在记账，本页已暂停写盘以免互相覆盖。请只保留一个标签页后刷新");
+    }
+    return Promise.resolve();
+  }
   return serialize().then(function(raw){
     localStorage.setItem(DB_KEY,raw);
+    META.savedAt=DB.savedAt;
+    LAST_WRITE=DB.savedAt;
     localStorage.setItem(META_KEY,JSON.stringify(META));
     if(DIR&&FILE_LOCKED){
       if(!DIRWARNED){
         DIRWARNED=true;
-        toast("数据文件是加密的、当前口令读不出，本次不覆盖它；先在设置里用口令打开");
+        toast("硬盘那份加密文件用的是另一个口令，本次改动只存在浏览器里、没写进硬盘。请先用口令解锁该文件，或导出一份备份，别误以为两边已同步");
       }
       return;
     }
@@ -1880,9 +1958,18 @@ function downloadJson(){
     toast("已下载 "+name+"："+(n?n+" 天记录":"空记录")+" · 整库一个文件，在「下载」文件夹");
   });
 }
+/* 别的标签页写过吗？META 始终是明文，savedAt 可以跨加密/明文状态比较 */
+function otherTabNewer(){
+  try{
+    var meta=localStorage.getItem(META_KEY);
+    var m=meta?JSON.parse(meta):null;
+    return !!(m&&m.savedAt&&m.savedAt>LAST_WRITE);
+  }catch(e){return false;}
+}
 function loadRaw(){
   var meta=localStorage.getItem(META_KEY);
   if(meta){try{META=JSON.parse(meta);}catch(e){}}
+  LAST_WRITE=(META&&META.savedAt)||0;
   return localStorage.getItem(DB_KEY);
 }
 function idbGet(k){
@@ -1932,7 +2019,10 @@ function shiftMonth(delta){
 /* 渲染前把当月已过去的日子按课程表补齐。
    函数是幂等的（填过的日子有 lset，不会再写），每次 render 跑一遍很便宜；
    撤销会把这个月记进 AUTO_BLOCKED，不会又自动填回来。 */
+var SKIP_AUTO_ONCE=false;
 function maybeAutoFill(){
+  /* 撤销后紧跟的那次渲染不许把刚回滚的课时又自动填回来 */
+  if(SKIP_AUTO_ONCE){SKIP_AUTO_ONCE=false;return;}
   if(!DB||!CUR||AUTO_BLOCKED[CUR])return;
   var ym=CUR,snap={},msnap=snapMonths();
   var q=ymd(ym+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate();
@@ -2063,7 +2153,8 @@ function showSelBar(){
    本次打开页面里每个月只问一次，之后这一轮编辑直接放行（刷新页面重新问）。 */
 var CHECKED_OK={};
 function editOK(ym,msg){
-  if(!monthP(ym).checked||CHECKED_OK[ym])return true;
+  /* 只读 checked，别为了看一眼就把当月参数冻上 */
+  if(!(DB.months[ym]&&DB.months[ym].checked)||CHECKED_OK[ym])return true;
   if(!confirm(msg))return false;
   CHECKED_OK[ym]=true;
   return true;
@@ -2087,6 +2178,7 @@ function showUndo(msg,snap,msnap){
 }
 function undoApply(){
   if(!UNDO)return;
+  SKIP_AUTO_ONCE=true;
   /* 撤销自动落账 = 这个月别再自动填回来；想以后都不填，去设置里关开关 */
   var autoUndo=!!(UNDO.auto&&UNDO.ym);
   if(autoUndo)AUTO_BLOCKED[UNDO.ym]=true;
@@ -2110,7 +2202,7 @@ function applyKeys(keys,am,pm,clearLes,quiet){
   keys=keys.filter(function(k){return !preStart(k);});
   if(!keys.length)return false;
   var checked={};
-  keys.forEach(function(k){var ym=k.slice(0,7);if(monthP(ym).checked)checked[ym]=1;});
+  keys.forEach(function(k){var ym=k.slice(0,7);var mp=DB.months[ym]||{};if(mp.checked)checked[ym]=1;});
   var cm=Object.keys(checked);
   if(cm.length&&!editOKList(cm,"选中范围包含已标记核对的月份（"+cm.join("、")+"），仍要修改吗？"))return false;
   var msnap=snapMonths();
@@ -2343,7 +2435,7 @@ function stepDay(delta){
 /* 明细表「只看有课或有备注」：这是个看表的姿势，不属于数据，不落库 */
 var SUM_ONLY=false;
 function renderSum(){
-  var c=computeMonth(CUR), p=monthP(CUR);
+  var c=computeMonth(CUR);
   var v=$("view-sum");
   var rows="";
   var y=ymd(CUR+"-01")[0],m=ymd(CUR+"-01")[1],n=new Date(y,m,0).getDate();
@@ -2397,7 +2489,7 @@ function renderSum(){
   html+='<div class="card">';
   html+='<h2>计算过程</h2>';
   html+='<table><tbody>';
-  html+='<tr class="hi"><td>① 基本工资部分<br><span class="faint">'+fmt(c.dailyRate)+' × ¥'+fmtShort(c.base)+' ÷ '+c.workdays+' 天，取 '+fmtShort(c.capped)+' 天</span></td><td class="num">¥'+fmt(c.basePart)+'</td></tr>';
+  html+='<tr class="hi"><td>① 基本工资部分<br><span class="faint">¥'+fmtShort(c.base)+' ÷ '+c.workdays+' 天 × '+fmtShort(c.capped)+' 天'+(c.ghostDays>0?'　·　其中 '+fmtShort(c.ghostDays)+' 天是默认推算、尚未点开确认':'')+'</span></td><td class="num">¥'+fmt(c.basePart)+'</td></tr>';
   html+='<tr class="hi"><td>② 超出天数部分<br><span class="faint">超出 '+fmtShort(c.extra)+' 天（实际 '+fmtShort(c.actual)+' − 应上 '+c.workdays+'）</span></td><td class="num">¥'+fmt(c.extraPart)+'</td></tr>';
   /* 只有一档时写「N 节 × 单价」；分了档就得把每档列出来，
      否则 64 节 × 120 算不出按档累加的真实金额，用户会以为算错 */
@@ -2427,21 +2519,21 @@ function renderSum(){
 
   $("sumWorkdays").addEventListener("change",function(){
     var val=parseFloat(this.value); if(isNaN(val)||val<0)val=0;
-    p.workdays=val; persist().then(function(){renderSum();renderCal();});
+    var p=monthP(CUR); p.workdays=val; freezeMonth(CUR); persist().then(function(){renderSum();renderCal();});
   });
   $("sumBase").addEventListener("change",function(){
     var val=parseFloat(this.value); if(isNaN(val)||val<0)val=0;
-    p.base=val; persist().then(function(){renderSum();renderCal();});
+    var p=monthP(CUR); p.base=val; freezeMonth(CUR); persist().then(function(){renderSum();renderCal();});
   });
   $("sumRate").addEventListener("change",function(){
     var val=parseFloat(this.value); if(isNaN(val)||val<0)val=0;
-    p.rate=val; persist().then(function(){renderSum();renderCal();});
+    var p=monthP(CUR); p.rate=val; freezeMonth(CUR); persist().then(function(){renderSum();renderCal();});
   });
   $("sumCopy").addEventListener("click",function(){copySummary(c);});
   $("sumCsv").addEventListener("click",function(){exportCsv(CUR);});
   $("sumExport").addEventListener("click",function(){openExport("cur");});
   $("sumToggleCheck").addEventListener("click",function(){
-    p.checked=!p.checked;
+    var p=monthP(CUR); p.checked=!p.checked; freezeMonth(CUR);
     persist().then(function(){renderSum();renderCal();});
   });
   $("sumOnly").addEventListener("change",function(){
@@ -2781,6 +2873,7 @@ function holApply(){
   var f=HOL_FETCH;
   if(!f||!f.ok)return;
   var y=f.year;
+  refreshWorkdays(y);
   if(!DB.settings.holidays)DB.settings.holidays={};
   DB.settings.holidays[y]={
     off:f.off.map(function(s){return [s[0],s[1]];}),
@@ -2826,7 +2919,7 @@ function holidayHtml(){
   var has=(e.off&&e.off.length)||(e.work&&e.work.length);
   var h="";
   h+='<div class="card"><h2>放假安排</h2>';
-  h+='<p class="muted">内置的是国办发公布的那几年（'+Object.keys(HOLIDAYS).sort().join("、")+'）。新一年的安排公布后，点「联网获取」把国办发原文的摘录抓下来，核对过再写入；抓不到、或者学校校历跟国办发不一样，就在下面手动填，填了优先于内置。同一天既填了休假又填了补班，以补班为准。</p>';
+  h+='<p class="muted">内置的是国办发公布的那几年（'+Object.keys(HOLIDAYS).sort().join("、")+'）。新一年的安排公布后，点「联网获取」把国办发原文的摘录抓下来，核对过再写入；抓不到、或者学校校历跟国办发不一样，就在下面手动填，填了优先于内置。同一天既填了休假又填了补班，以补班为准。改完放假安排，该年自动算出的应上班天数会跟着重算；汇总页里手填过的「法定工作日」保持不变。</p>';
   h+='<div class="fields"><div class="field"><div><label>年份</label><div class="desc">'+(t?"内置："+t.note:"这一年没有内置安排，没填的日子按周一到周五算上班")+'</div></div><select id="holYear">'
     +ys.map(function(v){return '<option value="'+v+'"'+(v===y?" selected":"")+'>'+v+' 年</option>';}).join("")+'</select></div></div>';
   h+=holNetHtml(y,has,t);
@@ -2842,6 +2935,7 @@ function holidayHtml(){
 }
 function holPush(kind,from,to){
   var y=HOL_YEAR;
+  refreshWorkdays(y);
   if(!DB.settings.holidays)DB.settings.holidays={};
   var e=DB.settings.holidays[y];
   if(!e)e=DB.settings.holidays[y]={off:[],work:[]};
@@ -2891,6 +2985,7 @@ function bindHoliday(){
     b.addEventListener("click",function(){
       var kind=this.dataset.kind,i=parseInt(this.dataset.i,10);
       var arr=DB.settings.holidays[HOL_YEAR][kind];
+      refreshWorkdays(HOL_YEAR);
       arr.splice(i,1);
       persist().then(function(){renderSet();renderCal();if(!$("view-sum").hidden)renderSum();});
     });
@@ -2898,6 +2993,7 @@ function bindHoliday(){
   var cl=$("holClear");
   if(cl)cl.addEventListener("click",function(){
     if(!confirm("清空 "+HOL_YEAR+" 年自己填的休假与补班日？内置的国办发安排不受影响。"))return;
+    refreshWorkdays(HOL_YEAR);
     delete DB.settings.holidays[HOL_YEAR];
     persist().then(function(){renderSet();renderCal();if(!$("view-sum").hidden)renderSum();toast("已清空");});
   });
@@ -3490,10 +3586,11 @@ function importJson(){
       try{
         var obj=JSON.parse(raw);
         if(obj&&obj.enc){
-          var pass=prompt("这份备份是加密的，请输入当时的口令：");
-          if(!pass)return;
-          decryptText(raw,META.salt||"",pass).then(function(txt){done(JSON.parse(txt));})
-            .catch(function(){alert("口令不对，或文件已损坏");});
+          askPass("这份备份是加密的","请输入备份当时的口令。").then(function(pass){
+            if(!pass)return;
+            decryptText(raw,META.salt||"",pass).then(function(txt){done(JSON.parse(txt));})
+              .catch(function(){alert("口令不对，或文件已损坏");});
+          });
         }else done(obj);
       }catch(e){alert("文件格式不对，无法导入");}
     };
@@ -3504,15 +3601,17 @@ function importJson(){
 
 function askSetPass(){
   if(!hasCrypto()){alert("当前浏览器不支持本地加密，请改用 Chrome 或 Edge 打开本文件，再设置口令。");return;}
-  var p=prompt("设置打开口令（建议 6 位以上）。\n注意：忘记口令将无法解密数据，只能靠明文备份恢复。","");
-  if(p==null)return;
-  p=p.trim();
-  if(p.length<4){alert("口令太短，至少 4 位");return;}
-  var p2=prompt("再输一次确认：","");
-  if(p2!==p){alert("两次输入不一致");return;}
-  var salt=b64(crypto.getRandomValues(new Uint8Array(16)));
-  META={pass:true,salt:salt};PASS=p;
-  persist().then(function(){toast("口令已开启");renderSet();});
+  askPass("设置打开口令","建议 6 位以上。注意：忘记口令将无法解密数据，只能靠明文备份恢复。").then(function(p){
+    if(p==null)return;
+    p=p.trim();
+    if(p.length<4){alert("口令太短，至少 4 位");return;}
+    return askPass("再输一次确认","").then(function(p2){
+      if(p2!==p){alert("两次输入不一致");return;}
+      var salt=b64(crypto.getRandomValues(new Uint8Array(16)));
+      META={pass:true,salt:salt};PASS=p;
+      persist().then(function(){toast("口令已开启");renderSet();});
+    });
+  });
 }
 
 /* ---------- 启动 ---------- */
@@ -3774,6 +3873,7 @@ function bindEvents(){
       if(!r.pm)r.pm=b0||"";
       r.lessons=v;r.lset=true;r.upd=Date.now();filled++;
     }
+    if(filled>0)freezeMonth(CUR);
     persist().then(function(){
       toast("已填 "+filled+" 天课时"+(skipped?"，跳过 "+skipped+" 天已有记录":"")+(hol?"，法定节假日 "+hol+" 天不填":""));
       renderCal();
@@ -3793,6 +3893,7 @@ function bindEvents(){
       cnt++;
     }
     if(!cnt){toast("本月没有需要恢复的日子");return;}
+    freezeMonth(CUR);
     showUndo("已恢复默认出勤 "+cnt+" 天",snap,msnap);
     persist().then(function(){toast("已恢复 "+cnt+" 天默认出勤");renderCal();});
   });
@@ -3810,7 +3911,9 @@ function bindEvents(){
         delete DB.days[k];
       }
     }
-    p.checked=false;
+    /* 这里原先写的是未定义的 p，清空会在落盘前抛异常、连撤销条都不出来 */
+    monthP(CUR).checked=false;
+    freezeMonth(CUR);
     showUndo("已清空 "+CUR,snap,msnap);
     persist().then(function(){toast("已清空，出勤归 0");renderCal();});
   });

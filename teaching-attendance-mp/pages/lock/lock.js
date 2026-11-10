@@ -1,4 +1,5 @@
 var lock = require('../../utils/lock.js');
+var store = require('../../utils/store.js');
 
 var TRIES_KEY = 'kqzb_lock_tries';
 var UNTIL_KEY = 'kqzb_lock_until';
@@ -83,33 +84,58 @@ Page({
     }, 30);
   },
 
-  /* 忘记口令只剩一条路：清空本机重新开始。记录本身没加密，清掉就没了，所以必须二次确认 */
+  /* 忘记口令只能清空重来。记录本身没加密，清掉就没了；
+     所以先给一次「导出备份」的机会，再走二次确认。 */
   forgot: function () {
     var that = this;
-    wx.showModal({
-      title: '忘记口令',
-      content: '口令只存在本机，无法找回。只能清空本机记录重新开始（之前导出的备份文件仍可再导入）。确定清空吗？',
-      confirmText: '清空重来',
-      confirmColor: '#A33A28',
-      success: function (res) {
-        if (!res.confirm) { return; }
+    wx.showActionSheet({
+      itemList: ['先导出备份（不清数据）', '清空本机重新开始'],
+      success: function (a) {
+        if (a.tapIndex === 0) { that.exportBeforeClear(); return; }
+        if (a.tapIndex !== 1) { return; }
         wx.showModal({
-          title: '再确认一次',
-          content: '清空后本机的出勤、课时、课程表和工资参数全部消失，且不能撤销。',
-          confirmText: '确定清空',
+          title: '忘记口令',
+          content: '口令只存在本机，无法找回。清空后本机记录全部消失（之前导出的备份仍可再导入）。确定清空吗？',
+          confirmText: '清空重来',
           confirmColor: '#A33A28',
-          success: function (m) {
-            if (!m.confirm) { return; }
-            try { wx.removeStorageSync('kqzb_db_v1'); } catch (e) { /* 忽略 */ }
-            lock.clear();
-            try {
-              wx.removeStorageSync(TRIES_KEY);
-              wx.removeStorageSync(UNTIL_KEY);
-            } catch (e) { /* 忽略 */ }
-            wx.reLaunch({ url: '/pages/calendar/calendar' });
+          success: function (res) {
+            if (!res.confirm) { return; }
+            wx.showModal({
+              title: '再确认一次',
+              content: '清空后本机的出勤、课时、课程表和工资参数全部消失，且不能撤销。',
+              confirmText: '确定清空',
+              confirmColor: '#A33A28',
+              success: function (m) {
+                if (!m.confirm) { return; }
+                try { wx.removeStorageSync('kqzb_db_v1'); } catch (e) { /* 忽略 */ }
+                lock.clear();
+                try {
+                  wx.removeStorageSync(TRIES_KEY);
+                  wx.removeStorageSync(UNTIL_KEY);
+                } catch (e) { /* 忽略 */ }
+                wx.reLaunch({ url: '/pages/calendar/calendar' });
+              }
+            });
           }
         });
       }
+    });
+  },
+
+  /* 清库前先把明文数据导出去：口令忘了不代表账本也得一起丢 */
+  exportBeforeClear: function () {
+    store.exportBackup(store.load()).then(function (msg) {
+      wx.showModal({
+        title: '备份已导出',
+        content: msg + '。确认文件已经保存好之后，再回来清空本机数据。',
+        showCancel: false
+      });
+    }).catch(function () {
+      wx.showModal({
+        title: '导出失败',
+        content: '当前客户端不支持导出文件。建议换一个客户端导出，或先把记录手工抄下来，再清空。',
+        showCancel: false
+      });
     });
   }
 });

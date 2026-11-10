@@ -293,7 +293,10 @@ Page({
             var r = store.mergeInto(that.db, incoming);
             store.save(that.db);
             that.render();
-            wx.showToast({ title: '已合并：新增 ' + r.added + ' 天，更新 ' + r.updated + ' 天', icon: 'none' });
+            var msg = '已合并：新增 ' + r.added + ' 天，更新 ' + r.updated + ' 天';
+            if (r.conflicts) { msg += '，' + r.conflicts + ' 天两边不一致（按修改时间取较新）'; }
+            if (r.future) { msg += '；' + r.future + ' 天时间戳超前，已按本机为准'; }
+            wx.showToast({ title: msg, icon: 'none' });
           } else if (res.tapIndex === 1) {
             wx.showModal({
               title: '确认覆盖',
@@ -302,8 +305,7 @@ Page({
               confirmColor: '#A33A28',
               success: function (m) {
                 if (!m.confirm) { return; }
-                that.db = incoming;
-                store.save(that.db);
+                that.db = store.replace(incoming);
                 that.render();
                 wx.showToast({ title: '已覆盖，当前 ' + n + ' 天', icon: 'none' });
               }

@@ -660,9 +660,11 @@ sumN.db.settings.rates = [
   { id: 'default', name: '正课', price: 120 }, { id: 'eve', name: '晚自习', price: 80 }
 ];
 sumN.db.settings.nightFee = 10;
-delete sumN.db.months[ymN].rates;
-delete sumN.db.months[ymN].night;
-sumN.render();                                   /* 这一遍把 80 / 10 冻进本月 */
+var mpN = core.monthP(sumN.db, ymN);
+delete mpN.rates;
+delete mpN.night;
+/* 渲染不再写库：改由写路径显式把 80 / 10 冻进本月 */
+core.freezeMonth(sumN.db, ymN);
 sumN.db.settings.rates[1].price = 150;
 sumN.db.settings.nightFee = 25;
 sumN.render();
@@ -865,8 +867,9 @@ hol.addOff();
 ok(current().settings.holidays[HY].off.length === offBefore, '跨年的段拦住了');
 ok(toasts.some(t => /跨年/.test(t)), '跨年给出提示', toasts.join(' / '));
 
-/* 已记过账的月份要提醒不会重算 */
-ok(new RegExp('3 月').test(hol.data.touched), '有记录的月份给出不重算提示', hol.data.touched);
+/* 已记过账的月份要说明：自动算出的天数会重算，手填的保留 */
+ok(new RegExp('3 月').test(hol.data.touched) && /重算/.test(hol.data.touched),
+  '有记录的月份说明重算口径', hol.data.touched);
 
 hol.delOff({ currentTarget: { dataset: { i: 0 } } });
 ok(current().settings.holidays[HY].off.length === 0, '休假段可以删');
@@ -1205,6 +1208,49 @@ ok(current().settings.autoLessons === true && afSet.data.autoLessons === true,
 
 /* 批量套用留下的撤销条计时器也收掉，否则 node 要多等 10 秒才退出 */
 if (typeof bcal !== 'undefined' && bcal.hideUndo) { bcal.hideUndo(); }
+
+/* 跨页面共用一份数据引用：避免 A 页面的旧副本把 B 页面刚写的数据整库盖掉 */
+reset();
+const stShared = require(path.join(ROOT, 'utils/store.js'));
+mem['kqzb_db_v1'] = JSON.stringify(seedDb());
+const sharedA = stShared.load();
+const sharedB = stShared.load();
+ok(sharedA === sharedB, 'store.load 内容未变时共用同一份数据引用');
+sharedA.days['2026-11-20'] = { am: 'work', pm: 'work', lessons: 1, note: 'A 页面写的', upd: Date.now() };
+stShared.save(sharedA);
+const sharedC = stShared.load();
+ok(sharedB.days['2026-11-20'] && sharedB.days['2026-11-20'].note === 'A 页面写的',
+  'B 页面持有的引用能看到 A 页面刚保存的记录');
+ok(sharedC === sharedB, '保存后 load 仍是同一份引用');
+
+/* 导入合并：时钟超前的设备不能吞掉本机新账，冲突要看得见 */
+const mLocal = core.blankDB();
+mLocal.days['2026-11-03'] = { am: 'work', pm: 'work', lessons: 2, note: '本机新', upd: Date.now() };
+const mIncoming = core.blankDB();
+mIncoming.days['2026-11-03'] = { am: 'work', pm: 'work', lessons: 9, note: '时钟快一天', upd: Date.now() + 86400000 };
+mIncoming.days['2026-11-04'] = { am: 'work', pm: 'work', lessons: 1, note: '新的一天', upd: Date.now() };
+const mres = stShared.mergeInto(mLocal, mIncoming);
+ok(mLocal.days['2026-11-03'].lessons === 2, '时间戳超前的导入记录不覆盖本机新账');
+ok(mres.future === 1, '返回未来时间戳的条数');
+ok(mres.conflicts >= 1, '两边不一致的日子被记为冲突');
+ok(!!mLocal.days['2026-11-04'], '没有冲突的新日子照常导入');
+
+/* 连续操作合并为一个撤销点：撤销条还在时沿用最早那份快照 */
+reset();
+mem['kqzb_db_v1'] = JSON.stringify(seedDb());
+const uCal = makePage('calendar');
+uCal.db = stShared.load();
+uCal.data.ym = '2026-11';
+uCal.hideUndo();
+uCal._beginUndo('sheet-A');
+const snapFirst = uCal._undo.snap;
+uCal.showUndo('第一次');
+uCal.db.days['2026-11-05'] = { am: 'work', pm: 'work', lessons: 1, note: '第二次操作', upd: Date.now() };
+uCal._beginUndo('sheet-A');
+ok(uCal._undo.snap === snapFirst, '同一批连续操作沿用最早的快照');
+uCal._beginUndo('sheet-B');
+ok(uCal._undo.snap !== snapFirst, '不同批次重新拍快照');
+uCal.hideUndo();
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }
