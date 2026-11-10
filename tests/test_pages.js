@@ -739,14 +739,28 @@ cr.onLoad();
 ok(cr.data.courses.length === 1, '带出已有课程');
 cr.addCourse();
 ok(cr.data.editing && cr.data.editing.id === '', '打开新增面板');
+ok(cr.data.editing.weekdays.join(',') === '1', '新增时默认选中周一', String(cr.data.editing.weekdays));
 cr.onName({ detail: { value: '数学' } });
-cr.setWeekday({ currentTarget: { dataset: { v: '3' } } });
+cr.toggleWeekday({ currentTarget: { dataset: { v: '3' } } });
+ok(cr.data.editing.weekdays.join(',') === '1,3', '星期几可以多选', String(cr.data.editing.weekdays));
+cr.toggleWeekday({ currentTarget: { dataset: { v: '1' } } });
+cr.toggleWeekday({ currentTarget: { dataset: { v: '5' } } });
+ok(cr.data.editing.weekdays.join(',') === '3,5', '再点一下能取消某一天', String(cr.data.editing.weekdays));
+ok(cr.data.weekdayChips.filter(x => x.on).length === 2, '面板上的星期按钮跟着高亮',
+  JSON.stringify(cr.data.weekdayChips));
 cr.setData({ 'editing.lessons': 2 });
 cr.saveCourse();
 ok(current().courses.length === 2, '新增课程已保存', current().courses.length);
 const added = current().courses.filter(c => c.name === '数学')[0];
-ok(added && added.weekday === 3 && added.lessons === 2, '新增课程字段正确', JSON.stringify(added));
+ok(added && added.weekday === 3 && added.weekdays.join(',') === '3,5' && added.lessons === 2,
+  '新增课程字段正确（weekday 仍存首日，兼容旧读法）', JSON.stringify(added));
+const mathRow = cr.data.courses.filter(x => x.name === '数学')[0];
+ok(mathRow && /周三、周五/.test(mathRow.desc), '课程列表把多天都显示出来', mathRow && mathRow.desc);
 cr.editCourse({ currentTarget: { dataset: { id: added.id } } });
+ok(cr.data.editing.weekdays.join(',') === '3,5', '编辑时带出多天', String(cr.data.editing.weekdays));
+cr.toggleWeekday({ currentTarget: { dataset: { v: '3' } } });
+cr.toggleWeekday({ currentTarget: { dataset: { v: '5' } } });
+ok(cr.data.editing.weekdays.join(',') === '5', '最后一天不允许取消', String(cr.data.editing.weekdays));
 cr.stepWeek({ currentTarget: { dataset: { w: 'startWeek', d: '1' } } });
 ok(cr.data.editing.startWeek === 2, '起止周可调');
 cr.stepWeek({ currentTarget: { dataset: { w: 'endWeek', d: '-1' } } });
@@ -754,6 +768,20 @@ cr.stepWeek({ currentTarget: { dataset: { w: 'endWeek', d: '-1' } } });
 ok(cr.data.editing.endWeek >= cr.data.editing.startWeek, '结束周不会小于起始周');
 cr.saveCourse();
 ok(current().courses.length === 2, '编辑不会新增一条');
+
+/* 内核层：一门课排多天，只在本周那几天出课时，写重复的天不重复计 */
+ok(core.courseDays({ weekday: 4 }).join(',') === '4', '老备份只有 weekday 也能读成数组');
+ok(core.courseDays({ weekdays: [5, 1, 5, 3] }).join(',') === '1,3,5', 'weekdays 去重并排序',
+  JSON.stringify(core.courseDays({ weekdays: [5, 1, 5, 3] })));
+const mdb = core.blankDB();
+mdb.term.start = '2026-11-02';
+mdb.settings.startDate = '';
+mdb.courses = [{ id: 'm1', name: '语文', weekday: 1, weekdays: [1, 3, 5], lessons: 3,
+  startWeek: 1, endWeek: 52, parity: 'all' }];
+ok(core.lessonsFor(mdb, '2026-11-02') === 3, '多天课程：周一算 3 节');
+ok(core.lessonsFor(mdb, '2026-11-04') === 3, '多天课程：周三算 3 节');
+ok(core.lessonsFor(mdb, '2026-11-06') === 3, '多天课程：周五算 3 节');
+ok(core.lessonsFor(mdb, '2026-11-03') === 0, '多天课程：没排的那天不算');
 
 /* 从 Excel 粘贴导入课表 */
 cr.openImport();

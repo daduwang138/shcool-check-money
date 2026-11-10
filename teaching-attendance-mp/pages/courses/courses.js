@@ -5,6 +5,21 @@ var lock = require('../../utils/lock.js');
 var WEEKDAY = ['', '一', '二', '三', '四', '五', '六', '日'];
 var PARITY = { all: '每周', odd: '单周', even: '双周' };
 
+/* 星期几可以多选：把选中数组摊成 7 个 chip 的状态，wxml 里不用写判断 */
+function chipsOf(days) {
+  var out = [];
+  for (var v = 1; v <= 7; v++) {
+    out.push({ v: v, label: WEEKDAY[v], on: (days || []).indexOf(v) >= 0 });
+  }
+  return out;
+}
+function daysText(days) {
+  return (days || []).map(function (d) { return '周' + (WEEKDAY[d] || '?'); }).join('、');
+}
+function sortDays(days) {
+  return (days || []).slice().sort(function (a, b) { return a - b; });
+}
+
 Page({
   data: {
     termStart: '',
@@ -13,7 +28,7 @@ Page({
     preview: '',
     editing: null,
     imp: null,
-    weekdayOpts: [1, 2, 3, 4, 5, 6, 7],
+    weekdayChips: chipsOf([1]),
     parityOpts: [
       { v: 'all', label: '每周' },
       { v: 'odd', label: '单周' },
@@ -35,8 +50,9 @@ Page({
   render: function () {
     var db = this.db;
     var list = db.courses.map(function (c) {
+      var days = core.courseDays(c);
       var parts = [];
-      parts.push('周' + (WEEKDAY[c.weekday] || '?'));
+      parts.push(daysText(days) || '周?');
       parts.push(c.lessons + ' 节');
       parts.push('第 ' + c.startWeek + '–' + c.endWeek + ' 周');
       if (c.parity !== 'all') { parts.push(PARITY[c.parity]); }
@@ -90,12 +106,13 @@ Page({
         id: '',
         title: '添加课程',
         name: '',
-        weekday: 1,
+        weekdays: [1],
         lessons: 2,
         startWeek: 1,
         endWeek: 16,
         parity: 'all'
-      }
+      },
+      weekdayChips: chipsOf([1])
     });
   },
 
@@ -107,17 +124,20 @@ Page({
     }
     if (!c) { return; }
     this._name = undefined;
+    var days = core.courseDays(c);
+    if (!days.length) { days = [1]; }
     this.setData({
       editing: {
         id: c.id,
         title: '编辑课程',
         name: c.name || '',
-        weekday: c.weekday,
+        weekdays: days,
         lessons: c.lessons,
         startWeek: c.startWeek,
         endWeek: c.endWeek,
         parity: c.parity
-      }
+      },
+      weekdayChips: chipsOf(days)
     });
   },
 
@@ -136,8 +156,22 @@ Page({
     this.setData(patch);
   },
 
-  setWeekday: function (e) {
-    this._patchEdit({ 'editing.weekday': parseInt(e.currentTarget.dataset.v, 10) });
+  /* 点一下加、再点一下去掉；全去掉就没课可排，所以至少留一天 */
+  toggleWeekday: function (e) {
+    var v = parseInt(e.currentTarget.dataset.v, 10);
+    var days = sortDays(this.data.editing.weekdays);
+    var at = days.indexOf(v);
+    if (at >= 0) {
+      if (days.length === 1) {
+        wx.showToast({ title: '至少留一天', icon: 'none' });
+        return;
+      }
+      days.splice(at, 1);
+    } else {
+      days.push(v);
+      days = sortDays(days);
+    }
+    this._patchEdit({ 'editing.weekdays': days, weekdayChips: chipsOf(days) });
   },
 
   setParity: function (e) {
@@ -171,12 +205,14 @@ Page({
     var e = this.data.editing;
     if (!e) { return; }
     var name = (this._name === undefined ? e.name : this._name) || '';
+    var days = sortDays(e.weekdays);
+    if (!days.length) { days = [1]; }
     var db = this.db;
     if (e.id) {
       for (var i = 0; i < db.courses.length; i++) {
         if (db.courses[i].id === e.id) {
           db.courses[i] = {
-            id: e.id, name: name, weekday: e.weekday, lessons: e.lessons,
+            id: e.id, name: name, weekday: days[0], weekdays: days, lessons: e.lessons,
             startWeek: e.startWeek, endWeek: e.endWeek, parity: e.parity
           };
           break;
@@ -186,7 +222,8 @@ Page({
       db.courses.push({
         id: 'c' + Math.random().toString(36).slice(2, 8),
         name: name,
-        weekday: e.weekday,
+        weekday: days[0],
+        weekdays: days,
         lessons: e.lessons,
         startWeek: e.startWeek,
         endWeek: e.endWeek,
@@ -273,13 +310,13 @@ Page({
       var dup = 0;
       r.ok.forEach(function (c) {
         var same = db.courses.some(function (x) {
-          return x.name === c.name && x.weekday === c.weekday &&
+          return x.name === c.name && core.courseDays(x).join(',') === String(c.weekday) &&
             x.startWeek === c.startWeek && x.endWeek === c.endWeek && x.parity === c.parity;
         });
         if (same) { dup++; return; }
         db.courses.push({
           id: 'c' + Math.random().toString(36).slice(2, 8),
-          name: c.name, weekday: c.weekday, lessons: c.lessons,
+          name: c.name, weekday: c.weekday, weekdays: [c.weekday], lessons: c.lessons,
           startWeek: c.startWeek, endWeek: c.endWeek, parity: c.parity
         });
       });

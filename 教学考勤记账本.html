@@ -278,14 +278,21 @@ input[type=date],input[type=month]{font:inherit;font-size:13px;padding:6px 10px;
 input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;box-shadow:0 0 0 3px rgba(27,94,155,.12)}
 .wide{width:100%!important;text-align:left}
 
-.course-row{display:grid;grid-template-columns:minmax(100px,1.5fr) 92px 88px 78px 78px 84px 36px;
-  gap:8px;align-items:center;margin-bottom:7px}
+.course-row{display:grid;grid-template-columns:minmax(90px,1.3fr) 156px 76px 66px 66px 78px 32px;
+  gap:7px;align-items:center;margin-bottom:7px}
 .course-row.head{font-size:11px;color:var(--faint);margin-bottom:8px;letter-spacing:.3px}
 .course-row input,.course-row select{width:100%!important;text-align:left;padding:6px 9px;font-size:12px}
 .course-row input[type=number]{text-align:center}
 .course-row .del{border:1px solid var(--line);background:#fff;color:#B45252;border-radius:8px;
   cursor:pointer;font-size:14px;line-height:1;height:30px;font-family:inherit;transition:.12s}
 .course-row .del:hover{background:#FDF6F6;border-color:#EBC9C9}
+/* 周几可多选：7 个小方块，点一下加、再点一下去掉 */
+.c-wds{display:flex;gap:3px}
+.c-wds .wd{flex:1;min-width:0;height:30px;padding:0;border:1px solid var(--line);border-radius:7px;
+  background:#FCFBF8;color:var(--faint);font-size:11px;font-family:inherit;line-height:1;
+  cursor:pointer;transition:.12s}
+.c-wds .wd:hover{border-color:#CFC9BC}
+.c-wds .wd.on{background:#F2EFE6;border-color:#B9B09A;color:var(--ink);font-weight:600}
 @media(max-width:700px){.course-row{grid-template-columns:1fr 1fr 1fr}.course-row.head{display:none}}
 
 .wp-grid,.weekgen{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px;margin-top:6px}
@@ -859,6 +866,23 @@ function isHoliday(key){
   if(!t)return false;
   return inSpan(key,t.spans);
 }
+/* 一门课可以排在多个星期几上。老备份只有 weekday 单值，这里统一折成数组读，
+   写回去时 weekday 仍然保留为第一天，旧版程序/旧导出文件照样能算对。 */
+function courseDays(c){
+  var out=[],src=(c&&c.weekdays)||[],i,v;
+  if(src&&src.length){
+    for(i=0;i<src.length;i++){
+      v=parseInt(src[i],10);
+      if(v>=1&&v<=7&&out.indexOf(v)<0)out.push(v);
+    }
+  }
+  if(!out.length){
+    v=parseInt(c&&c.weekday,10);
+    if(v>=1&&v<=7)out.push(v);
+  }
+  out.sort(function(a,b){return a-b;});
+  return out;
+}
 function lessonsFor(key){
   if(preStart(key))return 0;                 // 入职前没有课
   var w=weekOf(key);
@@ -867,7 +891,7 @@ function lessonsFor(key){
   var wd=weekdayOf(key),sum=0;
   for(var i=0;i<DB.courses.length;i++){
     var c=DB.courses[i];
-    if(parseInt(c.weekday,10)!==wd)continue;
+    if(courseDays(c).indexOf(wd)<0)continue;
     if(w<(c.startWeek||1)||w>(c.endWeek||16))continue;
     if(c.parity==="odd"&&w%2===0)continue;
     if(c.parity==="even"&&w%2===1)continue;
@@ -974,8 +998,10 @@ function normalize(db){
   db.term=Object.assign(b.term,db.term||{});
   if(!Array.isArray(db.courses))db.courses=[];
   db.courses=db.courses.map(function(c){
+    var days=courseDays(c);
+    if(!days.length)days=[1];
     return {id:c.id||("c"+Math.random().toString(36).slice(2,8)),name:c.name||"",
-      weekday:parseInt(c.weekday,10)||1,lessons:parseInt(c.lessons,10)||0,
+      weekday:days[0],weekdays:days,lessons:parseInt(c.lessons,10)||0,
       startWeek:parseInt(c.startWeek,10)||1,endWeek:parseInt(c.endWeek,10)||16,
       parity:c.parity||"all"};
   });
@@ -2150,10 +2176,10 @@ function impCoursesApply(mode){
   var dup=0;
   r.ok.forEach(function(c){
     var same=DB.courses.some(function(x){
-      return x.name===c.name&&x.weekday===c.weekday&&x.startWeek===c.startWeek&&x.endWeek===c.endWeek&&x.parity===c.parity;
+      return x.name===c.name&&courseDays(x).join(",")===String(c.weekday)&&x.startWeek===c.startWeek&&x.endWeek===c.endWeek&&x.parity===c.parity;
     });
     if(same){dup++;return;}
-    DB.courses.push({id:"c"+Math.random().toString(36).slice(2,8),name:c.name,weekday:c.weekday,
+    DB.courses.push({id:"c"+Math.random().toString(36).slice(2,8),name:c.name,weekday:c.weekday,weekdays:[c.weekday],
       lessons:c.lessons,startWeek:c.startWeek,endWeek:c.endWeek,parity:c.parity});
   });
   persist().then(function(){
@@ -2591,15 +2617,20 @@ function dirTagHtml(){
 }
 function courseRowsHtml(){
   if(!DB.courses.length)return '<p class="faint" style="margin:4px 0 8px">暂无课程，点下面的「添加课程」。</p>';
-  var WD=["周一","周二","周三","周四","周五","周六","周日"];
+  var WD=["一","二","三","四","五","六","日"];
   return DB.courses.map(function(c,i){
-    var opts=WD.map(function(w,j){var v=j+1;return '<option value="'+v+'"'+(v===parseInt(c.weekday,10)?" selected":"")+'>'+w+'</option>';}).join("");
+    var cd=courseDays(c);
+    var wds='<div class="c-wds">'+WD.map(function(w,j){
+      var v=j+1;
+      return '<button type="button" class="wd'+(cd.indexOf(v)>=0?" on":"")+'" data-w="'+v
+        +'" title="周'+w+'">'+w+'</button>';
+    }).join("")+'</div>';
     var pars=[["all","每周"],["odd","单周"],["even","双周"]].map(function(p){
       return '<option value="'+p[0]+'"'+((c.parity||"all")===p[0]?" selected":"")+'>'+p[1]+'</option>';
     }).join("");
     return '<div class="course-row" data-i="'+i+'">'
       +'<input type="text" class="c-name" value="'+esc(c.name)+'" placeholder="课程名（可不填）">'
-      +'<select class="c-wd">'+opts+'</select>'
+      +wds
       +'<input type="number" class="c-les" min="0" max="20" step="1" value="'+c.lessons+'">'
       +'<input type="number" class="c-sw" min="1" max="30" step="1" value="'+c.startWeek+'">'
       +'<input type="number" class="c-ew" min="1" max="30" step="1" value="'+c.endWeek+'">'
@@ -2612,7 +2643,11 @@ function syncCourse(row){
   var i=parseInt(row.dataset.i,10),c=DB.courses[i];
   if(!c)return;
   c.name=row.querySelector(".c-name").value;
-  c.weekday=parseInt(row.querySelector(".c-wd").value,10)||1;
+  var days=[].slice.call(row.querySelectorAll(".c-wds .wd.on")).map(function(b){return parseInt(b.dataset.w,10);});
+  days.sort(function(a,b){return a-b;});
+  if(!days.length)days=[1];
+  c.weekdays=days;
+  c.weekday=days[0];
   c.lessons=Math.max(0,parseInt(row.querySelector(".c-les").value,10)||0);
   c.startWeek=Math.max(1,parseInt(row.querySelector(".c-sw").value,10)||1);
   c.endWeek=Math.max(1,parseInt(row.querySelector(".c-ew").value,10)||16);
@@ -2927,7 +2962,7 @@ function renderSet(){
   h+='<p class="muted">配一次，整个学期不用再想今天几节。配完在记账页点「按课程表填课时」，一次填满整月。</p>';
   h+='<div class="fields"><div class="field"><div><label>第 1 教学周的周一</label><div class="desc">换算周次的基准日，填开学第一周的周一</div></div><input type="date" id="termStart" value="'+(DB.term.start||"")+'"></div></div>';
   h+='<h3>课程</h3>';
-  h+='<div class="course-row head"><span>课程</span><span>周几</span><span>每次节数</span><span>起始周</span><span>结束周</span><span>单双周</span><span></span></div>';
+  h+='<div class="course-row head"><span>课程</span><span>周几（可多选）</span><span>每次节数</span><span>起始周</span><span>结束周</span><span>单双周</span><span></span></div>';
   h+='<div id="courseList">'+courseRowsHtml()+'</div>';
   h+='<div style="margin-top:12px"><button class="btn sm" id="addCourse">+ 添加课程</button> <button class="btn sm" id="impCourses">从 Excel 粘贴课表</button></div>';
   h+='<h3>快速生成（一周七格）</h3>';
@@ -3098,7 +3133,7 @@ function renderSet(){
     Array.prototype.forEach.call(document.querySelectorAll("#view-set .wg"),function(inp){
       var v=Math.max(0,parseInt(inp.value,10)||0);
       if(v>0)add.push({id:"c"+Date.now()+Math.random().toString(36).slice(2,5),name:"",
-        weekday:parseInt(inp.dataset.w,10),lessons:v,startWeek:sw,endWeek:ew,parity:"all"});
+        weekday:parseInt(inp.dataset.w,10),weekdays:[parseInt(inp.dataset.w,10)],lessons:v,startWeek:sw,endWeek:ew,parity:"all"});
     });
     if(!add.length){alert("七格里都是 0，没有可生成的课程。");return;}
     if(!DB.term.start){alert("先在下面填「第 1 教学周的周一」，否则周次换算不出来。");return;}
@@ -3133,13 +3168,26 @@ function renderSet(){
     $("coursePreview").textContent=coursePreviewText();
   });
   list.addEventListener("click",function(e){
+    var wd=e.target.closest?e.target.closest(".c-wds .wd"):null;
+    if(wd){
+      var row1=wd.closest(".course-row");if(!row1)return;
+      if(wd.classList.contains("on")){
+        if(row1.querySelectorAll(".c-wds .wd.on").length<=1){toast("至少留一天");return;}
+        wd.classList.remove("on");
+      }else{
+        wd.classList.add("on");
+      }
+      syncCourse(row1);
+      persist().then(function(){$("coursePreview").textContent=coursePreviewText();});
+      return;
+    }
     if(!e.target.classList.contains("del"))return;
     var row=e.target.closest(".course-row");if(!row)return;
     DB.courses.splice(parseInt(row.dataset.i,10),1);
     persist().then(function(){renderSet();});
   });
   $("addCourse").addEventListener("click",function(){
-    DB.courses.push({id:"c"+Date.now(),name:"",weekday:1,lessons:2,startWeek:1,endWeek:16,parity:"all"});
+    DB.courses.push({id:"c"+Date.now(),name:"",weekday:1,weekdays:[1],lessons:2,startWeek:1,endWeek:16,parity:"all"});
     persist().then(function(){renderSet();});
   });
   var ic=$("impCourses");if(ic)ic.addEventListener("click",impCoursesOpen);

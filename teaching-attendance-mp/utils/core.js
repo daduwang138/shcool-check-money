@@ -248,6 +248,23 @@ function preStart(db, key) {
   var s = db.settings.startDate;
   return !!(s && key < s);
 }
+/* 一门课可以排在多个星期几上。老备份只有 weekday 单值，这里统一折成数组读，
+   写回去时 weekday 仍然保留为第一天，旧版程序/旧导出文件照样能算对。 */
+function courseDays(c) {
+  var out = [], src = (c && c.weekdays) || [], i, v;
+  if (src && src.length) {
+    for (i = 0; i < src.length; i++) {
+      v = parseInt(src[i], 10);
+      if (v >= 1 && v <= 7 && out.indexOf(v) < 0) { out.push(v); }
+    }
+  }
+  if (!out.length) {
+    v = parseInt(c && c.weekday, 10);
+    if (v >= 1 && v <= 7) { out.push(v); }
+  }
+  out.sort(function (a, b) { return a - b; });
+  return out;
+}
 function lessonsFor(db, key) {
   if (preStart(db, key)) return 0;
   var w = weekOf(db, key);
@@ -257,7 +274,7 @@ function lessonsFor(db, key) {
   var cs = db.courses || [];
   for (var i = 0; i < cs.length; i++) {
     var c = cs[i];
-    if (parseInt(c.weekday, 10) !== wd) continue;
+    if (courseDays(c).indexOf(wd) < 0) continue;
     if (w < (c.startWeek || 1) || w > (c.endWeek || 16)) continue;
     if (c.parity === 'odd' && w % 2 === 0) continue;
     if (c.parity === 'even' && w % 2 === 1) continue;
@@ -413,10 +430,13 @@ function normalize(db) {
   db.term = Object.assign(b.term, db.term || {});
   if (!Array.isArray(db.courses)) db.courses = [];
   db.courses = db.courses.map(function (c) {
+    var days = courseDays(c);
+    if (!days.length) { days = [1]; }
     return {
       id: c.id || ('c' + Math.random().toString(36).slice(2, 8)),
       name: c.name || '',
-      weekday: parseInt(c.weekday, 10) || 1,
+      weekday: days[0],
+      weekdays: days,
       lessons: parseInt(c.lessons, 10) || 0,
       startWeek: parseInt(c.startWeek, 10) || 1,
       endWeek: parseInt(c.endWeek, 10) || 16,
@@ -827,7 +847,7 @@ module.exports = {
   clearHolidayYear: clearHolidayYear, holidayYears: holidayYears,
   parseHolidayJson: parseHolidayJson, parseHolidayPacket: parseHolidayPacket,
   dowOf: dowOf, weekdayOf: weekdayOf, dowLabel: dowLabel, isWeekendKey: isWeekendKey,
-  weekOf: weekOf, preStart: preStart, lessonsFor: lessonsFor, parseCourses: parseCourses,
+  weekOf: weekOf, preStart: preStart, courseDays: courseDays, lessonsFor: lessonsFor, parseCourses: parseCourses,
   blankDB: blankDB, normalize: normalize, peek: peek, hasContent: hasContent, dayCount: dayCount,
   defaultHalf: defaultHalf, effHalf: effHalf, isGhostHalf: isGhostHalf, isGhost: isGhost,
   setRecord: setRecord, monthP: monthP, computeMonth: computeMonth,

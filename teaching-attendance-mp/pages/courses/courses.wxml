@@ -86,10 +86,10 @@
   </view>
 
   <view class="field">
-    <text class="field-label">星期几</text>
+    <text class="field-label">星期几（可多选）</text>
     <view class="segs">
-      <view class="seg sm {{editing.weekday === item ? 'on' : ''}}" wx:for="{{weekdayOpts}}" wx:key="*this"
-            data-v="{{item}}" bindtap="setWeekday">{{item}}</view>
+      <view class="seg sm {{item.on ? 'on' : ''}}" wx:for="{{weekdayChips}}" wx:key="v"
+            data-v="{{item.v}}" bindtap="toggleWeekday">{{item.label}}</view>
     </view>
   </view>
 
