@@ -124,17 +124,6 @@
   font-size: 24rpx;
 }
 
-.param-note {
-  margin-top: 14rpx;
-  padding: 12rpx 16rpx;
-  border: 1rpx dashed #E4E1D8;
-  border-radius: 12rpx;
-  background: #FAF9F4;
-  color: #666B73;
-  font-size: 21rpx;
-  text-align: center;
-}
-
 .data-tips {
   margin: 6rpx 0 16rpx;
   padding: 14rpx 16rpx;

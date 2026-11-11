@@ -935,6 +935,22 @@ hol.clearYear();
 ok(!current().settings.holidays[HY], '清空这一年后不留空壳');
 ok(hol.data.custom === false, '清空后不再是自定义状态');
 
+/* 日期框没选之前显示的是占位「月/日」：picker 的 value 只能填具体日期（这年 1 月 1 日），
+   但那个 1/1 以前会直接显示出来，跟上面「还没填」打架，手快点「加入」还落一段假假期 */
+{
+  const hol2 = makePage('holiday');
+  hol2.onLoad();
+  ok(hol2.data.fromText === '月/日' && hol2.data.oneText === '月/日',
+    '没选日期前框里是占位，不是 1/1', hol2.data.fromText + ' / ' + hol2.data.oneText);
+  hol2.addOff();
+  hol2.addWork();
+  const h2 = current().settings.holidays && current().settings.holidays[HY];
+  ok(!h2 || (!h2.off.length && !h2.work.length), '没选日期点加入不写任何一段', JSON.stringify(h2));
+  ok(toasts.some(t => /先选/.test(t)), '没选日期给出提示', toasts.join(' / '));
+  hol2.pickFrom({ detail: { value: HY + '-02-06' } });
+  ok(hol2.data.fromText === '2/6' && hol2.data.fromSet === true, '选过之后显示真实日期', hol2.data.fromText);
+}
+
 /* 从电脑粘贴导入：小程序配不了未备案的域名，联网获取只能放电脑版，
    这边负责把电脑版写出的那一串接住 */
 {

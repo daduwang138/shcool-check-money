@@ -19,8 +19,13 @@ const OUT = path.join(os.tmpdir(), 'kqzb-shots');
 const SHOTS = [
   { name: 'calendar', path: 'pages/calendar/calendar' },
   { name: 'summary', path: 'pages/summary/summary' },
+  { name: 'summary-2', path: 'pages/summary/summary', scrollY: 760 },
   { name: 'settings', path: 'pages/settings/settings' },
   { name: 'sheet', path: 'pages/calendar/calendar', tapDay: '19' },
+  /* 放假安排 / 课程表 / 口令都不在 tabBar 上，只能从设置页那一行点进去 */
+  { name: 'courses', path: 'pages/settings/settings', viaText: '课程表' },
+  { name: 'holiday', path: 'pages/settings/settings', viaText: '放假安排' },
+  { name: 'pass', path: 'pages/settings/settings', viaText: '修改口令' },
   { name: 'pc', pc: true, width: 1440, height: 1020, scale: 1 }
 ];
 
@@ -74,6 +79,32 @@ function boot(shot) {
       '        if (dn && dn.textContent.trim() === "' + shot.tapDay + '") { cs[i].click(); break; }',
       '      }',
       '    }, 300);'
+    );
+  }
+  if (shot.viaText) {
+    /* 二级页没有 tabBar 入口：在设置页里找「文字最短、又带 tap 绑定」的那个元素点进去。
+       取最短是因为 bindtap 挂在外层 .row 上，子节点只是文字，取最短的正好是那一行本身。 */
+    lines.push(
+      '    setTimeout(function () {',
+      '      var all = [].slice.call(document.querySelectorAll("[data-mp-ev-tap],[data-mp-cv-tap]"));',
+      '      var best = null;',
+      '      for (var i = 0; i < all.length; i++) {',
+      '        var t = (all[i].textContent || "").replace(/\\s+/g, "");',
+      '        if (t.indexOf("' + shot.viaText + '") >= 0 && (!best || t.length < best.t.length)) {',
+      '          best = { el: all[i], t: t };',
+      '        }',
+      '      }',
+      '      if (best) { best.el.click(); }',
+      '    }, 600);'
+    );
+  }
+  if (shot.scrollY) {
+    /* 页面滚在 .mp-body 里（不是 window），往下推多少才看得到下半张卡 */
+    lines.push(
+      '    setTimeout(function () {',
+      '      var b = document.querySelector(".mp-body");',
+      '      if (b) { b.scrollTop = ' + shot.scrollY + '; }',
+      '    }, 500);'
     );
   }
   lines.push('  }, 400);', '});', '</scr' + 'ipt>');

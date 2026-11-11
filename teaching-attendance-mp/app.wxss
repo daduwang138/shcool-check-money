@@ -77,6 +77,17 @@ view, text, input, picker, button {
   font-weight: 500;
 }
 
+/* 卡片里「清除 / 恢复」一类回退操作，只有一个词的情况用这条右对齐链。
+   以前这些是整行虚线灰底，看着像禁用的输入框，没人会想到能点。
+   带说明的长句用 .note-action（在汇总页），那是另一种排版。 */
+.row-action {
+  margin-top: 12rpx;
+  padding: 10rpx 0;
+  color: #8A4B3F;
+  font-size: 22rpx;
+  text-align: right;
+}
+
 .btn.primary {
   border-color: #174C7C;
   background: #1B5E9B;

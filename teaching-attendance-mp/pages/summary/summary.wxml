@@ -37,7 +37,7 @@
       <text class="row-label">默认推算</text>
       <text class="row-value">{{ghostDays}} 天</text>
     </view>
-    <view class="row">
+    <view class="row wrap">
       <text class="row-label">说明</text>
       <text class="row-value param-ro">这些天是系统按工作日推的上班，尚未点开确认；请假或调休请先改日历</text>
     </view>
@@ -65,7 +65,7 @@
       <text class="row-label">晚修监考</text>
       <text class="row-value param-ro">{{nightEach}}</text>
     </view>
-    <view class="param-note" bindtap="resetParams">恢复成设置默认值；已记账月份的档位价、晚修价保留不动</view>
+    <view class="note-action" bindtap="resetParams">恢复成设置默认值；已记账月份的档位价、晚修价保留不动</view>
   </view>
 
   <view class="card">

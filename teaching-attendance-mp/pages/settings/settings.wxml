@@ -120,7 +120,7 @@
         <view class="pick-btn">{{startDate ? '改' : '选'}}</view>
       </picker>
     </view>
-    <view class="param-note" wx:if="{{startDate}}" bindtap="clearStart">清除起算日</view>
+    <view class="row-action" wx:if="{{startDate}}" bindtap="clearStart">清除起算日</view>
 
     <view class="row" bindtap="gotoHoliday">
       <view class="col">

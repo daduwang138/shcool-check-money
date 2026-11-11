@@ -11,7 +11,7 @@
         <view class="pick-btn">{{termStart ? '改' : '选'}}</view>
       </picker>
     </view>
-    <view class="param-note" wx:if="{{termStart}}" bindtap="clearTerm">清除基准日</view>
+    <view class="row-action" wx:if="{{termStart}}" bindtap="clearTerm">清除基准日</view>
     <view class="preview">{{preview}}</view>
   </view>
 

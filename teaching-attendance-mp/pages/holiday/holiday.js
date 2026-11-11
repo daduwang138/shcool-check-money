@@ -28,6 +28,9 @@ Page({
     work: [],
     from: '', to: '', one: '',
     fromText: '', toText: '', oneText: '',
+    /* 三个 picker 的 value 必须是个具体日期（就填这年 1 月 1 日），但「填了什么」和
+       「打开时显示什么」不是一回事：没选之前显示「月/日」，不然框里那个 1/1 看着像已经填好了 */
+    fromSet: false, toSet: false, oneSet: false,
     builtin: '', custom: false, touched: '',
     showPaste: false, pasteText: '',
     ready: false
@@ -50,7 +53,8 @@ Page({
       y: y,
       yMin: y + '-01-01', yMax: y + '-12-31',
       from: y + '-01-01', to: y + '-01-01', one: y + '-01-01',
-      fromText: '1/1', toText: '1/1', oneText: '1/1'
+      fromText: '月/日', toText: '月/日', oneText: '月/日',
+      fromSet: false, toSet: false, oneSet: false
     });
     this.render();
   },
@@ -93,8 +97,8 @@ Page({
 
   pickFrom: function (e) {
     var v = e.detail.value;
-    var patch = { from: v, fromText: short(v) };
-    if (this.data.to < v) { patch.to = v; patch.toText = short(v); }
+    var patch = { from: v, fromText: short(v), fromSet: true };
+    if (this.data.to < v) { patch.to = v; patch.toText = short(v); patch.toSet = true; }
     this.setData(patch);
   },
   pickTo: function (e) {
@@ -103,15 +107,19 @@ Page({
       wx.showToast({ title: '结束日期不能早于开始', icon: 'none' });
       return;
     }
-    this.setData({ to: v, toText: short(v) });
+    this.setData({ to: v, toText: short(v), toSet: true });
   },
   pickOne: function (e) {
     var v = e.detail.value;
-    this.setData({ one: v, oneText: short(v) });
+    this.setData({ one: v, oneText: short(v), oneSet: true });
   },
 
   addOff: function () {
     var f = this.data.from, t = this.data.to, y = this.data.y;
+    if (!this.data.fromSet) {
+      wx.showToast({ title: '先选起止日期', icon: 'none' });
+      return;
+    }
     if (!this._sameYear(f, y) || !this._sameYear(t, y)) {
       wx.showToast({ title: '跨年的假期请分两次填', icon: 'none' });
       return;
@@ -125,6 +133,10 @@ Page({
 
   addWork: function () {
     var k = this.data.one, y = this.data.y;
+    if (!this.data.oneSet) {
+      wx.showToast({ title: '先选日期', icon: 'none' });
+      return;
+    }
     if (!this._sameYear(k, y)) {
       wx.showToast({ title: '日期要在 ' + y + ' 年内', icon: 'none' });
       return;

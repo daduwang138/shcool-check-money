@@ -69,6 +69,12 @@ p{margin:0 0 8px}
 .monnav strong{font-size:16px;font-weight:600;min-width:118px;text-align:center;
   font-variant-numeric:tabular-nums;letter-spacing:.2px}
 .tools{display:flex;gap:7px;flex-wrap:wrap}
+/* 工具条里的破坏性操作（清空本月）：保留可点面积，但去掉按钮壳，降到「确认框旁边的取消」那个层级。
+   桌面端不是拇指点，误触率本来就低，真正的问题是它和前面三个常用按钮长得一样、抢了同等的注意力。
+   其它地方的 danger（解除绑定、清空这一年、删除某一行）在自己的面板里就是主操作，照旧留壳。 */
+.tools .btn.danger{background:transparent;border-color:transparent;box-shadow:none;
+  color:#8A4B3F;margin-left:9px}
+.tools .btn.danger:hover{background:#FBF1EF;border-color:#EFD9D4;color:#A32D2D;box-shadow:none}
 
 .btn{border:1px solid var(--line);background:#fff;color:#33373D;font:inherit;font-size:12.5px;
   height:32px;padding:0 13px;border-radius:9px;cursor:pointer;white-space:nowrap;
@@ -2930,10 +2936,12 @@ function holidayHtml(){
   h+=holNetHtml(y,has,t);
   h+='<h3>法定休假</h3>';
   h+='<div class="hol-list">'+holRows(e.off,"off")+'</div>';
-  h+='<div class="hol-add"><input type="date" id="holFrom" value="'+d0+'" min="'+d0+'" max="'+d1+'"><span class="faint">至</span><input type="date" id="holTo" value="'+d0+'" min="'+d0+'" max="'+d1+'"><button class="btn sm" id="holAddOff">加入一段</button></div>';
+  /* 三个日期框默认留空：填成这年 1 月 1 日看着像「已经填好了」，手快点「加入一段」就多一段假。
+     picker 仍然限在这年内（min/max），空着点「加入」会提示先选日期。 */
+  h+='<div class="hol-add"><input type="date" id="holFrom" value="" min="'+d0+'" max="'+d1+'"><span class="faint">至</span><input type="date" id="holTo" value="" min="'+d0+'" max="'+d1+'"><button class="btn sm" id="holAddOff">加入一段</button></div>';
   h+='<h3>补班日</h3>';
   h+='<div class="hol-list">'+holRows(e.work,"work")+'</div>';
-  h+='<div class="hol-add"><input type="date" id="holWork" value="'+d0+'" min="'+d0+'" max="'+d1+'"><button class="btn sm" id="holAddWork">加入一天</button>'
+  h+='<div class="hol-add"><input type="date" id="holWork" value="" min="'+d0+'" max="'+d1+'"><button class="btn sm" id="holAddWork">加入一天</button>'
     +(has?'<button class="btn sm danger" id="holClear" style="margin-left:auto">清空这一年</button>':'')+'</div>';
   h+='</div>';
   return h;

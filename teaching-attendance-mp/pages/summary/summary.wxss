@@ -169,6 +169,27 @@
 }
 
 /* 参数卡里的只读行：档位价、晚修价可能较长，允许折行，别把标签挤没 */
+/* 一整句话不塞进右对齐的数值列：数值右对齐是为了一眼对齐数字，
+   句子右对齐每行长度不齐，反而难读。带 .wrap 的行改成上下排。 */
+.row.wrap {
+  display: block;
+  padding: 14rpx 0;
+}
+
+.row.wrap .row-label {
+  display: block;
+  margin-bottom: 6rpx;
+  color: #3A3F45;
+  font-weight: 600;
+}
+
+.row.wrap .param-ro {
+  display: block;
+  margin-left: 0;
+  color: #4C5057;
+  text-align: left;
+}
+
 .param-ro {
   flex: 1;
   min-width: 0;
@@ -180,15 +201,22 @@
   word-break: break-all;
 }
 
-.param-note {
-  margin-top: 12rpx;
-  padding: 12rpx 16rpx;
-  border: 1rpx dashed #E4E1D8;
+/* 带说明的回退操作：整块可点，所以用实线白底（虚线在这个界面里表示「空位/占位」），
+   前面加个 ↺ 提示这是「恢复」而不是一段只读说明。 */
+.note-action {
+  margin-top: 14rpx;
+  padding: 14rpx 16rpx;
+  border: 1rpx solid #E4E1D8;
   border-radius: 12rpx;
-  background: #FAF9F4;
-  color: #666B73;
-  font-size: 21rpx;
-  text-align: center;
+  background: #FFFFFF;
+  color: #3A3F45;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
+.note-action::before {
+  content: "↺ ";
+  color: #2B5C8A;
 }
 
 .export {
