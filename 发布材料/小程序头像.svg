@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <pattern id="stripe" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="10" height="10" fill="#C4E4D6"/>
+      <rect width="3" height="10" fill="#0F6E56" opacity=".55"/>
+    </pattern>
+    <pattern id="dot" width="12" height="12" patternUnits="userSpaceOnUse">
+      <rect width="12" height="12" fill="#F7D3A2"/>
+      <circle cx="6" cy="6" r="2.2" fill="#A05A00" opacity=".55"/>
+    </pattern>
+  </defs>
+
+  <!-- 满版品牌蓝：圆形裁切后四角被切掉，颜色依然连贯 -->
+  <rect width="512" height="512" fill="#1B5E9B"/>
+
+  <!-- 日历本 -->
+  <rect x="88" y="104" width="336" height="328" rx="34" fill="#FFFFFF"/>
+  <rect x="88" y="104" width="336" height="80" rx="34" fill="#E4EEF7"/>
+  <rect x="88" y="150" width="336" height="34" fill="#E4EEF7"/>
+
+  <!-- 装订环 -->
+  <rect x="164" y="78" width="24" height="60" rx="12" fill="#F7FBFF" stroke="#C2D7EA" stroke-width="3"/>
+  <rect x="324" y="78" width="24" height="60" rx="12" fill="#F7FBFF" stroke="#C2D7EA" stroke-width="3"/>
+
+  <!-- 表头三小点，读成「一周的列」 -->
+  <circle cx="160" cy="150" r="7" fill="#9FB9D1"/>
+  <circle cx="256" cy="150" r="7" fill="#9FB9D1"/>
+  <circle cx="352" cy="150" r="7" fill="#9FB9D1"/>
+
+  <!-- 六个状态格：和月历里一模一样的四种填法 -->
+  <g stroke-width="3">
+    <rect x="120" y="208" width="80" height="80" rx="14" fill="#E4EEF7" stroke="#A7C3DC"/>
+    <rect x="216" y="208" width="80" height="80" rx="14" fill="url(#stripe)" stroke="#0F6E56"/>
+    <rect x="312" y="208" width="80" height="80" rx="14" fill="url(#dot)" stroke="#A05A00"/>
+    <rect x="120" y="304" width="80" height="80" rx="14" fill="#E4EEF7" stroke="#A7C3DC"/>
+    <rect x="216" y="304" width="80" height="80" rx="14" fill="#EFD5CE" stroke="#9B4A3C"/>
+    <rect x="312" y="304" width="80" height="80" rx="14" fill="#E4EEF7" stroke="#A7C3DC"/>
+  </g>
+</svg>
