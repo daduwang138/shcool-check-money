@@ -9,7 +9,7 @@
 .ps-label {
   display: block;
   margin-bottom: 10rpx;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 22rpx;
 }
 

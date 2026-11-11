@@ -24,7 +24,7 @@
 
 .lk-sub {
   margin-top: 10rpx;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 22rpx;
   text-align: center;
 }
@@ -78,7 +78,7 @@
 
 .lk-forgot {
   margin-top: 40rpx;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 22rpx;
   text-decoration: underline;
 }
