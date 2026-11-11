@@ -9,9 +9,9 @@
 :root{
   --bg:#F5F4F0;--surface:#FFFFFF;
   --line:#E7E5DD;--line-soft:#F1EFE8;
-  --ink:#191C20;--muted:#666B73;--faint:#9C9A91;
+  --ink:#191C20;--muted:#666B73;--faint:#6E6C64;
   --blue:#1B5E9B;--blue-d:#174C7C;
-  --radius:16px;
+  --radius:18px;
   --sh1:0 1px 2px rgba(20,20,19,.04);
   --sh2:0 6px 24px rgba(20,20,19,.07);
 }
@@ -49,16 +49,16 @@ body{
 h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.2px}
 h2{font-size:13px;font-weight:600;margin:0 0 14px;color:#3C4046;display:flex;align-items:center;gap:8px}
 h2::before{content:"";width:3px;height:12px;border-radius:2px;background:var(--blue);display:block}
-h3{font-size:12px;font-weight:600;margin:20px 0 8px;color:var(--faint);letter-spacing:.4px}
+h3{font-size:13px;font-weight:600;margin:20px 0 8px;color:#3A3F45;letter-spacing:.4px}
 p{margin:0 0 8px}
 .muted{color:var(--muted);font-size:12px}
 .faint{color:var(--faint);font-size:12px}
 .err{color:#A32D2D;font-size:12px;min-height:18px;margin:6px 0 0}
 
-.tabs{display:flex;gap:2px;background:#E9E7E0;padding:3px;border-radius:11px;
+.tabs{display:flex;gap:2px;background:#E9E7E0;padding:3px;border-radius:12px;
   box-shadow:inset 0 1px 2px rgba(20,20,19,.05)}
 .tab{border:0;background:transparent;color:var(--muted);font:inherit;font-size:12.5px;font-weight:500;
-  padding:6px 18px;border-radius:8px;cursor:pointer;transition:color .15s,background .15s}
+  padding:6px 18px;border-radius:9px;cursor:pointer;transition:color .15s,background .15s}
 .tab:hover{color:var(--ink)}
 .tab.active{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(20,20,19,.1)}
 
@@ -83,7 +83,7 @@ p{margin:0 0 8px}
 .btn.ghost{background:transparent;box-shadow:none}
 .btn.danger{color:#A32D2D;border-color:#EFD3D3}
 .btn.danger:hover{background:#FDF6F6;border-color:#E3B8B8}
-.btn.sm{height:28px;padding:0 10px;font-size:12px;border-radius:8px}
+.btn.sm{height:28px;padding:0 10px;font-size:12px;border-radius:9px}
 button:disabled{opacity:.45;cursor:not-allowed}
 
 /* ---------- 月度数字条 ---------- */
@@ -110,7 +110,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
   letter-spacing:.5px;padding:2px 0 7px}
 .cal .wd:nth-child(6),.cal .wd:nth-child(7){color:#5E5749}
 :focus-visible{outline:2px solid #1B5E9B;outline-offset:2px;border-radius:6px}
-.cell{background:#fff;border:1px solid #E4E1D8;border-radius:13px;padding:7px 7px 8px;
+.cell{background:#fff;border:1px solid #E4E1D8;border-radius:12px;padding:7px 7px 8px;
   min-height:92px;display:flex;flex-direction:column;gap:6px;cursor:pointer;
   box-shadow:0 1px 2px rgba(20,20,19,.03);
   transition:border-color .15s,box-shadow .15s}
@@ -130,55 +130,56 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .cell.today .dnum>span:first-child{display:inline-grid;place-items:center;width:20px;height:20px;
   border-radius:999px;background:linear-gradient(180deg,#2265A3,#1A578F);color:#fff;
   font-size:11.5px;margin:-2px 0 -2px -1px}
-.dnum .cd{font-size:9.5px;font-weight:600;letter-spacing:.2px;color:var(--faint);
+.dnum .cd{font-size:10.5px;font-weight:600;letter-spacing:.2px;color:var(--faint);
   border:1px solid var(--line);border-radius:999px;padding:1px 6px;line-height:1.5}
 .cell.today .dnum .cd{color:#1B5E9B;border-color:#CFE2F2;background:#F2F8FD}
 
 .halves{display:flex;gap:4px}
-.half{flex:1;height:25px;border-radius:7px;font-size:11.5px;font-weight:600;letter-spacing:0;
+.half{flex:1;height:25px;border-radius:6px;font-size:11.5px;font-weight:600;letter-spacing:0;
   cursor:pointer;font-family:inherit;border:1px dashed #E4E2DA;background:#FCFBF8;color:#CFCDC4;
   display:grid;place-items:center;transition:border-color .12s,box-shadow .12s,filter .12s}
 .half:hover{border-color:#CBC8BE;filter:brightness(.985)}
 .half:active{transform:translateY(.5px)}
-/* 状态：实心 / 斜纹 / 点纹 / 灰底 / 虚框，不靠色相也能分辨 */
-.half.s-work,.sw.s-work{background:linear-gradient(180deg,#2265A3,#1A578F);border:1px solid #174C7C;
-  color:#fff;box-shadow:0 1px 2px rgba(23,76,124,.22)}
-.half.s-inv,.sw.s-inv{background:#D8EDE5;border:1px solid #0F6E56;color:#0A4A39;
-  background-image:repeating-linear-gradient(45deg,rgba(15,110,86,.40) 0 1.5px,rgba(15,110,86,0) 1.5px 5px)}
-.half.s-ot,.sw.s-ot{background:#FBE3C4;border:1px solid #A05A00;color:#66390A;
+/* 状态：浅底 / 斜纹 / 点纹 / 砖红 / 虚框，不靠色相也能分辨。
+   「上班」是整月最常见的状态，用浅底细边压住；饱和色让给「这天不一样」的监考 / 加班 / 请假 */
+.half.s-work,.sw.s-work{background:#E4EEF7;border:1px solid #A7C3DC;
+  color:#2B5C8A;box-shadow:none}
+.half.s-inv,.sw.s-inv{background:#C4E4D6;border:1px solid #0F6E56;color:#0A4A39;
+  background-image:repeating-linear-gradient(45deg,rgba(15,110,86,.55) 0 1.5px,rgba(15,110,86,0) 1.5px 5px)}
+.half.s-ot,.sw.s-ot{background:#F7D3A2;border:1px solid #A05A00;color:#66390A;
   background-image:radial-gradient(rgba(160,90,0,.50) 1px,rgba(160,90,0,0) 1.15px);background-size:4px 4px}
-.half.s-leave,.sw.s-leave{background:#E6E4DC;border:1px solid #7A7973;color:#3B3A36}
+.half.s-leave,.sw.s-leave{background:#EFD5CE;border:1px solid #9B4A3C;color:#5E2A20}
 .half.ghost-half,.sw.ghost-half{background:#fff;border:1px dashed #B7D0E6;color:#7FA3C4;
   background-image:none;box-shadow:none}
 /* 休息日：只把“还没填的空槽”压淡；已记的加班 / 监考 / 上班照常满色显示 */
 .cell.rest .half.s-empty{border-color:#EAE7DE;background:transparent;color:#D2CFC5}
 .cell.rest .half.s-empty.ghost-half{border-color:#D9E3EC;color:#A8BED4}
 .cell.rest .lessons{margin-bottom:2px}
-.cell.rest .dnum .cd{color:#8B8377;border-color:#E6E2D7;background:#F6F4EC}
+.cell.rest .dnum .cd{color:#6B6459;border-color:#E6E2D7;background:#F6F4EC}
 
-.lessons{margin-top:auto;align-self:flex-start;font-size:10.5px;font-weight:600;
+.lessons{margin-top:auto;align-self:flex-start;font-size:11.5px;font-weight:600;
   padding:1px 7px;border-radius:6px;background:#F1F5FA;color:#2B5C8A;
   font-variant-numeric:tabular-nums;line-height:1.7}
-.lessons.zero{background:transparent;color:#B9B7AE;font-weight:500;padding-left:1px}
-.lessons.ghost{color:#A8A69C;font-weight:400}
+.lessons.zero{background:transparent;color:#74726B;font-weight:500;padding-left:1px}
+.lessons.ghost{color:#6F6A60;font-weight:400}
 .lessons.ghost::before{content:"";display:inline-block;width:5px;height:5px;border:1px dashed #B4B2A9;
   border-radius:50%;margin-right:5px;vertical-align:1px}
 .lessons.bare{background:transparent;padding:0 0 2px}
-.nighttag{display:inline-block;margin-left:5px;padding:0 5px;border-radius:5px;background:#E7EDF5;
-  color:#3F6080;font-size:9.5px;font-weight:600;line-height:1.7;vertical-align:1px}
+.nighttag{display:inline-block;margin-left:5px;padding:0 5px;border-radius:6px;background:#E7EDF5;
+  color:#3F6080;font-size:10.5px;font-weight:600;line-height:1.7;vertical-align:1px}
 
 /* ---------- 拖选 ---------- */
 .cal .cell{touch-action:none}
 body.dragging{cursor:crosshair;-webkit-user-select:none;user-select:none}
 body.dragging .cell:hover{border-color:#EBE9E2;box-shadow:none}
 .selbar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);width:max-content;
-  background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px rgba(20,20,19,.16);
+  background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 50px rgba(20,20,19,.16);
   padding:9px 11px;display:none;align-items:center;gap:6px;flex-wrap:wrap;z-index:60;
   max-width:calc(100vw - 20px)}
 .selbar.show{display:flex}
 .selbar .cnt{font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;padding:0 8px 0 4px}
 .selbar .sb{border:1px solid var(--line);background:#fff;font:inherit;font-size:12px;height:28px;
-  padding:0 11px;border-radius:8px;cursor:pointer;color:var(--muted);transition:.12s}
+  padding:0 11px;border-radius:9px;cursor:pointer;color:var(--muted);transition:.12s}
 .selbar .sb:hover{background:#FAFAF7;border-color:#D3D0C6}
 .selbar .sb.w{color:#174C7C;border-color:#B9D1E8}
 .selbar .sb.i{color:#0A4A39;border-color:#B7D8CC}
@@ -186,11 +187,11 @@ body.dragging .cell:hover{border-color:#EBE9E2;box-shadow:none}
 .selbar .sb.l{color:#3B3A36;border-color:#CFCDC4}
 .selbar .div{width:1px;height:18px;background:var(--line)}
 .undobar{position:fixed;left:18px;bottom:18px;background:#22252A;color:#fff;font-size:12px;
-  padding:8px 9px 8px 14px;border-radius:11px;display:none;align-items:center;gap:10px;z-index:120;
+  padding:8px 9px 8px 14px;border-radius:12px;display:none;align-items:center;gap:10px;z-index:120;
   box-shadow:0 12px 30px rgba(0,0,0,.2)}
 .undobar.show{display:flex}
 .undobar button{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;font:inherit;
-  font-size:12px;padding:3px 10px;border-radius:7px;cursor:pointer}
+  font-size:12px;padding:3px 10px;border-radius:6px;cursor:pointer}
 .undobar button:hover{background:rgba(255,255,255,.12)}
 .undobar button.x{border-color:transparent;color:rgba(255,255,255,.62);font-size:15px;line-height:1;
   padding:3px 6px;border-radius:6px}
@@ -283,12 +284,12 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
 .course-row.head{font-size:11px;color:var(--faint);margin-bottom:8px;letter-spacing:.3px}
 .course-row input,.course-row select{width:100%!important;text-align:left;padding:6px 9px;font-size:12px}
 .course-row input[type=number]{text-align:center}
-.course-row .del{border:1px solid var(--line);background:#fff;color:#B45252;border-radius:8px;
+.course-row .del{border:1px solid var(--line);background:#fff;color:#B45252;border-radius:9px;
   cursor:pointer;font-size:14px;line-height:1;height:30px;font-family:inherit;transition:.12s}
 .course-row .del:hover{background:#FDF6F6;border-color:#EBC9C9}
 /* 周几可多选：7 个小方块，点一下加、再点一下去掉 */
 .c-wds{display:flex;gap:3px}
-.c-wds .wd{flex:1;min-width:0;height:30px;padding:0;border:1px solid var(--line);border-radius:7px;
+.c-wds .wd{flex:1;min-width:0;height:30px;padding:0;border:1px solid var(--line);border-radius:6px;
   background:#FCFBF8;color:var(--faint);font-size:11px;font-family:inherit;line-height:1;
   cursor:pointer;transition:.12s}
 .c-wds .wd:hover{border-color:#CFC9BC}
@@ -313,7 +314,7 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
 .modal{position:fixed;inset:0;background:rgba(24,26,29,.42);backdrop-filter:blur(3px);
   display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
 .modal.show{display:flex}
-.imp-ta{width:100%;height:128px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+.imp-ta{width:100%;height:128px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;
   background:#FAF9F4;color:var(--ink);font:13px/1.65 ui-monospace,Consolas,"PingFang SC",monospace;
   resize:vertical;box-sizing:border-box}
 .imp-ta:focus{outline:2px solid #C2D7EA;outline-offset:1px}
@@ -325,7 +326,7 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
 .sect .lb{font-size:11.5px;color:var(--faint);margin-bottom:7px;letter-spacing:.3px}
 .opts{display:flex;gap:6px;flex-wrap:wrap}
 .opt{border:1px solid var(--line);background:#fff;font:inherit;font-size:12px;font-weight:500;
-  height:30px;padding:0 13px;border-radius:8px;cursor:pointer;color:var(--muted);transition:.12s}
+  height:30px;padding:0 13px;border-radius:9px;cursor:pointer;color:var(--muted);transition:.12s}
 .opt:hover{border-color:#D3D0C6;background:#FCFBF8}
 .opt.active.s-empty{background:#EDEBE4;color:var(--ink);border-color:#B4B2A1}
 .opt.s-work{color:#174C7C;border-color:#C2D7EA}
@@ -333,13 +334,13 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
 .opt.s-ot{color:#66390A;border-color:#E4CAA6}
 .opt.s-leave{color:#3B3A36;border-color:#D2D0C7}
 .opt.active.s-work{background:linear-gradient(180deg,#2265A3,#1A578F);border-color:#174C7C;color:#fff}
-.opt.active.s-inv{background:#D8EDE5;border-color:#0F6E56;color:#0A4A39;
-  background-image:repeating-linear-gradient(45deg,rgba(15,110,86,.40) 0 1.5px,rgba(15,110,86,0) 1.5px 5px)}
-.opt.active.s-ot{background:#FBE3C4;border-color:#A05A00;color:#66390A;
+.opt.active.s-inv{background:#C4E4D6;border-color:#0F6E56;color:#0A4A39;
+  background-image:repeating-linear-gradient(45deg,rgba(15,110,86,.55) 0 1.5px,rgba(15,110,86,0) 1.5px 5px)}
+.opt.active.s-ot{background:#F7D3A2;border-color:#A05A00;color:#66390A;
   background-image:radial-gradient(rgba(160,90,0,.50) 1px,rgba(160,90,0,0) 1.15px);background-size:4px 4px}
-.opt.active.s-leave{background:#E6E4DC;border-color:#7A7973;color:#3B3A36}
+.opt.active.s-leave{background:#EFD5CE;border-color:#9B4A3C;color:#5E2A20}
 .stepper{display:flex;align-items:center;gap:10px}
-.stepper button{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:#fff;
+.stepper button{width:34px;height:34px;border-radius:12px;border:1px solid var(--line);background:#fff;
   font-size:17px;line-height:1;cursor:pointer;color:var(--ink);box-shadow:var(--sh1);transition:.12s}
 .stepper button:hover{background:#FCFBF8;border-color:#D3D0C6}
 .stepper .val{font-size:20px;font-weight:600;min-width:46px;text-align:center;
@@ -359,7 +360,7 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
 .tag.ok{border-color:#B7D8CC;background:#EFF8F4;color:#0A4A39}
 .tag.warn{border-color:#E9D3A8;background:#FDF7EA;color:#7A4A06}
 .dirpath{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:#3C4046;
-  background:#FAF9F4;border:1px solid var(--line-soft);border-radius:8px;padding:4px 9px;
+  background:#FAF9F4;border:1px solid var(--line-soft);border-radius:9px;padding:4px 9px;
   max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;
   vertical-align:middle}
 .dircell{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
@@ -375,9 +376,9 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
 .fl-n::before{content:"·";margin-right:6px;color:#A8ADB4}
 .fl-cmp{margin-top:6px;padding-top:6px;border-top:1px dashed rgba(0,0,0,.09);font-size:11px}
 .hint code,.fileline code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
-  background:#F1EFE8;border-radius:4px;padding:1px 4px;color:#3C4046}
+  background:#F1EFE8;border-radius:6px;padding:1px 4px;color:#3C4046}
 .notice{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#FDF7EA;border:1px solid #E9D3A8;
-  color:#6B4408;border-radius:11px;padding:9px 12px;font-size:12px;line-height:1.65;margin-bottom:14px}
+  color:#6B4408;border-radius:12px;padding:9px 12px;font-size:12px;line-height:1.65;margin-bottom:14px}
 .notice .grow{flex:1;min-width:240px}
 .notice .btn{background:#fff}
 .notice .btn.primary{background:linear-gradient(180deg,#2265A3,#1A578F);border-color:#174C7C;color:#fff;
@@ -449,10 +450,10 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
     </div>
     <div class="bar2">
       <div class="legend">
-        <span><i class="sw s-work">班</i>上班 · 实心</span>
+        <span><i class="sw s-work">班</i>上班 · 浅蓝</span>
         <span><i class="sw s-inv">监</i>监考 · 斜纹</span>
         <span><i class="sw s-ot">加</i>加班 · 点纹</span>
-        <span><i class="sw s-leave">假</i>请假 · 灰底</span>
+        <span><i class="sw s-leave">假</i>请假 · 砖红</span>
         <span><i class="sw ghost-half">班</i>默认上班 · 虚框</span>
         <span><i class="sw pre">·</i>未入职</span>
         <span><i class="sw miss">!</i>疑似漏记</span>
@@ -1241,7 +1242,9 @@ function sumText(c){
   L.push(p[0]+" 年 "+p[1]+" 月 工资核对");
   L.push("————————————————");
   L.push("法定工作日："+c.workdays+" 天");
-  L.push("实际出勤："+fmtShort(c.actual)+" 天（上班 "+c.counted.work+" / 监考 "+c.counted.inv+" / 加班 "+c.counted.ot+" 半天，请假 "+c.counted.leave+" 半天）");
+  /* 四个数统一换算成天：页面上的统计也全是天，核对单跟着统一，
+     以前写「加班 2 半天 / 请假 0 半天」既只标了后两项、又和页面单位打架 */
+  L.push("实际出勤："+fmtShort(c.actual)+" 天（上班 "+fmtShort(c.counted.work/2)+" / 监考 "+fmtShort(c.counted.inv/2)+" / 加班 "+fmtShort(c.counted.ot/2)+" / 请假 "+fmtShort(c.counted.leave/2)+" 天）");
   if(c.ghostDays>0)L.push("注意：其中 "+fmtShort(c.ghostDays)+" 天是系统默认推算的上班、尚未点开确认，请假或调休请先改日历");
   L.push("课时合计："+c.lessons+" 节");
   /* 用了多档单价才列明细，只有一档时不必多一行 */
@@ -1618,14 +1621,14 @@ function askPass(title,hint){
     var box=document.createElement("div");
     box.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(20,24,32,.55);display:flex;align-items:center;justify-content:center;padding:16px";
     var card=document.createElement("div");
-    card.style.cssText="background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.28);padding:22px;max-width:380px;width:100%";
+    card.style.cssText="background:#fff;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.28);padding:22px;max-width:380px;width:100%";
     var h=document.createElement("h3");h.textContent=title;
     h.style.cssText="margin:0 0 8px;font-size:17px";
     var p=document.createElement("p");p.textContent=hint||"";
     p.style.cssText="margin:0 0 14px;color:#6b7280;font-size:13px;line-height:1.6;white-space:pre-line";
     var inp=document.createElement("input");
     inp.type="password";inp.autocomplete="new-password";inp.placeholder="口令";
-    inp.style.cssText="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:15px";
+    inp.style.cssText="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d1d5db;border-radius:9px;font-size:15px";
     var row=document.createElement("div");
     row.style.cssText="display:flex;gap:8px;justify-content:flex-end;margin-top:16px";
     var cancel=document.createElement("button");cancel.textContent="取消";cancel.className="btn";

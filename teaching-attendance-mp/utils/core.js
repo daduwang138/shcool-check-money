@@ -753,7 +753,9 @@ function sumText(c){
   L.push(p[0]+" 年 "+p[1]+" 月 工资核对");
   L.push("————————————————");
   L.push("法定工作日："+c.workdays+" 天");
-  L.push("实际出勤："+fmtShort(c.actual)+" 天（上班 "+c.counted.work+" / 监考 "+c.counted.inv+" / 加班 "+c.counted.ot+" 半天，请假 "+c.counted.leave+" 半天）");
+  /* 四个数统一换算成天：页面上的统计也全是天，核对单跟着统一，
+     以前写「加班 2 半天 / 请假 0 半天」既只标了后两项、又和页面单位打架 */
+  L.push("实际出勤："+fmtShort(c.actual)+" 天（上班 "+fmtShort(c.counted.work/2)+" / 监考 "+fmtShort(c.counted.inv/2)+" / 加班 "+fmtShort(c.counted.ot/2)+" / 请假 "+fmtShort(c.counted.leave/2)+" 天）");
   if(c.ghostDays>0)L.push("注意：其中 "+fmtShort(c.ghostDays)+" 天是系统默认推算的上班、尚未点开确认，请假或调休请先改日历");
   L.push("课时合计："+c.lessons+" 节");
   /* 用了多档单价才列明细，只有一档时不必多一行 */

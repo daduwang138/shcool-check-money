@@ -12,7 +12,7 @@
   width: 64rpx;
   height: 64rpx;
   border: 1rpx solid #E7E5DD;
-  border-radius: 16rpx;
+  border-radius: 12rpx;
   background: #FFFFFF;
   color: #4C5057;
   font-size: 34rpx;
@@ -82,13 +82,13 @@
   margin: 8rpx 6rpx 0;
   padding: 10rpx 12rpx;
   border: 1rpx solid #E7E5DD;
-  border-radius: 14rpx;
+  border-radius: 12rpx;
   background: #FFFFFF;
 }
 
 .chip-k {
-  color: #8A8E96;
-  font-size: 20rpx;
+  color: #656A72;
+  font-size: 22rpx;
   line-height: 1.4;
   white-space: nowrap;
 }
@@ -123,12 +123,12 @@
   width: 22rpx;
   height: 22rpx;
   margin-right: 8rpx;
-  border-radius: 5rpx;
+  border-radius: 6rpx;
 }
 
 .lg-t {
   color: #666B73;
-  font-size: 21rpx;
+  font-size: 22rpx;
 }
 
 .weekhead {
@@ -196,7 +196,7 @@
 }
 
 .cell.today {
-  border-color: #A9CBE8;
+  border-color: #7FB3DC;
   background: #F7FBFF;
 }
 
@@ -236,8 +236,8 @@
   padding: 1rpx 6rpx;
   border: 1rpx solid #E7E5DD;
   border-radius: 999rpx;
-  color: #8B8377;
-  font-size: 17rpx;
+  color: #6B6459;
+  font-size: 20rpx;
   line-height: 1.5;
 }
 
@@ -249,7 +249,7 @@
 
 .cd-pre {
   border-color: #E2E0D8;
-  color: #A8A69C;
+  color: #6F6A60;
 }
 
 .halves {
@@ -260,7 +260,7 @@
 .half {
   height: 26rpx;
   flex: 1;
-  border-radius: 5rpx;
+  border-radius: 6rpx;
 }
 
 .half + .half {
@@ -272,27 +272,32 @@
   background: #FCFBF8;
 }
 
+/* 「上班」是一个月里最常见的状态，用浅底细边压住；
+   饱和色让给「这天不一样」（监考/加班/请假），翻月历时一眼挑出要核对的日子。
+   面板里的选中按钮另算（.seg.on.s-work），那里需要饱和色表示「已选中」。 */
 .s-work {
-  border: 1rpx solid #174C7C;
-  background: #2265A3;
+  border: 1rpx solid #A7C3DC;
+  background: #E4EEF7;
 }
 
 .s-inv {
   border: 1rpx solid #0F6E56;
-  background-color: #D8EDE5;
-  background-image: repeating-linear-gradient(45deg, rgba(15, 110, 86, .45) 0, rgba(15, 110, 86, .45) 1.5rpx, rgba(15, 110, 86, 0) 1.5rpx, rgba(15, 110, 86, 0) 5rpx);
+  background-color: #C4E4D6;
+  background-image: repeating-linear-gradient(45deg, rgba(15, 110, 86, .55) 0, rgba(15, 110, 86, .55) 1.5rpx, rgba(15, 110, 86, 0) 1.5rpx, rgba(15, 110, 86, 0) 5rpx);
 }
 
 .s-ot {
   border: 1rpx solid #A05A00;
-  background-color: #FBE3C4;
+  background-color: #F7D3A2;
   background-image: radial-gradient(rgba(160, 90, 0, .55) 1rpx, rgba(160, 90, 0, 0) 1.3rpx);
   background-size: 5rpx 5rpx;
 }
 
+/* 请假以前是 #E6E4DC 灰，和「空」几乎分不开、又像禁用态；
+   换成低饱和砖红，语义是「缺勤」，与「没填」拉开 */
 .s-leave {
-  border: 1rpx solid #7A7973;
-  background: #E6E4DC;
+  border: 1rpx solid #9B4A3C;
+  background: #EFD5CE;
 }
 
 .half.ghost {
@@ -317,9 +322,9 @@
   margin-top: auto;
   align-self: flex-start;
   padding: 0 5rpx;
-  border-radius: 5rpx;
+  border-radius: 6rpx;
   color: #2B5C8A;
-  font-size: 19rpx;
+  font-size: 22rpx;
   font-weight: 600;
   line-height: 1.6;
   background: #F1F5FA;
@@ -338,22 +343,22 @@
 .nighttag {
   margin-left: 4rpx;
   padding: 0 5rpx;
-  border-radius: 5rpx;
+  border-radius: 6rpx;
   background: #E7EDF5;
   color: #3F6080;
-  font-size: 17rpx;
+  font-size: 20rpx;
   font-weight: 600;
   line-height: 1.7;
 }
 
 .les.zero {
   background: transparent;
-  color: #B9B7AE;
+  color: #74726B;
   font-weight: 500;
 }
 
 .les.ghost {
-  color: #A8A69C;
+  color: #6F6A60;
 }
 
 .notes {
@@ -364,7 +369,7 @@
 
 .note-item {
   color: #854F0B;
-  font-size: 21rpx;
+  font-size: 22rpx;
   line-height: 1.7;
 }
 
@@ -391,16 +396,50 @@
   margin-right: 0;
 }
 
-/* 危险操作压成淡红底：仍可辨认，但不和主操作抢注意力 */
-.tools .btn.danger.soft {
-  border-color: #EFD7D2;
-  background: #FDF6F5;
+/* 单独一颗按钮不要拉满整行，二级操作不该比主操作还宽 */
+.tools-single .btn {
+  flex: 0 0 auto;
+  padding: 0 40rpx;
+}
+
+/* 底部：折叠入口在左、「清空本月」降级成文字链在右。
+   危险操作从按钮行里挪出来，既不会被顺手点到，也不会和常用操作抢注意力 */
+.foot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20rpx;
+  padding: 0 24rpx;
+}
+
+.howto {
+  display: flex;
+  align-items: center;
+  padding: 10rpx 20rpx;
+  border: 1rpx solid #E2E0D8;
+  border-radius: 999rpx;
+  background: #FFFFFF;
+  color: #4C5057;
+  font-size: 23rpx;
+}
+
+.howto-mark {
+  margin-left: 8rpx;
+  color: #1B5E9B;
+  font-size: 22rpx;
+  font-weight: 600;
+}
+
+.danger-link {
+  padding: 12rpx 6rpx;
+  color: #A33A28;
+  font-size: 23rpx;
 }
 
 .tips {
   padding: 22rpx 24rpx 0;
-  color: #8A8E96;
-  font-size: 21rpx;
+  color: #656A72;
+  font-size: 22rpx;
   line-height: 1.7;
 }
 
@@ -423,7 +462,7 @@
   bottom: 0;
   left: 0;
   padding: 30rpx 30rpx 0;
-  border-radius: 28rpx 28rpx 0 0;
+  border-radius: 18rpx 18rpx 0 0;
   background: #FFFFFF;
 }
 
@@ -449,8 +488,8 @@
 .sheet-sub {
   display: block;
   margin-top: 4rpx;
-  color: #8A8E96;
-  font-size: 22rpx;
+  color: #656A72;
+  font-size: 24rpx;
 }
 
 .sheet-x {
@@ -474,6 +513,11 @@
   display: flex;
 }
 
+/* 末项不要右边距，否则整排比卡片右边界缩进 4px */
+.seg:last-child {
+  margin-right: 0;
+}
+
 .seg {
   height: 74rpx;
   flex: 1;
@@ -481,7 +525,7 @@
   border: 1rpx solid #E4E1D8;
   border-radius: 12rpx;
   background: #FCFBF8;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 24rpx;
   line-height: 72rpx;
   text-align: center;
@@ -505,23 +549,24 @@
 
 .seg.on.s-inv {
   border-color: #0F6E56;
-  background-color: #D8EDE5;
-  background-image: repeating-linear-gradient(45deg, rgba(15, 110, 86, .45) 0, rgba(15, 110, 86, .45) 1.5rpx, rgba(15, 110, 86, 0) 1.5rpx, rgba(15, 110, 86, 0) 5rpx);
+  background-color: #C4E4D6;
+  background-image: repeating-linear-gradient(45deg, rgba(15, 110, 86, .55) 0, rgba(15, 110, 86, .55) 1.5rpx, rgba(15, 110, 86, 0) 1.5rpx, rgba(15, 110, 86, 0) 5rpx);
   color: #0A4A39;
 }
 
+/* 面板里选中后的底色与日历格子里的状态色对齐：选成什么，格子上就是什么 */
 .seg.on.s-ot {
   border-color: #A05A00;
-  background-color: #FBE3C4;
+  background-color: #F7D3A2;
   background-image: radial-gradient(rgba(160, 90, 0, .55) 1rpx, rgba(160, 90, 0, 0) 1.3rpx);
   background-size: 5rpx 5rpx;
   color: #66390A;
 }
 
 .seg.on.s-leave {
-  border-color: #7A7973;
-  background: #E6E4DC;
-  color: #3B3A36;
+  border-color: #9B4A3C;
+  background: #EFD5CE;
+  color: #5E2A20;
 }
 
 .stepper {
@@ -560,7 +605,11 @@
   font-size: 21rpx;
 }
 
+/* 这一行只有这一个输入框，占满整行；不写宽度的话微信里靠默认行为也能满，
+   但预览里会缩成一小截，写着更稳。 */
 .note-input {
+  width: 100%;
+  box-sizing: border-box;
   height: 76rpx;
   padding: 0 20rpx;
   border: 1rpx solid #E4E1D8;
@@ -609,7 +658,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 20rpx 26rpx;
-  border-radius: 16rpx;
+  border-radius: 12rpx;
   background: #2F3338;
 }
 
@@ -800,7 +849,7 @@
 
 .bulk-tilde {
   margin: 0 14rpx;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 23rpx;
 }
 
@@ -816,7 +865,7 @@
   border: 1rpx solid #E4E1D8;
   border-radius: 12rpx;
   background: #FCFBF8;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 24rpx;
   line-height: 64rpx;
 }
@@ -840,7 +889,7 @@
   height: 34rpx;
   margin-right: 12rpx;
   border: 1rpx solid #C9C6BC;
-  border-radius: 8rpx;
+  border-radius: 6rpx;
   background: #FCFBF8;
   color: #FFFFFF;
   font-size: 22rpx;

@@ -59,15 +59,24 @@
     <view class="btn primary" bindtap="fillCourse">按课程表填课时</view>
     <view class="btn" bindtap="openBulk">批量设置</view>
   </view>
-  <view class="tools">
+  <view class="tools tools-single">
     <view class="btn" bindtap="restoreDefault">恢复默认出勤</view>
-    <view class="btn danger soft" bindtap="clearMonth">清空本月</view>
   </view>
 
-  <view class="tips">
+  <!-- 用法收进折叠区：默认只留一行，说明不再占掉半屏；「清空本月」从按钮降成文字链，
+       不和常用操作挤在同一个按钮行里 -->
+  <view class="foot-row">
+    <view class="howto" bindtap="toggleTips">
+      <text>{{tipsOpen ? '收起用法' : '怎么用'}}</text>
+      <text class="howto-mark">{{tipsOpen ? '︿' : '？'}}</text>
+    </view>
+    <view class="danger-link" bindtap="clearMonth">清空本月</view>
+  </view>
+
+  <view class="tips" wx:if="{{tipsOpen}}">
     <text>点格子改当天状态与课时。在日期上左右滑动、或按住一会儿，都会进入多选：划过的日期连续选中，周末自动跳过（周末有课可单点补上），选好点下方状态整片套用。</text>
   </view>
-  <view class="tips">
+  <view class="tips" wx:if="{{tipsOpen}}">
     <text>「批量设置」按日期范围加星期一次改多天，可以跨月，比如「9 月 1 日到 10 月 31 日、只改周三」。</text>
   </view>
 </view>

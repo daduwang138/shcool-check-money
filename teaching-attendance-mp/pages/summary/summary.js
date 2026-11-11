@@ -45,14 +45,15 @@ Page({
       { k: '折算日薪', v: '¥' + core.fmt(c.dailyRate), strong: false },
       { k: '基本工资部分', v: '¥' + core.fmt(c.basePart), strong: false },
       { k: '超出天数部分', v: '¥' + core.fmt(c.extraPart), strong: false },
-      { k: '课时费', v: '¥' + core.fmt(c.lessonFee), strong: false }
+      /* 课时合计并进这一行：原来单独一行写「9 节」，混在一列全是元的数字里，
+         单位对不上，还多占一行 */
+      { k: '课时费', v: '¥' + core.fmt(c.lessonFee) + (c.lessons ? '（' + c.lessons + ' 节）' : ''), strong: false }
     ];
 
     /* 晚修监考没记就不占一行，免得每个月都挂一条 ¥0.00 */
     if (c.nightCount > 0) {
       rows.push({ k: '晚修监考费', v: '¥' + core.fmt(c.nightFee) + '（' + c.nightCount + ' 次）', strong: false });
     }
-    rows.push({ k: '课时合计', v: c.lessons + ' 节', strong: false });
 
     /* 分了档就列出每档各多少节、什么价，否则「64 节 ¥7040」这行没人算得出来 */
     if (c.byRate && c.byRate.length > 1) {
@@ -63,12 +64,14 @@ Page({
       });
     }
 
+    /* 用「天」而不是「半天」：以前写「上班 39 半天」，得自己除 2 才知道是 19.5 天，
+       跟上面的「实际出勤 20 天」看着对不上（监考那 1 个半天折 0.5 天）。零值那格不占位。 */
     var halfRows = [
-      { k: '上班', v: c.counted.work, cls: 's-work' },
-      { k: '监考', v: c.counted.inv, cls: 's-inv' },
-      { k: '加班', v: c.counted.ot, cls: 's-ot' },
-      { k: '请假', v: c.counted.leave, cls: 's-leave' }
-    ];
+      { k: '上班', v: core.fmtShort(c.counted.work / 2), cls: 's-work' },
+      { k: '监考', v: core.fmtShort(c.counted.inv / 2), cls: 's-inv' },
+      { k: '加班', v: core.fmtShort(c.counted.ot / 2), cls: 's-ot' },
+      { k: '请假', v: core.fmtShort(c.counted.leave / 2), cls: 's-leave' }
+    ].filter(function (x, i) { return i === 0 || parseFloat(x.v) > 0; });
 
     this.setData({
       monLabel: y + ' 年 ' + m + ' 月',

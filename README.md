@@ -48,7 +48,7 @@ teaching-attendance-mp/    小程序版
   pages/pass               设置/修改/关闭口令（密码输入框，不走明文弹窗）
   pages/lock               锁屏页（开了口令才用得到）
 tests/                     校验脚本：`run-all.js` 一键跑全套，其余是分层测试与浏览器冒烟（Node 直接跑，无需依赖）
-tools/                     预览构建与冒烟脚本（开发用，不参与小程序打包）
+tools/                     预览构建、截图核对与冒烟脚本（开发用，不参与小程序打包）
 preview/                   生成好的单文件预览 mp-preview.html
 ```
 
@@ -64,14 +64,16 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 
 | 层次 | 命令 | 覆盖 |
 |---|---|---|
-| 内核双版比对 | `node tests/verify_core.js` | 从 HTML 切出原始算法，和 core.js 吃同一批数据逐字段比对（46647 项，含课程表自动落账） |
-| 页面逻辑 | `node tests/test_pages.js` | 用桩模拟小程序运行时，跑五个页面的方法（272 项） |
+| 内核双版比对 | `node tests/verify_core.js` | 从 HTML 切出原始算法，和 core.js 吃同一批数据逐字段比对（46670 项，含课程表自动落账） |
+| 页面逻辑 | `node tests/test_pages.js` | 用桩模拟小程序运行时，跑五个页面的方法（304 项） |
 | 结构自检 | `node tests/check_structure.js` | wxml 标签闭合、事件方法存在、wxss 花括号与 class 样式，外加两版设置页的文案哨兵（晚修填 0、应发公式、自动落账口径） |
 | 连构哈希 | `node tools/build_preview.js` ×2 | 连构两次产物逐字节一致 |
 | 小程序预览冒烟 | `node tests/smoke_preview.js` | 真实浏览器点开预览页，走交互链路（30 条） |
 | 电脑版浏览器冒烟 | `node tests/smoke_html.js` | 真实 DOM：设置改价 → 记账 → 汇总看钱，含冻价回看、误开取消、会话确认、课程表自动落账、2027 内置表与 CDN 空缓存换源（39 条） |
 
 后两层需要本机有 Edge 或 Chrome；没有会标 `SKIP` 而不是假装通过，也可以用 `BROWSER=路径` 指定。生成预览单独跑：`node tools/build_preview.js`，产物 `preview/mp-preview.html` 双击即可试交互。
+
+改了样式想先看一眼成什么样：`node tools/shot.js`（可以只截一页，如 `node tools/shot.js summary`）。它把预览页和电脑版各截一张 PNG 放到系统临时目录，电脑版那张会自动塞一份示例账，不然月历是空的看不出配色；要本机有 Edge / Chrome，产物不进仓库。
 
 ### 测试能证明什么（以及不能）
 

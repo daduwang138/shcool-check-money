@@ -44,6 +44,7 @@ Page({
     scope: 'both',
     clearLes: false,
     allowWk: false,
+    tipsOpen: false,
     ready: false
   },
 
@@ -425,6 +426,11 @@ Page({
 
   toggleClearLes: function () {
     this.setData({ clearLes: !this.data.clearLes });
+  },
+
+  /* 用法说明默认收起：那两段话一年看两次，不该常驻占掉半屏 */
+  toggleTips: function () {
+    this.setData({ tipsOpen: !this.data.tipsOpen });
   },
 
   /* 只改变化的那几格的 sel 字段。

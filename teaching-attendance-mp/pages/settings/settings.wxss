@@ -11,7 +11,7 @@
 
 .sub {
   margin-top: 2rpx;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 21rpx;
   line-height: 1.6;
 }
@@ -39,6 +39,13 @@
   font-size: 27rpx;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* 开关关掉时，下面这个数字框要明显不可用：不然改了金额却不知道生不生效 */
+.num-in.dim {
+  border-color: #EAE7DE;
+  background: #F4F3EE;
+  color: #9C9A91;
 }
 
 /* 标题和说明各占一行：text 默认 inline，不撑成纵向排列就会挤成一段 */
@@ -86,13 +93,13 @@
 }
 
 .wd-l {
-  color: #8A8E96;
+  color: #656A72;
   font-size: 20rpx;
   line-height: 1.4;
 }
 
 .wd-v {
-  color: #8A8E96;
+  color: #656A72;
   font-size: 24rpx;
   font-weight: 500;
   line-height: 1.4;
@@ -157,7 +164,7 @@
 
 .tips {
   padding: 18rpx 30rpx 0;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 21rpx;
   line-height: 1.75;
 }
@@ -197,7 +204,7 @@
   margin-left: 12rpx;
   border-radius: 50%;
   background: #F3F1EA;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 24rpx;
   line-height: 56rpx;
   text-align: center;

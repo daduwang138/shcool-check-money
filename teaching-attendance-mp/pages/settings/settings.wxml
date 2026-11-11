@@ -15,8 +15,9 @@
       <switch checked="{{enableBase}}" data-key="enableBase" bindchange="toggle" color="#1B5E9B" />
     </view>
     <view class="row">
-      <text class="row-label">金额</text>
-      <input class="num-in" type="digit" value="{{baseSalary}}" bindblur="setSalary" />
+      <text class="row-label">金额（元）</text>
+      <input class="num-in {{enableBase ? '' : 'dim'}}" type="digit" value="{{baseSalary}}" bindblur="setSalary"
+        disabled="{{!enableBase}}" />
     </view>
 
     <view class="row">
@@ -27,8 +28,9 @@
       <switch checked="{{enableLesson}}" data-key="enableLesson" bindchange="toggle" color="#1B5E9B" />
     </view>
     <view class="row">
-      <text class="row-label">单价</text>
-      <input class="num-in" type="digit" value="{{rate}}" bindblur="setRate" />
+      <text class="row-label">单价（元/节）</text>
+      <input class="num-in {{enableLesson ? '' : 'dim'}}" type="digit" value="{{rate}}" bindblur="setRate"
+        disabled="{{!enableLesson}}" />
     </view>
 
     <view class="rate-row" wx:for="{{rates}}" wx:key="id">

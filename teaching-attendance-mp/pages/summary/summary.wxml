@@ -19,7 +19,7 @@
     <view class="hb" wx:for="{{halfRows}}" wx:key="k">
       <view class="hb-dot {{item.cls}}"></view>
       <text class="hb-k">{{item.k}}</text>
-      <text class="hb-v">{{item.v}}<text class="hb-u"> 半天</text></text>
+      <text class="hb-v">{{item.v}}<text class="hb-u"> 天</text></text>
     </view>
   </view>
 
@@ -50,11 +50,11 @@
       <input class="num-in" type="number" value="{{p.workdays}}" bindblur="setWorkdays" />
     </view>
     <view class="row">
-      <text class="row-label">基本工资</text>
+      <text class="row-label">基本工资（元）</text>
       <input class="num-in" type="digit" value="{{p.base}}" bindblur="setBase" />
     </view>
     <view class="row">
-      <text class="row-label">课时单价</text>
+      <text class="row-label">课时单价（元/节）</text>
       <input class="num-in" type="digit" value="{{p.rate}}" bindblur="setRate" />
     </view>
     <view class="row" wx:if="{{otherRates}}">

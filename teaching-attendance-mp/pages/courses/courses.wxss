@@ -11,7 +11,7 @@
 
 .sub {
   margin-top: 2rpx;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 21rpx;
 }
 
@@ -59,7 +59,7 @@
 .empty-s {
   display: block;
   margin-top: 6rpx;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 22rpx;
 }
 
@@ -84,7 +84,7 @@
 
 .course-desc {
   margin-top: 4rpx;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 22rpx;
 }
 
@@ -94,7 +94,7 @@
 
 .tips {
   padding: 18rpx 30rpx 0;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 21rpx;
   line-height: 1.75;
 }
@@ -116,7 +116,7 @@
   bottom: 0;
   left: 0;
   padding: 30rpx 30rpx 0;
-  border-radius: 28rpx 28rpx 0 0;
+  border-radius: 18rpx 18rpx 0 0;
   background: #FFFFFF;
 }
 
@@ -150,7 +150,10 @@
   font-size: 23rpx;
 }
 
+/* 整行只有一个课程名输入框，占满整行 */
 .txt {
+  width: 100%;
+  box-sizing: border-box;
   height: 76rpx;
   padding: 0 20rpx;
   border: 1rpx solid #E4E1D8;
@@ -162,6 +165,11 @@
 
 .segs {
   display: flex;
+}
+
+/* 末项不要右边距，否则整排比卡片右边界缩进 4px */
+.seg:last-child {
+  margin-right: 0;
 }
 
 .seg {
@@ -182,8 +190,8 @@
 }
 
 .seg.sm {
-  height: 68rpx;
-  line-height: 66rpx;
+  height: 76rpx;
+  line-height: 74rpx;
   font-size: 24rpx;
 }
 
@@ -254,7 +262,7 @@
 .wr-l {
   display: block;
   margin-bottom: 8rpx;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 21rpx;
 }
 
@@ -302,7 +310,7 @@
 .imp-eg {
   display: block;
   margin-top: 10rpx;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 20rpx;
   line-height: 1.6;
 }
@@ -333,14 +341,14 @@
 
 .imp-desc {
   flex: 1;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 21rpx;
 }
 
 .imp-more {
   display: block;
   margin-top: 8rpx;
-  color: #8A8E96;
+  color: #656A72;
   font-size: 20rpx;
 }
 
@@ -348,7 +356,7 @@
   margin-top: 12rpx;
   padding: 12rpx 16rpx;
   border-left: 4rpx solid #C9A227;
-  border-radius: 8rpx;
+  border-radius: 6rpx;
   background: #FDF8EA;
 }
 

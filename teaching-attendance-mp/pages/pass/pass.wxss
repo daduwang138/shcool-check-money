@@ -18,7 +18,7 @@
   height: 84rpx;
   padding: 0 24rpx;
   border: 1rpx solid #E4E1D8;
-  border-radius: 14rpx;
+  border-radius: 12rpx;
   background: #FCFBF8;
   color: #191C20;
   font-size: 30rpx;
@@ -52,7 +52,7 @@
 .tips {
   margin: 4rpx 24rpx 0;
   padding: 18rpx 22rpx;
-  border-radius: 16rpx;
+  border-radius: 12rpx;
   background: #EDEAE1;
   color: #7A7468;
   font-size: 21rpx;
