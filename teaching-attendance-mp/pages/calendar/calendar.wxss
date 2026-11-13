@@ -241,6 +241,16 @@
   line-height: 1.5;
 }
 
+/* 写了备注的日子：格子只有 107rpx 宽，塞不下中文，用一个小圆点提示「这天记了事」，
+   完整内容去汇总页「本月事项」看 */
+.note-mark {
+  width: 10rpx;
+  height: 10rpx;
+  flex: none;
+  border-radius: 999rpx;
+  background: #1B5E9B;
+}
+
 .cd-now {
   border-color: #CFE2F2;
   background: #F2F8FD;
@@ -617,6 +627,39 @@
   background: #FCFBF8;
   color: #191C20;
   font-size: 26rpx;
+}
+
+/* 备注快捷标签：高频考试一点就填，账本里自己写过的考试名也跟在后面。
+   不另存「常用标签」配置，换设备导入备份后照样认得 */
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 12rpx;
+}
+
+.tag {
+  margin: 0 10rpx 10rpx 0;
+  padding: 8rpx 16rpx;
+  border: 1rpx solid #E4E1D8;
+  border-radius: 999rpx;
+  background: #FCFBF8;
+  color: #4C5057;
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+
+.tag.on {
+  border-color: #A7C3DC;
+  background: #E4EEF7;
+  color: #174C7C;
+}
+
+.tag-hint {
+  display: block;
+  margin-top: 2rpx;
+  color: #656A72;
+  font-size: 20rpx;
+  line-height: 1.6;
 }
 
 .sheet-nav {

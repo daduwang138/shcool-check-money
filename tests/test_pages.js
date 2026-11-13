@@ -1320,6 +1320,68 @@ uCal._beginUndo('sheet-B');
 ok(uCal._undo.snap !== snapFirst, '不同批次重新拍快照');
 uCal.hideUndo();
 
+/* ================= 备注 / 本月事项 =================
+   周末监考、加班往往是不同的考试，填了还得事后找得着。 */
+reset();
+{
+  const db = seedDb();
+  db.days['2026-11-14'] = { am: 'ot', pm: 'inv', lessons: 0, note: '四六级监考', upd: 100 };
+  db.days['2026-11-15'] = { am: '', pm: 'ot', lessons: 0, note: '竞赛阅卷', upd: 200 };
+  db.days['2026-11-16'] = { am: 'work', pm: 'work', lessons: 2, note: '', upd: 300 };
+  db.days['2026-11-20'] = { am: '', pm: '', lessons: 0, note: '学科竞赛复赛', upd: 400 };
+  mem['kqzb_db_v1'] = JSON.stringify(db);
+
+  const tags = core.noteTags(db);
+  ok(tags.slice(0, 6).join(',') === '四六级,竞赛,期中,期末,月考,模考',
+    '快捷标签·前六个是预设考试', tags.slice(0, 6).join(','));
+  ok(tags.indexOf('学科竞赛复赛') >= 0 && tags.indexOf('四六级监考') >= 0,
+    '快捷标签·自己写过的考试名会冒出来', tags.join(','));
+  ok(tags.length === 9 && tags[6] === '学科竞赛复赛',
+    '快捷标签·最近改过的自定义排最前', tags.join(','));
+  ok(core.noteTags(db, 0).length === 6, '快捷标签·上限为 0 时只留预设', String(core.noteTags(db, 0).length));
+
+  const list = core.monthNotes(db, '2026-11');
+  ok(list.length === 3, '本月事项·只列写了备注的日子', String(list.length));
+  ok(list.map(x => x.key).join(',') === '2026-11-14,2026-11-15,2026-11-20',
+    '本月事项·按日期升序', list.map(x => x.key).join(','));
+  ok(list[0].weekend && list[1].weekend && !list[2].weekend,
+    '本月事项·周末标记只给周六周日', list.map(x => String(x.weekend)).join(','));
+  ok(list[0].dow === '周六' && list[0].kinds === '加班 / 监考',
+    '本月事项·带上星期和手填状态', list[0].dow + ' / ' + list[0].kinds);
+  ok(list[0].note === '四六级监考', '本月事项·备注原文不截断', list[0].note);
+  ok(core.monthNotes(core.blankDB(), '2026-12').length === 0,
+    '本月事项·没备注的月份不显示卡片');
+
+  const nCal = makePage('calendar');
+  nCal.onLoad();
+  nCal.data.ym = '2026-11';
+  nCal.render();
+  const c14 = nCal.data.cells.filter(c => c.key === '2026-11-14')[0];
+  const c16 = nCal.data.cells.filter(c => c.key === '2026-11-16')[0];
+  ok(c14 && c14.hasNote === true, '日历·写了备注的日子有小圆点');
+  ok(c16 && !c16.hasNote, '日历·没写备注的不点亮');
+
+  nCal.openSheet('2026-11-15');
+  ok(nCal.data.sheet.tags.length === 9, '面板·点开就给出快捷标签', String(nCal.data.sheet.tags.length));
+  nCal.tapTag({ currentTarget: { dataset: { v: '四六级' } } });
+  ok(nCal.data.sheet.note === '四六级' && nCal._note === '四六级',
+    '面板·点标签同时改输入框和暂存值', nCal.data.sheet.note + ' / ' + nCal._note);
+  nCal.saveSheet();
+  ok(current().days['2026-11-15'].note === '四六级',
+    '面板·标签填的备注真的落进账里', current().days['2026-11-15'].note);
+
+  const nSum = makePage('summary');
+  nSum.onLoad();
+  nSum.data.ym = '2026-11';
+  nSum.render();
+  ok(nSum.data.noteRows.length === 3, '汇总·本月事项列出全部三条', String(nSum.data.noteRows.length));
+  ok(nSum.data.noteRows[0].date === '11/14' && nSum.data.noteRows[0].weekend === true,
+    '汇总·周末日子带标记', JSON.stringify(nSum.data.noteRows[0]));
+  ok(nSum.data.noteRows[0].note === '四六级监考', '汇总·显示备注原文', nSum.data.noteRows[0].note);
+  ok(nSum.data.noteRows[0].meta.indexOf('加班') >= 0,
+    '汇总·事项带上当天状态', nSum.data.noteRows[0].meta);
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }
 console.log('页面逻辑全部通过');

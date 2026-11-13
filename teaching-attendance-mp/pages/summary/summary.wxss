@@ -219,6 +219,57 @@
   color: #2B5C8A;
 }
 
+/* 「本月事项」：备注是自由文本，一行放不下就折行，别截断 */
+.note-row {
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid #F0EEE7;
+}
+
+.nr-head {
+  display: flex;
+  align-items: baseline;
+}
+
+.nr-date {
+  margin-right: 12rpx;
+  color: #191C20;
+  font-size: 26rpx;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 周末监考/加班正是要回头找的那几天，单独给个小徽标 */
+.nr-weekend {
+  margin-right: 10rpx;
+  padding: 2rpx 8rpx;
+  border-radius: 6rpx;
+  background: #FDF4E3;
+  color: #8A5A10;
+  font-size: 20rpx;
+}
+
+.nr-meta {
+  color: #656A72;
+  font-size: 20rpx;
+}
+
+.nr-text {
+  display: block;
+  margin-top: 6rpx;
+  color: #3A3F45;
+  font-size: 24rpx;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.nr-tip {
+  display: block;
+  margin-top: 12rpx;
+  color: #656A72;
+  font-size: 20rpx;
+  line-height: 1.6;
+}
+
 .export {
   display: flex;
   padding: 4rpx 24rpx 0;

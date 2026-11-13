@@ -15,7 +15,8 @@ Page({
     nightEach: '',
     checked: false,
     dayCount: 0,
-    hasRecord: false
+    hasRecord: false,
+    noteRows: []
   },
 
   onLoad: function () {
@@ -96,7 +97,15 @@ Page({
       ghostDays: core.fmtShort(c.ghostDays),
       checked: c.checked,
       dayCount: c.filledDays,
-      hasRecord: c.filledDays > 0
+      hasRecord: c.filledDays > 0,
+      /* 本月写了备注的日子集中列一遍：日历格子里放不下考试名，
+         月底想知道「那个周末干的啥」不用再一天天点开找 */
+      noteRows: core.monthNotes(db, ym).map(function (x) {
+        return {
+          key: x.key, date: x.date, weekend: x.weekend, note: x.note,
+          meta: x.dow + (x.kinds ? ' · ' + x.kinds : '') + (x.night ? ' · 晚修' : '')
+        };
+      })
     });
   },
 

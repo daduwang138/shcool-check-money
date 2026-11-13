@@ -31,6 +31,19 @@
     </view>
   </view>
 
+  <view class="card" wx:if="{{noteRows.length}}">
+    <text class="card-title">本月事项</text>
+    <view class="note-row" wx:for="{{noteRows}}" wx:key="key">
+      <view class="nr-head">
+        <text class="nr-date">{{item.date}}</text>
+        <text class="nr-weekend" wx:if="{{item.weekend}}">周末</text>
+        <text class="nr-meta">{{item.meta}}</text>
+      </view>
+      <text class="nr-text">{{item.note}}</text>
+    </view>
+    <text class="nr-tip">只列写了备注的日子；周末监考、加班到底是哪场考试，月底一眼能翻到</text>
+  </view>
+
   <view class="card" wx:if="{{ghostDays > 0}}">
     <text class="card-title">待确认</text>
     <view class="row">

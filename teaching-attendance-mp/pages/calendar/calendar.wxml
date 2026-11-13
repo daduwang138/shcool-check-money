@@ -37,6 +37,7 @@
       <block wx:if="{{!item.blank}}">
         <view class="dnum">
           <text class="dn">{{item.d}}</text>
+          <text class="note-mark" wx:if="{{item.hasNote}}"></text>
           <text class="cd cd-{{item.tagCls}}" wx:if="{{item.tag}}">{{item.tag}}</text>
         </view>
         <view class="halves">
@@ -221,7 +222,12 @@
 
   <view class="field">
     <text class="field-label">备注</text>
-    <input class="note-input" value="{{sheet.note}}" placeholder="可选，如「期中监考」" maxlength="60" bindinput="onNote" />
+    <input class="note-input" value="{{sheet.note}}" placeholder="如「四六级监考」「竞赛阅卷」，周末加班写了才记得住" maxlength="60" bindinput="onNote" />
+    <view class="tag-row">
+      <text class="tag {{sheet.note === item ? 'on' : ''}}" wx:for="{{sheet.tags}}" wx:key="*this"
+            data-v="{{item}}" bindtap="tapTag">{{item}}</text>
+    </view>
+    <text class="tag-hint">点一下就填；上面输入框仍可自己写别的考试。写过的会出现在这里</text>
   </view>
 
   <view class="sheet-nav">

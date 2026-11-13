@@ -40,7 +40,9 @@ function extractFn(text, mark) {
 const EXTRA_FNS = [
   'function ymOf(k){', 'function isYm(v){', 'function monthKeysOf(db){',
   'function hasContent(r){', 'function dayCount(db){', 'function localKeys(){',
-  'function mergeMissingDays(src){'
+  'function mergeMissingDays(src){',
+  /* 备注/事项也是两版共用的纯函数，别落到覆盖之外 */
+  'function noteTags(limit){', 'function monthNotes(ym){'
 ];
 vm.runInContext(EXTRA_FNS.map(m => extractFn(html, m)).join('\n'), ctx);
 
@@ -143,6 +145,10 @@ for (const [label, raw] of cases) {
   ctx.DB = hdb;
 
   eq(label + '·normalize', JSON.stringify(hdb), JSON.stringify(cdb));
+  eq(label + '·noteTags', ctx.noteTags(), core.noteTags(cdb));
+  for (const ym of ['2026-09', '2026-10', '2026-11', '2027-01']) {
+    eq(label + '·monthNotes ' + ym, ctx.monthNotes(ym), core.monthNotes(cdb, ym));
+  }
 
   for (let y = 2025; y <= 2027; y++) {
     for (let m = 1; m <= 12; m++) {
@@ -721,7 +727,9 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     return s;
   };
   const sliced = collect(slice + '\n' + csvSlice);
-  const extra = new Set(['ymOf', 'isYm', 'monthKeysOf', 'hasContent', 'dayCount', 'localKeys']);
+  /* noteTags / monthNotes 放在 HTML 切片外，靠 EXTRA_FNS 抽取，上面已逐字段比对 */
+  const extra = new Set(['ymOf', 'isYm', 'monthKeysOf', 'hasContent', 'dayCount', 'localKeys',
+    'noteTags', 'monthNotes']);
   const coreFns = collect(fs.readFileSync(path.join(MP, 'utils', 'core.js'), 'utf8'));
   const uncovered = [...coreFns].filter(n => !sliced.has(n) && !extra.has(n)).sort();
   /* HTML 里是内联等价实现（或小程序页面专属），没法并排比，只能钉死期望值 */

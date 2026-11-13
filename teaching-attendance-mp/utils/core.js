@@ -776,6 +776,54 @@ function sumText(c){
   return L.join("\n");
 }
 
+/* ---------- 备注 / 事项 ---------- */
+/* 周末监考、加班往往是不同的考试，一天干了啥光能填不够，还得事后找得着。
+   这两个函数只做整理，不改数据：备注一直是 days[k].note，没加新字段、没动备份格式。
+   常用标签不另存一份「配置」——账本里写过的备注本来就是最好的候选，
+   换设备导入 JSON 后照样认得。 */
+function noteTags(db, limit) {
+  var presets = ['四六级', '竞赛', '期中', '期末', '月考', '模考'];
+  var seen = {}, out = [];
+  presets.forEach(function (t) { seen[t] = 1; out.push(t); });
+  var cap = limit === undefined ? 4 : Math.max(0, limit);
+  if (!cap) { return out; }
+  var used = [];
+  Object.keys((db && db.days) || {}).forEach(function (k) {
+    var r = db.days[k];
+    var v = r && r.note ? String(r.note).trim() : '';
+    /* 预设里有的、以及重复的都不再单列；只收自己手写过的那些考试名 */
+    if (!v || seen[v]) { return; }
+    seen[v] = 1;
+    used.push({ v: v, k: k, upd: r.upd || 0 });
+  });
+  /* 最近改过的排前面；老备份没有 upd 就按日期倒序 */
+  used.sort(function (a, b) { return (b.upd - a.upd) || (a.k < b.k ? 1 : -1); });
+  return out.concat(used.slice(0, cap).map(function (x) { return x.v; }));
+}
+
+function monthNotes(db, ym) {
+  var q = ymd(ym + '-01'), y = q[0], m = q[1];
+  var n = daysInMonth(ym), out = [];
+  for (var d = 1; d <= n; d++) {
+    var k = dk(y, m, d);
+    var r = (db && db.days) ? db.days[k] : null;
+    var v = r && r.note ? String(r.note).trim() : '';
+    if (!v) { continue; }
+    /* 只列手填的状态：默认推算的「上班」不算，周末监考/加班才正是要看的 */
+    var kinds = [];
+    [r.am, r.pm].forEach(function (s) {
+      var t = STATES[s] ? STATES[s].label : '';
+      if (t && t !== '空' && kinds.indexOf(t) < 0) { kinds.push(t); }
+    });
+    out.push({
+      key: k, date: m + '/' + d, dow: '周' + dowLabel(k),
+      weekend: isWeekendKey(k), kinds: kinds.join(' / '),
+      note: v, night: parseInt(r.night, 10) || 0
+    });
+  }
+  return out;
+}
+
 /* ---------- 月份工具 ---------- */
 function ymOf(k) { return String(k).slice(0, 7); }
 function isYm(v) { return /^\d{4}-\d{2}$/.test(v); }
@@ -888,7 +936,8 @@ module.exports = {
   blankDB: blankDB, normalize: normalize, peek: peek, hasContent: hasContent, dayCount: dayCount,
   defaultHalf: defaultHalf, effHalf: effHalf, isGhostHalf: isGhostHalf, isGhost: isGhost,
   setRecord: setRecord, monthP: monthP, freezeMonth: freezeMonth, computeMonth: computeMonth,
-  sumText: sumText, ratesOf: ratesOf, rateName: rateName, priceOf: priceOf, nightOf: nightOf,
+  sumText: sumText, noteTags: noteTags, monthNotes: monthNotes,
+  ratesOf: ratesOf, rateName: rateName, priceOf: priceOf, nightOf: nightOf,
   monthTouched: monthTouched, monthBase: monthBase, monthRate: monthRate,
   fillLessonsFromCourses: fillLessonsFromCourses, autoFillLessons: autoFillLessons,
   ymOf: ymOf, isYm: isYm, addMonths: addMonths, monthsBetween: monthsBetween,

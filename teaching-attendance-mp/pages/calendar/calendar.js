@@ -152,6 +152,8 @@ Page({
         amCls: core.sl(am).cls + (ghA ? ' ghost' : ''),
         pmCls: core.sl(pm).cls + (ghP ? ' ghost' : ''),
         lesText: lesText, lesCls: lesCls, nightText: ni ? (ni > 1 ? '晚' + ni : '晚修') : '',
+        /* 写了备注的日子给个小圆点：格子里塞不下中文，但得能一眼看出「这天记了事」 */
+        hasNote: !!(r && String(r.note || '').trim()),
         tag: tag, tagCls: tagCls
       });
     }
@@ -634,6 +636,8 @@ Page({
         title: parseInt(k.slice(5, 7), 10) + ' 月 ' + parseInt(k.slice(8), 10) + ' 日',
         sub: sub,
         am: am, pm: pm, lessons: les, note: note, exp: exp,
+        /* 高频考试一点就填；账本里自己写过的考试名也跟着冒出来，不另存一份配置 */
+        tags: core.noteTags(db),
         rid: (r && r.rid) ? r.rid : 'default',
         /* 学校发了这个钱才显示；以前记过、现在单价调成 0 的也显示，好让人把次数清掉 */
         night: ni, nightOn: (nf > 0 || ni > 0),
@@ -700,6 +704,16 @@ Page({
 
   onNote: function (e) {
     this._note = e.detail.value;
+  },
+
+  /* 快捷标签：点了直接填进备注。_note 和 sheet.note 要一起改，
+     否则后面 _patchSheet 会把输入框里的文字顶回旧值 */
+  tapTag: function (e) {
+    var v = e.currentTarget.dataset.v || '';
+    var s = this.data.sheet;
+    if (!s || !s.key) { return; }
+    this._note = v;
+    this.setData({ 'sheet.note': v });
   },
 
   /* 选了哪档课就记在哪天，没选算默认档 */
