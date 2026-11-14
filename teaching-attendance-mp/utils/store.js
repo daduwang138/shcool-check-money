@@ -6,9 +6,9 @@ var core = require('./core.js');
 
 var KEY = 'kqzb_db_v1';
 
-/* 各页面 onShow 都会 load()。以前每次都解析出一份新对象，
-   A 页面手里的旧副本一旦 store.save()，就会把 B 页面刚写的数据整库盖掉。
-   Storage 内容没变时让所有页面共用同一个对象引用；被外部改写才重新解析。 */
+/* 各页面 onShow 都会 load()，拿到的始终是同一个共享对象引用。
+   写操作统一走 commit()（不接受外部 db），「A 页面拿旧副本整库盖掉 B 页面」
+   从结构上就不可能发生。Storage 被外部改写时 load() 会重新解析。 */
 var _cache = null, _cacheRaw = '';
 
 function load() {
@@ -24,23 +24,11 @@ function load() {
   return _cache;
 }
 
-/* 万一调用方拿到的不是共享对象（例如导入后另建了库），保存前把共享副本里
-   较新的日记录并回来，避免「旧副本整库覆盖」把别的页面刚写的数据抹掉。 */
-function _mergeNewer(target, source) {
-  if (!target || !source || target === source) { return; }
-  if (!target.days) { target.days = {}; }
-  if (!target.months) { target.months = {}; }
-  Object.keys(source.days || {}).forEach(function (k) {
-    var a = target.days[k], b = source.days[k];
-    if (!a || (b && (b.upd || 0) > (a.upd || 0))) { target.days[k] = b; }
-  });
-  Object.keys(source.months || {}).forEach(function (ym) {
-    if (!target.months[ym]) { target.months[ym] = source.months[ym]; }
-  });
-}
-
-function save(db) {
-  if (_cache && _cache !== db) { _mergeNewer(db, _cache); }
+/* 唯一的落盘入口：不接受外部 db，提交的永远是当前共享对象。
+   页面改完 this.db 调 commit() 即可。早先那个按 upd 时间戳补合并的
+   _mergeNewer 补丁是给「调用方可能传旧副本」擦屁股的，现在那种情况不可能发生，已退役。 */
+function commit() {
+  var db = _cache || load();
   /* 和 load() 一样先规范化（补 lset 等），否则写进去的内容和下次读出来的
      形态不一致，缓存比对每次都失效，又退回「各页面各拿一份副本」 */
   core.normalize(db);
@@ -56,10 +44,10 @@ function save(db) {
   }
 }
 
-/* 「用文件覆盖本机」是整库替换，不该走合并保护 */
+/* 「用文件覆盖本机」是整库替换：把共享引用换成新库再提交，不读旧 Storage */
 function replace(db) {
-  _cache = null; _cacheRaw = '';
-  save(db);
+  _cache = db; _cacheRaw = '';
+  commit();
   return db;
 }
 
@@ -230,7 +218,7 @@ function mergeInto(local, incoming) {
 
 module.exports = {
   load: load,
-  save: save,
+  commit: commit,
   replace: replace,
   reset: reset,
   isPC: isPC,

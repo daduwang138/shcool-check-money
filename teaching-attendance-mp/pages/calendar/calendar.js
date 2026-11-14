@@ -589,7 +589,7 @@ Page({
           clearLes ? '' : (r ? r.rid : ''));
       });
       that._undo = { msg: that.data.ym, snap: snap, msnap: msnap };
-      store.save(db);
+      store.commit();
       that.setData({ sel: false, selKeys: [], clearLes: false, allowWk: false });
       that.render();
       that.showUndo('已修改 ' + keys.length + ' 天');
@@ -776,7 +776,7 @@ Page({
     var note = (this._note === undefined ? s.note : this._note) || '';
     this._beginUndo(this._sheetBatch, s.key.slice(0, 7));
     core.setRecord(this.db, s.key, s.am, s.pm, s.lessons, note, undefined, s.rid, s.night);
-    store.save(this.db);
+    store.commit();
   },
 
   writeSheet: function () {
@@ -827,7 +827,7 @@ Page({
     var go = function () {
       that._beginUndo();
       var r = core.fillLessonsFromCourses(db, ym);
-      store.save(db);
+      store.commit();
       that.render();
       var msg = '填了 ' + r.filled + ' 天';
       if (r.skipped) { msg += '，跳过 ' + r.skipped + ' 天已有记录'; }
@@ -861,7 +861,7 @@ Page({
       return;
     }
     core.freezeMonth(db, ym);
-    store.save(db);
+    store.commit();
     this.render();
     this.showUndo('已恢复默认出勤 ' + cnt + ' 天');
   },
@@ -890,7 +890,7 @@ Page({
           /* 清空之后不该还挂着「已核对」——电脑版也是这么处理的 */
           core.monthP(db, ym).checked = false;
           core.freezeMonth(db, ym);
-          store.save(db);
+          store.commit();
           that.render();
           that.showUndo('已清空 ' + ym);
         }
@@ -919,7 +919,7 @@ Page({
     this._beginUndo();                    /* 必须在写入前拍快照，撤销才有意义 */
     var r = core.autoFillLessons(db, ym, core.todayKey());
     if (r.filled <= 0) { this._undo = prevUndo; return; }
-    store.save(db);
+    store.commit();
     this._undo.auto = true;
     this._undo.ym = ym;
     this.showUndo('已按课程表自动记入 ' + r.filled + ' 天课时');
@@ -993,7 +993,7 @@ Page({
     }, this);
     /* 「已核对」与当月冻结参数也是那次操作改掉的，撤销要一起还回去 */
     if (this._undo.msnap) { this.db.months = this._undo.msnap; }
-    store.save(this.db);
+    store.commit();
     this._undo = null;
     if (this._undoTimer) { clearTimeout(this._undoTimer); }
     this.setData({ undo: null });

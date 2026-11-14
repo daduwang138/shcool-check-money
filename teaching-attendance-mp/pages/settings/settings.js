@@ -97,14 +97,14 @@ Page({
 
   setOwner: function (e) {
     this.db.settings.owner = e.detail.value || '';
-    store.save(this.db);
+    store.commit();
   },
 
   setSalary: function (e) {
     var v = parseFloat(e.detail.value);
     if (isNaN(v) || v < 0) { this.render(); return; }
     this.db.settings.baseSalary = v;
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -112,7 +112,7 @@ Page({
     var v = parseFloat(e.detail.value);
     if (isNaN(v) || v < 0) { this.render(); return; }
     this.db.settings.rate = v;
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -123,7 +123,7 @@ Page({
     var v = parseFloat(e.detail.value);
     if (isNaN(v) || v < 0) { this.render(); return; }
     this.db.settings.nightHours = v;
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -131,7 +131,7 @@ Page({
     var v = parseFloat(e.detail.value);
     if (isNaN(v) || v < 0) { this.render(); return; }
     this.db.settings.nightFee = v;
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -152,7 +152,7 @@ Page({
       return;
     }
     r.name = v;
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -166,7 +166,7 @@ Page({
       return;
     }
     r.price = v;
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -176,7 +176,7 @@ Page({
     while (this.rateById(id)) { id += 'x'; }
     l.push({ id: id, name: '新档位', price: this.db.settings.rate || 0 });
     this.db.settings.rates = l;
-    store.save(this.db);
+    store.commit();
     this.render();
     wx.showToast({ title: '改个名字和单价', icon: 'none' });
   },
@@ -201,7 +201,7 @@ Page({
       success: function (res) {
         if (!res.confirm) { return; }
         that.db.settings.rates = (that.db.settings.rates || []).filter(function (x) { return x.id !== id; });
-        store.save(that.db);
+        store.commit();
         that.render();
         wx.showToast({ title: '已删除', icon: 'none' });
       }
@@ -211,7 +211,7 @@ Page({
   toggle: function (e) {
     var key = e.currentTarget.dataset.key;
     this.db.settings[key] = !!e.detail.value;
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -220,20 +220,20 @@ Page({
     var cur = this.db.settings.weekPattern[i];
     var next = cur >= 1 ? 0.5 : (cur === 0.5 ? 0 : 1);
     this.db.settings.weekPattern[i] = next;
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
   pickStart: function (e) {
     this.db.settings.startDate = e.detail.value || '';
-    store.save(this.db);
+    store.commit();
     this.render();
     wx.showToast({ title: this.db.settings.startDate ? '已设为 ' + this.db.settings.startDate : '已清除', icon: 'none' });
   },
 
   clearStart: function () {
     this.db.settings.startDate = '';
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -293,7 +293,7 @@ Page({
         success: function (res) {
           if (res.tapIndex === 0) {
             var r = store.mergeInto(that.db, incoming);
-            store.save(that.db);
+            store.commit();
             that.render();
             var msg = '已合并：新增 ' + r.added + ' 天，更新 ' + r.updated + ' 天';
             if (r.conflicts) { msg += '，' + r.conflicts + ' 天两边不一致（按修改时间取较新）'; }

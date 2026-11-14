@@ -264,9 +264,9 @@ ncal.saveSheet();
 ok(!(current().days[nkey] || {}).night, '清空这天会连晚修一起清掉');
 /* 单价填 0 时面板藏起来；但以前记过的仍要显示，好让人把次数清掉 */
 ncal.db.settings.nightFee = 0;
-require(path.join(ROOT, 'utils/store.js')).save(ncal.db);
+require(path.join(ROOT, 'utils/store.js')).commit();
 core.setRecord(ncal.db, nkey, 'work', 'work', 0, '', true, '', 1);
-require(path.join(ROOT, 'utils/store.js')).save(ncal.db);
+require(path.join(ROOT, 'utils/store.js')).commit();
 ncal.openSheet(nkey);
 ok(ncal.data.sheet.nightOn === true, '单价归零但记过次数仍显示');
 ncal.hideUndo();
@@ -606,7 +606,7 @@ sumR.db.settings.rates = [
 ];
 core.setRecord(sumR.db, ymR + '-05', 'work', 'work', 4, '', true, '');
 core.setRecord(sumR.db, ymR + '-06', 'ot', 'ot', 2, '', true, 'eve');
-require(path.join(ROOT, 'utils/store.js')).save(sumR.db);
+require(path.join(ROOT, 'utils/store.js')).commit();
 sumR.render();
 const det = sumR.data.rows.find(r => r.k === '课时明细');
 ok(!!det, '多档时列出课时明细');
@@ -626,16 +626,16 @@ sumF.setData({ ym: '2026-03' });          /* 这个月一条记录都没有 */
 sumF.render();
 ok(sumF.data.p.base === '8000', '没记过的月份显示设置里的基数', sumF.data.p.base);
 sumF.db.settings.baseSalary = 12000;
-stF.save(sumF.db);
+stF.commit();
 sumF.render();
 ok(sumF.data.p.base === '12000', '改设置后没记过的月份跟着变', sumF.data.p.base);
 
 sumF.setData({ ym: '2026-11' });          /* 记一天，第一次渲染时参数落盘 */
 core.setRecord(sumF.db, '2026-11-03', 'work', 'work', 2, '');
-stF.save(sumF.db);
+stF.commit();
 sumF.render();
 sumF.db.settings.baseSalary = 20000;
-stF.save(sumF.db);
+stF.commit();
 sumF.render();
 ok(sumF.data.p.base === '12000', '记过的月份不受之后改设置影响', sumF.data.p.base);
 
@@ -699,7 +699,7 @@ sumN.db.settings.rates = [
   { id: 'default', name: '正课', price: 120 },
   { id: 'eve', name: '晚自习', price: 80 }
 ];
-require(path.join(ROOT, 'utils/store.js')).save(sumN.db);
+require(path.join(ROOT, 'utils/store.js')).commit();
 sumN.render();
 ok(sumN.data.otherRates.indexOf('晚自习 ¥80/节') >= 0, '参数卡列出其他档位', sumN.data.otherRates);
 ok(sumN.data.p.rate === '120', '只读行不影响可编辑的单价', sumN.data.p.rate);
@@ -1285,7 +1285,7 @@ const sharedA = stShared.load();
 const sharedB = stShared.load();
 ok(sharedA === sharedB, 'store.load 内容未变时共用同一份数据引用');
 sharedA.days['2026-11-20'] = { am: 'work', pm: 'work', lessons: 1, note: 'A 页面写的', upd: Date.now() };
-stShared.save(sharedA);
+stShared.commit();
 const sharedC = stShared.load();
 ok(sharedB.days['2026-11-20'] && sharedB.days['2026-11-20'].note === 'A 页面写的',
   'B 页面持有的引用能看到 A 页面刚保存的记录');
@@ -1418,7 +1418,7 @@ reset();
   /* resetParams 以前拿 monthP 的 q.workdays 拼 toast，那个函数不填价格，所以提示是
      「应上班 undefined 天」。钉住它别再退回去。 */
   pSum.db.settings.baseSalary = 600;
-  stShared.save(pSum.db);
+  stShared.commit();
   const toastFrom = toasts.length;
   pSum.resetParams();
   const cReset = core.computeMonth(pSum.db, '2026-10');

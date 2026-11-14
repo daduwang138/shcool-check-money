@@ -133,7 +133,8 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 - [x] **生成工具自动派生**：`sync_spec.js` / `gen_core_adapter.js` 都从 `Object.keys(spec)` 生成，消除最后一处手工同步；`verify_core.js` 检查产物里每个 spec 导出都进了全局常量段和 IIFE 参数。
 
 - [x] **计薪项注册表（第 3 步）**：`PAY_ITEMS` 收进 `spec.js`，`computeMonth` 按它累加、核对单与 CSV 列头从它生成，配「金额快照」断言钉死算法本身。加一个计薪项从原来的 10+ 处降到「注册一行 + 算一个金额 + UI 加一行」。
-- [x] **数据 schema / 状态写入收口（第 4～5 步）**：`spec.js` 加 `SCHEMA_VERSION` / `DAY_FIELDS`，`migrate()` 由 `normalize()` 调用；因为 `store.save()` / `load()` 都过 normalize，**37 处写入调用点不用改**就自动获得迁移能力。`dayBody()` 从 `DAY_FIELDS` 派生，加日记录字段不会漏掉合并冲突判断。当前 v1 是初始版本、迁移表为空，数据格式逐字不变。
+- [x] **数据 schema / 状态写入收口（第 4～5 步）**：`spec.js` 加 `SCHEMA_VERSION` / `DAY_FIELDS`，`migrate()` 由 `normalize()` 调用；`store.commit()` / `load()` 都过 normalize，**38 处写入调用点不用改**就自动获得迁移能力。`dayBody()` 从 `DAY_FIELDS` 派生，加日记录字段不会漏掉合并冲突判断。当前 v1 是初始版本、迁移表为空，数据格式逐字不变。
+  - **状态写入真正收口**：`store.save(db)` 退役，改为**不接受外部 db** 的 `store.commit()`；38 处调用点机械收敛。因为提交的永远是同一个共享对象，「A 页面拿旧副本整库盖掉 B 页面」从结构上不可能发生，按 `upd` 时间戳补合并的 `_mergeNewer` 补丁随之删除。`check_structure.js` 钉住「页面不许用 `store.save(`、`_mergeNewer` 不许回来」。
   - **`MIGRATIONS` 住在 `core.js`，不在 `spec.js`**：它是函数，而 `spec.js` 被 `JSON.stringify` 序列化成电脑版全局常量，函数会变成 `null`，两版迁移行为会静默分叉。`core.js` 由生成器整体打包进 IIFE，函数天然带得过去。`check_structure.js` 有「spec.js 必须可无损序列化」护栏（含变异自检）钉住这条边界。
 - [x] **浏览器安全网已恢复（全套 6/6 通过、无 SKIP）**：本机 Edge 157 / Chrome 157 的新版 headless 会创建隐藏窗口、在受限会话里启动即退出（`--dump-dom` / `--screenshot` / `--print-to-pdf` 全 0 字节、stderr 空、exit 0；CDP 端口回环超时、`--remote-debugging-pipe` 零响应）。最终方案是下载 **Chrome for Testing 的独立 `chrome-headless-shell`**（旧 headless 实现，不创建窗口），实测 `--dump-dom` 正常出 DOM。
   - `node tools/install_headless_shell.js`：一键下载 + 解压到 `%LOCALAPPDATA%\kqzb-headless\`，装完自检；已装且可用时不会重复下载。产物不进仓库。

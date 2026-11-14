@@ -139,7 +139,7 @@ Page({
     var p = core.monthP(this.db, this.data.ym);
     p.workdays = v;
     core.freezeMonth(this.db, this.data.ym);
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -149,7 +149,7 @@ Page({
     var p = core.monthP(this.db, this.data.ym);
     p.base = v;
     core.freezeMonth(this.db, this.data.ym);
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -159,7 +159,7 @@ Page({
     var p = core.monthP(this.db, this.data.ym);
     p.rate = v;
     core.freezeMonth(this.db, this.data.ym);
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -167,7 +167,7 @@ Page({
     var p = core.monthP(this.db, this.data.ym);
     p.checked = !!e.detail.value;
     core.freezeMonth(this.db, this.data.ym);
-    store.save(this.db);
+    store.commit();
     this.render();
     wx.showToast({ title: p.checked ? '本月已标记核对' : '已取消核对标记', icon: 'none' });
   },
@@ -178,7 +178,7 @@ Page({
   useSettingBase: function () {
     var p = core.monthP(this.db, this.data.ym);
     delete p.base;
-    store.save(this.db);
+    store.commit();
     this.render();
     wx.showToast({ title: '本月已改用设置里的工资', icon: 'none' });
   },
@@ -191,7 +191,7 @@ Page({
     /* monthP 只负责拿到可写的参数对象、不填价格；删完之后再读一次 q.workdays
        只会是 undefined（toast 里会显示「应上班 undefined 天」）。render() 已经重算过，
        直接取它写回 data 的结果就行 */
-    store.save(this.db);
+    store.commit();
     this.render();
     wx.showToast({ title: '已回到设置默认值（应上班 ' + this.data.p.workdays + ' 天）', icon: 'none' });
   },

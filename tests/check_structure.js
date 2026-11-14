@@ -144,6 +144,22 @@ const storeSrc = fs.readFileSync(path.join(PAGES, '..', 'utils', 'store.js'), 'u
 if (storeSrc.indexOf('core.DAY_FIELDS.map') < 0) {
   bad.push('store.js 的 dayBody 没从 spec.js 的 DAY_FIELDS 派生');
 }
+/* 状态写入只能走无参 commit()：它提交的永远是共享对象，
+   「调用方传旧副本整库盖掉别的页面」从结构上不可能发生。
+   别退回 save(db) + 按时间戳补合并的补丁。 */
+const pageSrcAll = fs.readdirSync(PAGES)
+  .map(function (d) { return path.join(PAGES, d, d + '.js'); })
+  .filter(function (p) { return fs.existsSync(p); })
+  .map(function (p) { return fs.readFileSync(p, 'utf8'); }).join('\n');
+if (/store\.save\(/.test(pageSrcAll)) {
+  bad.push('页面里还在用 store.save(db)；写操作统一走不接受外部 db 的 store.commit()');
+}
+if (!/function commit\(\)\s*\{/.test(storeSrc) || storeSrc.indexOf('module.exports') < 0) {
+  bad.push('store.js 缺无参 commit() 写入口');
+}
+if (storeSrc.indexOf('function _mergeNewer(') >= 0) {
+  bad.push('store.js 又退回按时间戳补合并的 _mergeNewer 补丁');
+}
 
 /* spec.js 会被 JSON.stringify 序列化进电脑版，只能放纯数据。
    函数 / undefined 会变成 null 或丢键，两版行为静默分叉；

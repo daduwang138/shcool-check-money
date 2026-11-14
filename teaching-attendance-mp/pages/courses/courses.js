@@ -89,13 +89,13 @@ Page({
 
   pickTerm: function (e) {
     this.db.term.start = e.detail.value || '';
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
   clearTerm: function () {
     this.db.term.start = '';
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -230,7 +230,7 @@ Page({
         parity: e.parity
       });
     }
-    store.save(db);
+    store.commit();
     this.setData({ editing: null });
     this._name = undefined;
     this.render();
@@ -249,7 +249,7 @@ Page({
       success: function (res) {
         if (!res.confirm) { return; }
         that.db.courses = that.db.courses.filter(function (c) { return c.id !== e.id; });
-        store.save(that.db);
+        store.commit();
         that.setData({ editing: null });
         that.render();
         wx.showToast({ title: '已删除', icon: 'none' });
@@ -320,7 +320,7 @@ Page({
           startWeek: c.startWeek, endWeek: c.endWeek, parity: c.parity
         });
       });
-      store.save(db);
+      store.commit();
       that._impText = '';
       that.setData({ imp: null });
       that.render();

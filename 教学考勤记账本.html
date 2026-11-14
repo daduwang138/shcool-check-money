@@ -1210,7 +1210,7 @@ function blankDB() {
   };
 }
 /* 版本迁移：按 db.v 逐级应用 MIGRATIONS。所有读写都经过 normalize()，
-   所以 store.save() 这个唯一写入口自动获得迁移能力，不用改 37 处调用点。
+   所以 store.commit() 这个唯一写入口自动获得迁移能力，不用改 38 处调用点。
    来自更新版本的备份（v > SCHEMA_VERSION）不改数据、也不降级版本号，
    免得旧程序把还看不懂的新字段抹掉。 */
 function migrate(db) {

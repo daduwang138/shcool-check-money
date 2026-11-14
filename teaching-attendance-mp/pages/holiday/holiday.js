@@ -126,7 +126,7 @@ Page({
     }
     core.refreshWorkdays(this.db, y);
     core.addHolidaySpan(this.db, y, 'off', f, t);
-    store.save(this.db);
+    store.commit();
     this.render();
     wx.showToast({ title: '已加入', icon: 'none' });
   },
@@ -143,7 +143,7 @@ Page({
     }
     core.refreshWorkdays(this.db, y);
     core.addHolidaySpan(this.db, y, 'work', k, k);
-    store.save(this.db);
+    store.commit();
     this.render();
     wx.showToast({ title: '已加入', icon: 'none' });
   },
@@ -156,7 +156,7 @@ Page({
     var i = parseInt(e.currentTarget.dataset.i, 10);
     core.refreshWorkdays(this.db, this.data.y);
     core.delHolidaySpan(this.db, this.data.y, 'off', i);
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -164,7 +164,7 @@ Page({
     var i = parseInt(e.currentTarget.dataset.i, 10);
     core.refreshWorkdays(this.db, this.data.y);
     core.delHolidaySpan(this.db, this.data.y, 'work', i);
-    store.save(this.db);
+    store.commit();
     this.render();
   },
 
@@ -204,7 +204,7 @@ Page({
         if (!that.db.settings.holidays) { that.db.settings.holidays = {}; }
         core.refreshWorkdays(that.db, y);
         that.db.settings.holidays[y] = { off: r.off, work: r.work };
-        store.save(that.db);
+        store.commit();
         that.setData({ showPaste: false, pasteText: '' });
         if (that.data.y !== y) { that.setYear(y); } else { that.render(); }
         wx.showToast({ title: '已导入', icon: 'none' });
@@ -223,7 +223,7 @@ Page({
         if (!res.confirm) { return; }
         core.refreshWorkdays(that.db, y);
         core.clearHolidayYear(that.db, y);
-        store.save(that.db);
+        store.commit();
         that.render();
         wx.showToast({ title: '已清空', icon: 'none' });
       }
