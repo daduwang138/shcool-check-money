@@ -1449,6 +1449,60 @@ reset();
     JSON.stringify([pSum.data.enableBase, pSum.data.enableLesson]));
 }
 
+/* ================= 状态矩阵：开关 × 冻结 × 空月份 =================
+   以前所有用例都跑在 seedDb() 的「开关全开」这一条路径上，交叉状态从没被测到，
+   所以「关掉开关后界面还让不让人改」「空月份会不会蹦出 undefined」只能靠肉眼撞见。
+   把组合摊开：以后每加一个用户可见的状态分支，先来这里加一行。 */
+reset();
+{
+  const combos = [
+    { base: true,  lesson: true,  frozen: true,  empty: false },
+    { base: false, lesson: true,  frozen: true,  empty: false },
+    { base: true,  lesson: false, frozen: true,  empty: false },
+    { base: false, lesson: false, frozen: true,  empty: false },
+    { base: true,  lesson: true,  frozen: false, empty: false },
+    { base: false, lesson: false, frozen: false, empty: false },
+    { base: true,  lesson: true,  frozen: false, empty: true  }
+  ];
+  combos.forEach(function (cfg) {
+    const db = seedDb();
+    db.settings.enableBase = cfg.base;
+    db.settings.enableLesson = cfg.lesson;
+    if (cfg.frozen) { core.setRecord(db, '2026-10-08', 'work', 'work', 40, ''); }
+    if (!cfg.empty) { core.setRecord(db, '2026-11-03', 'work', 'inv', 0, ''); }
+    mem['kqzb_db_v1'] = JSON.stringify(db);
+
+    const p = makePage('summary');
+    p.onLoad();
+    p.data.ym = cfg.empty ? '2027-02' : (cfg.frozen ? '2026-10' : '2026-11');
+    p.render();
+    const tag = 'base=' + cfg.base + ' lesson=' + cfg.lesson
+      + ' frozen=' + cfg.frozen + ' empty=' + cfg.empty;
+
+    ok(p.data.enableBase === cfg.base && p.data.enableLesson === cfg.lesson,
+      '矩阵·开关状态带进参数卡 ' + tag,
+      JSON.stringify([p.data.enableBase, p.data.enableLesson]));
+
+    const c = core.computeMonth(db, p.data.ym);
+    ok(cfg.base ? c.base >= 0 : (c.base === 0 && c.basePart === 0 && c.extraPart === 0),
+      '矩阵·开关与金额一致 ' + tag, JSON.stringify([c.base, c.basePart, c.extraPart]));
+
+    ok(['workdays', 'base', 'rate'].every(function (k) {
+      return String(p.data.p[k]) !== 'undefined' && String(p.data.p[k]) !== 'NaN';
+    }), '矩阵·参数卡不出现 undefined/NaN ' + tag, JSON.stringify(p.data.p));
+
+    ok(p.data.total !== 'NaN' && p.data.total !== 'undefined' && !/NaN|undefined/.test(p.data.total),
+      '矩阵·应发金额可读 ' + tag, p.data.total);
+
+    /* 用户可见输出也算验收面：每个组合都点一次「恢复默认」，提示不能带 undefined */
+    const from = toasts.length;
+    p.resetParams();
+    const t = toasts.slice(from).join(' / ');
+    ok(t.indexOf('undefined') < 0 && t.indexOf('NaN') < 0 && t.indexOf('天') >= 0,
+      '矩阵·重置提示可读 ' + tag, t);
+  });
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }
 console.log('页面逻辑全部通过');

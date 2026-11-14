@@ -23,7 +23,7 @@ function checkWxml(name, src) {
   if (stack.length) bad.push(name + ' 未闭合标签：' + stack.join(','));
 }
 
-let hCount = 0, cCount = 0, rCount = 0;
+let hCount = 0, cCount = 0, rCount = 0, bCount = 0, dCount = 0;
 fs.readdirSync(PAGES).forEach(function (dir) {
   const base = path.join(PAGES, dir, dir);
   if (!fs.existsSync(base + '.wxml')) { return; }
@@ -54,6 +54,30 @@ fs.readdirSync(PAGES).forEach(function (dir) {
   const missing = [...classes].filter(c => !wxss.includes('.' + c) && !appWxss.includes('.' + c));
   if (missing.length) bad.push(dir + ' 样式缺失：' + missing.join(', '));
   cCount += classes.size;
+
+  /* 插值里的字面量 class（如 {{on ? 'dim' : ''}}）以前整段被抹成空格，等于没查。
+     参数框灰掉、标签选中这类「状态样式」全靠它，漏了就是界面看上去没反应。 */
+  const dynClasses = new Set();
+  wxml.replace(/class="([^"]+)"/g, function (_, v) {
+    /* 只取三元的结果分支：条件里 {{scope === 'both' ? 'on' : ''}} 的 'both'
+       是比较值、不是 class，把它算进来会误报。'on' / '' 才是真正的类名。 */
+    let tm;
+    const ternRe = /\?\s*['"]([a-zA-Z][\w-]*)?['"]\s*:\s*['"]([a-zA-Z][\w-]*)?['"]/g;
+    while ((tm = ternRe.exec(v))) {
+      if (tm[1]) dynClasses.add(tm[1]);
+      if (tm[2]) dynClasses.add(tm[2]);
+    }
+  });
+  const dynMissing = [...dynClasses].filter(c => !wxss.includes('.' + c) && !appWxss.includes('.' + c));
+  if (dynMissing.length) bad.push(dir + ' 动态 class 缺样式：' + dynMissing.join(', '));
+  dCount += dynClasses.size;
+
+  /* 绑定契约：见文件末尾 orphanBindings()。 */
+  const binding = orphanBindings(wxml, js);
+  binding.orphans.forEach(function (name) {
+    bad.push(dir + ' wxml 绑定了「' + name + '」，但页面 js 找不到这个 data 字段 / setData 键');
+  });
+  bCount += binding.names.length;
 });
 
 /* 文案哨兵：这些说明曾经和代码对不上，钉住别再漂回去。
@@ -125,5 +149,44 @@ if (htmlSrc.indexOf('<title>' + APP_NAME + '</title>') < 0) bad.push('电脑版 
 if (/\bprompt\s*\(/.test(htmlSrc)) bad.push('电脑版还在用 window.prompt 收口令，必须走 password 输入框');
 if (htmlSrc.indexOf('function askPass(') < 0) bad.push('电脑版缺少自绘的口令输入框 askPass()');
 
+/* 绑定契约：wxml 的 {{}} 里每个顶层字段，页面 js 必须真的写过。
+   桩测试只跑 js 的 setData、不渲染 wxml；旧的静态检查又只查「方法/class 存在」。
+   于是「data 算对了、界面绑了个没人写的字段」「条件渲染字段没在 render 里写回」
+   这两类问题从来没人拦，只能靠肉眼撞见。函数声明会提升，放末尾也能被上面的循环调用。 */
+function orphanBindings(wxml, js) {
+  const loopVars = new Set(['item', 'index']);
+  wxml.replace(/wx:for-item="([^"]+)"/g, (_, v) => { loopVars.add(v); });
+  wxml.replace(/wx:for-index="([^"]+)"/g, (_, v) => { loopVars.add(v); });
+  const BUILTINS = new Set(['true', 'false', 'null', 'undefined', 'Math', 'String', 'Number', 'parseInt', 'parseFloat']);
+  const bound = new Set();
+  let em;
+  const exprRe = /\{\{([\s\S]*?)\}\}/g;
+  while ((em = exprRe.exec(wxml))) {
+    const expr = em[1].replace(/'[^']*'|"[^"]*"/g, ' ');
+    let im;
+    const idRe = /(\.)?\b([A-Za-z_$][\w$]*)\b/g;
+    while ((im = idRe.exec(expr))) {
+      if (im[1] || loopVars.has(im[2]) || BUILTINS.has(im[2])) continue;
+      bound.add(im[2]);
+    }
+  }
+  const names = [...bound];
+  const orphans = names.filter(function (name) {
+    return !new RegExp('(^|[^\\w.$])' + name + '\\s*:', 'm').test(js);
+  });
+  return { names: names, orphans: orphans };
+}
+
+/* 变异自检：这层检查本身必须有效，别写成永远通过的摆设。
+   故意给一段「wxml 用了 enableBase、js 却没写回」的代码，看它抓不抓得到。 */
+const mutWxml = '<view wx:if="{{!enableBase}}">{{total}}</view>';
+const mutJsOk = 'Page({ data: { total: 0 }, render: function(){ this.setData({ total: 1, enableBase: true }); } });';
+const mutJsBad = 'Page({ data: { total: 0 }, render: function(){ this.setData({ total: 1 }); } });';
+if (orphanBindings(mutWxml, mutJsOk).orphans.length) bad.push('绑定契约自检·正常页面被误报');
+if (orphanBindings(mutWxml, mutJsBad).orphans.indexOf('enableBase') < 0) {
+  bad.push('绑定契约自检·漏写的字段没被抓到，这层检查形同虚设');
+}
+
 if (bad.length) { console.log('FAIL\n' + bad.join('\n')); process.exit(1); }
-console.log('结构自检通过：' + hCount + ' 个事件方法、' + cCount + ' 个 class、wxss ' + rCount + ' 条规则');
+console.log('结构自检通过：' + hCount + ' 个事件方法、' + cCount + ' 个 class、wxss ' + rCount + ' 条规则、'
+  + bCount + ' 个绑定字段、' + dCount + ' 个动态 class');
