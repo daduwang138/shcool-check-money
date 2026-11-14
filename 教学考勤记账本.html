@@ -3633,6 +3633,10 @@ function bindHoliday(){
   });
 }
 
+/* 设置页是一整张表单：按「基本参数 → 课时档位 → 晚修 → 出勤默认值 → 开关 → 文件与备份 → 说明卡」
+   顺序拼接 HTML 字符串。函数长但**扁平**，只有顺序拼接和少量三元，没有深层嵌套或分支树；
+   这是 UI 声明式代码而非需要拆解的业务逻辑，硬拆成小函数反而要来回传 s / DB 等上下文。
+   改动时按下面的「---------- xxx ----------」分区定位即可。 */
 function renderSet(){
   var s=DB.settings;
   var h="";
@@ -4336,6 +4340,9 @@ function setView(v){
   updateDirNotice();
 }
 
+/* 全部事件绑定集中在这一处，方便查「这个按钮到底绑了什么」。
+   同样是扁平列表（一条绑定 2~5 行、按 DOM 区块分段），没有嵌套逻辑；
+   别按行数误判成需要拆解的上帝函数。 */
 function bindEvents(){
   $("prevM").addEventListener("click",function(){shiftMonth(-1);});
   $("nextM").addEventListener("click",function(){shiftMonth(1);});

@@ -161,6 +161,26 @@ if (storeSrc.indexOf('function _mergeNewer(') >= 0) {
   bad.push('store.js 又退回按时间戳补合并的 _mergeNewer 补丁');
 }
 
+/* 完全空的 catch 会静默吞掉异常，连「为什么可以忽略」都不写，以后排查就是黑洞。
+   至少补一句原因注释。 */
+const mpJs = [];
+['utils'].forEach(function (d) {
+  const dir = path.join(PAGES, '..', d);
+  fs.readdirSync(dir).filter(function (f) { return /\.js$/.test(f); })
+    .forEach(function (f) { mpJs.push(path.join(dir, f)); });
+});
+fs.readdirSync(PAGES).forEach(function (d) {
+  const p = path.join(PAGES, d, d + '.js');
+  if (fs.existsSync(p)) mpJs.push(p);
+});
+const emptyCatch = mpJs.filter(function (p) {
+  return /catch\s*\([^)]*\)\s*\{\s*\}/.test(fs.readFileSync(p, 'utf8'));
+});
+if (emptyCatch.length) {
+  bad.push('存在完全空的 catch（没写忽略原因）：'
+    + emptyCatch.map(function (p) { return path.basename(p); }).join(', '));
+}
+
 /* spec.js 会被 JSON.stringify 序列化进电脑版，只能放纯数据。
    函数 / undefined 会变成 null 或丢键，两版行为静默分叉；
    SPEC 护栏比的是「同一份序列化结果」，自己发现不了 —— 必须单独拦。 */

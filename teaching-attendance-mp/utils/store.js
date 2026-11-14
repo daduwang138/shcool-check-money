@@ -53,7 +53,8 @@ function replace(db) {
 
 function reset() {
   _cache = null; _cacheRaw = '';
-  try { wx.removeStorageSync(KEY); } catch (e) {}
+  /* 隐私模式 / 存储被禁用时 removeStorageSync 会抛；清不掉就当它已经是空库 */
+  try { wx.removeStorageSync(KEY); } catch (e) { /* 忽略：没有可清理的存储 */ }
 }
 
 function platform() {

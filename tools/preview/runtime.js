@@ -545,7 +545,8 @@
       '</div></div>';
     box.appendChild(wrap);
     var inp = wrap.querySelector('.mp-modal-input');
-    if (inp) { setTimeout(function () { try { inp.focus(); } catch (e) { } }, 30); }
+    /* 部分页面此刻还没挂载输入框，聚焦失败不影响输入，忽略即可 */
+    if (inp) { setTimeout(function () { try { inp.focus(); } catch (e) { /* 忽略：输入框尚未挂载 */ } }, 30); }
     function done(ok) {
       wrap.remove();
       cb(ok, inp ? inp.value : undefined);

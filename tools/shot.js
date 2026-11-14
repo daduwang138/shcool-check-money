@@ -62,7 +62,9 @@ function pcDemo() {
     settings: { baseSalary: 8000, rate: 120, weekPattern: [0, 1, 1, 1, 1, 1, 0], autoWork: true },
     months: {}, days, term: { start: '' }, courses: []
   };
-  const code = 'try{localStorage.setItem("kqzb_data_v1",' + JSON.stringify(JSON.stringify(db)) + ');}catch(e){}';
+  /* 注入到临时演示页的代码；隐私模式下 localStorage 不可用，塞不进示例账就显示空月历 */
+  const code = 'try{localStorage.setItem("kqzb_data_v1",' + JSON.stringify(JSON.stringify(db))
+    + ');}catch(e){/* 忽略：隐私模式没有 localStorage */}';
   const inject = '<script>' + code + '</scr' + 'ipt>';
   return fs.readFileSync(PC_SRC, 'utf8').replace('<head>', '<head>' + inject);
 }
