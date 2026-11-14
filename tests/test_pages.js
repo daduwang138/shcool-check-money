@@ -1503,6 +1503,31 @@ reset();
   });
 }
 
+/* ================= schema：DAY_FIELDS 必须真的驱动合并冲突判断 =================
+   以前 dayBody 手写 7 个字段，加日记录字段忘了补，就会把「两边内容不同」
+   误判成相同、静默吞掉一边的数据。这里逐字段验一遍。 */
+reset();
+{
+  const st = require(path.join(ROOT, 'utils/store.js'));
+  const probes = core.DAY_FIELDS.map(function (f) {
+    const base = { am: '', pm: '', lessons: 0, note: '', rid: '', night: 0, off: false, upd: 100 };
+    const variant = Object.assign({}, base, { upd: 50 });
+    variant[f.key] = f.kind === 'int' ? 9 : (f.kind === 'bool' ? true : 'X');
+    const local = seedDb();
+    local.days['2026-11-02'] = base;
+    const incoming = { v: 1, settings: {}, months: {}, term: {}, courses: [],
+      days: { '2026-11-02': variant } };
+    return [f.key, st.mergeInto(local, incoming).conflicts];
+  });
+  ok(probes.every(function (x) { return x[1] >= 1; }),
+    'schema·DAY_FIELDS 每个字段都参与合并冲突判断', JSON.stringify(probes));
+  const l2 = seedDb();
+  l2.days['2026-11-02'] = { am: 'work', pm: 'work', lessons: 0, note: '', rid: '', night: 0, off: false, upd: 100 };
+  const i2 = { v: 1, settings: {}, months: {}, term: {}, courses: [],
+    days: { '2026-11-02': Object.assign({}, l2.days['2026-11-02'], { upd: 50 }) } };
+  ok(st.mergeInto(l2, i2).conflicts === 0, 'schema·只改 upd 不算内容冲突');
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }
 console.log('页面逻辑全部通过');

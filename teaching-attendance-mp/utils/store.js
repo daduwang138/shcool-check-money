@@ -184,8 +184,13 @@ function parseBackup(text) {
 
 /* 只看业务内容，不比 upd / lset：光时间戳不同不算「两边不一致」 */
 function dayBody(r) {
-  return JSON.stringify([r.am || '', r.pm || '', parseInt(r.lessons, 10) || 0,
-    r.note || '', r.rid || '', parseInt(r.night, 10) || 0, !!r.off]);
+  /* 字段清单从 spec.js 的 DAY_FIELDS 派生：以后加日记录字段，
+     不会忘了把它纳入导入合并时的冲突判断（手写清单曾是这个风险点）。 */
+  return JSON.stringify(core.DAY_FIELDS.map(function (f) {
+    if (f.kind === 'int') return parseInt(r[f.key], 10) || 0;
+    if (f.kind === 'bool') return !!r[f.key];
+    return r[f.key] || '';
+  }));
 }
 
 /* 合并：逐日按 upd 取新；工资参数、课程表保留本机的，避免把本机设置冲掉。

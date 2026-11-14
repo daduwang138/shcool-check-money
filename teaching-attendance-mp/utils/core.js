@@ -7,6 +7,9 @@ var STATES = spec.STATES;
 var CYCLE = spec.CYCLE;
 var HOLIDAYS = spec.HOLIDAYS;
 var PAY_ITEMS = spec.PAY_ITEMS;
+var SCHEMA_VERSION = spec.SCHEMA_VERSION;
+var DAY_FIELDS = spec.DAY_FIELDS;
+var MIGRATIONS = spec.MIGRATIONS;
 
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 function dk(y, m, d) { return y + '-' + pad(m) + '-' + pad(d); }
@@ -348,7 +351,7 @@ function parseCourses(text, defEndWeek) {
 /* ---------- 数据 ---------- */
 function blankDB() {
   return {
-    v: 1, savedAt: 0,
+    v: SCHEMA_VERSION, savedAt: 0,
     settings: {
       owner: '', baseSalary: 0, rate: 0,
       rates: [{ id: 'default', name: '正课', price: 0 }],
@@ -369,9 +372,25 @@ function blankDB() {
     courses: []
   };
 }
+/* 版本迁移：按 db.v 逐级应用 MIGRATIONS。所有读写都经过 normalize()，
+   所以 store.save() 这个唯一写入口自动获得迁移能力，不用改 37 处调用点。
+   来自更新版本的备份（v > SCHEMA_VERSION）不改数据、也不降级版本号，
+   免得旧程序把还看不懂的新字段抹掉。 */
+function migrate(db) {
+  if (!db || typeof db !== 'object') return db;
+  var v = parseInt(db.v, 10) || 1;
+  while (v < SCHEMA_VERSION && MIGRATIONS[v - 1]) {
+    MIGRATIONS[v - 1](db);
+    v++;
+    db.v = v;
+  }
+  return db;
+}
+
 function normalize(db) {
   var b = blankDB();
   if (!db || typeof db !== 'object') return b;
+  migrate(db);
   db.settings = Object.assign(b.settings, db.settings || {});
   if (!Array.isArray(db.settings.rates) || !db.settings.rates.length) db.settings.rates = b.settings.rates;
   var wp = db.settings.weekPattern;
@@ -902,6 +921,7 @@ function buildExportCsv(db, months, incSum, incDay) {
 
 module.exports = {
   STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS,
+  SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS, MIGRATIONS: MIGRATIONS, migrate: migrate,
   pad: pad, dk: dk, ymd: ymd, todayKey: todayKey,
   round2: round2, num2: num2, fmt: fmt, fmtShort: fmtShort, sl: sl,
   isWorkday: isWorkday, autoWorkdays: autoWorkdays, refreshWorkdays: refreshWorkdays, isHoliday: isHoliday,

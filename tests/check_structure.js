@@ -128,6 +128,13 @@ if (!adapterState.ok) {
 if (genAdapter.check(htmlSrc.replace('return Core.pad(', 'return Core.PAD(')).ok) {
   bad.push('转发层同步自检·转发体被改坏却没抓到，护栏形同虚设');
 }
+
+/* dayBody 必须从 DAY_FIELDS 派生：手写字段清单一旦漏加新字段，
+   导入合并会把「两边内容不同」误判成相同，静默吞掉一边的数据。 */
+const storeSrc = fs.readFileSync(path.join(PAGES, '..', 'utils', 'store.js'), 'utf8');
+if (storeSrc.indexOf('core.DAY_FIELDS.map') < 0) {
+  bad.push('store.js 的 dayBody 没从 spec.js 的 DAY_FIELDS 派生');
+}
 if (htmlSrc.indexOf('法定工作日内置 2026 年（') >= 0) bad.push('电脑版说明卡写死只内置 2026 年，新增年份会漏');
 const ruleLine = (htmlSrc.match(/<p class="muted">计算规则：[^\n]*<\/p>/) || [''])[0];
 if (!/④/.test(ruleLine)) bad.push('电脑版说明卡的应发公式漏了 ④ 晚修监考费');

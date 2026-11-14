@@ -799,6 +799,38 @@ var PAY_ITEMS=[
     "onlyIfNight": true
   }
 ];
+var SCHEMA_VERSION=1;
+var DAY_FIELDS=[
+  {
+    "key": "am",
+    "kind": "str"
+  },
+  {
+    "key": "pm",
+    "kind": "str"
+  },
+  {
+    "key": "lessons",
+    "kind": "int"
+  },
+  {
+    "key": "note",
+    "kind": "str"
+  },
+  {
+    "key": "rid",
+    "kind": "str"
+  },
+  {
+    "key": "night",
+    "kind": "int"
+  },
+  {
+    "key": "off",
+    "kind": "bool"
+  }
+];
+var MIGRATIONS=[];
 /* >>> SPEC:END <<< */
 /* >>> CORE:START 由 tools/gen_core_adapter.js 生成，别手改 <<< */
 var Core = (function(spec){
@@ -811,6 +843,9 @@ var STATES = spec.STATES;
 var CYCLE = spec.CYCLE;
 var HOLIDAYS = spec.HOLIDAYS;
 var PAY_ITEMS = spec.PAY_ITEMS;
+var SCHEMA_VERSION = spec.SCHEMA_VERSION;
+var DAY_FIELDS = spec.DAY_FIELDS;
+var MIGRATIONS = spec.MIGRATIONS;
 
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 function dk(y, m, d) { return y + '-' + pad(m) + '-' + pad(d); }
@@ -1152,7 +1187,7 @@ function parseCourses(text, defEndWeek) {
 /* ---------- 数据 ---------- */
 function blankDB() {
   return {
-    v: 1, savedAt: 0,
+    v: SCHEMA_VERSION, savedAt: 0,
     settings: {
       owner: '', baseSalary: 0, rate: 0,
       rates: [{ id: 'default', name: '正课', price: 0 }],
@@ -1173,9 +1208,25 @@ function blankDB() {
     courses: []
   };
 }
+/* 版本迁移：按 db.v 逐级应用 MIGRATIONS。所有读写都经过 normalize()，
+   所以 store.save() 这个唯一写入口自动获得迁移能力，不用改 37 处调用点。
+   来自更新版本的备份（v > SCHEMA_VERSION）不改数据、也不降级版本号，
+   免得旧程序把还看不懂的新字段抹掉。 */
+function migrate(db) {
+  if (!db || typeof db !== 'object') return db;
+  var v = parseInt(db.v, 10) || 1;
+  while (v < SCHEMA_VERSION && MIGRATIONS[v - 1]) {
+    MIGRATIONS[v - 1](db);
+    v++;
+    db.v = v;
+  }
+  return db;
+}
+
 function normalize(db) {
   var b = blankDB();
   if (!db || typeof db !== 'object') return b;
+  migrate(db);
   db.settings = Object.assign(b.settings, db.settings || {});
   if (!Array.isArray(db.settings.rates) || !db.settings.rates.length) db.settings.rates = b.settings.rates;
   var wp = db.settings.weekPattern;
@@ -1739,6 +1790,7 @@ return {
   toHalf: toHalf,
   parseCourses: parseCourses,
   blankDB: blankDB,
+  migrate: migrate,
   normalize: normalize,
   peek: peek,
   hasContent: hasContent,
@@ -1776,7 +1828,7 @@ return {
   buildExportCsv: buildExportCsv
 };
 
-})({ STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS });
+})({ STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS, SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS, MIGRATIONS: MIGRATIONS });
 /* >>> CORE:END <<< */
 function $(id){return document.getElementById(id);}
 function pad(n){return Core.pad(n);}

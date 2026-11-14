@@ -61,4 +61,23 @@ var PAY_ITEMS = [
     formula: '晚修次数 × 每次金额', onlyIfNight: true }
 ];
 
-module.exports = { STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS };
+/* 数据 schema：版本号 + 日记录业务字段清单 + 迁移表。
+   DAY_FIELDS 是「比较两天是不是同一条账」的唯一依据（store.js 的 dayBody 由它生成）：
+   以后加日记录字段只改这里，不会漏掉导入合并时的冲突判断。
+   MIGRATIONS[i] 负责把 v=i+1 升到 v=i+2；当前 v1 是初始版本，表为空。 */
+var SCHEMA_VERSION = 1;
+var DAY_FIELDS = [
+  { key: 'am', kind: 'str' },
+  { key: 'pm', kind: 'str' },
+  { key: 'lessons', kind: 'int' },
+  { key: 'note', kind: 'str' },
+  { key: 'rid', kind: 'str' },
+  { key: 'night', kind: 'int' },
+  { key: 'off', kind: 'bool' }
+];
+var MIGRATIONS = [];
+
+module.exports = {
+  STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS,
+  SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS, MIGRATIONS: MIGRATIONS
+};

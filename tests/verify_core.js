@@ -770,6 +770,28 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     Math.round(core.PAY_ITEMS.reduce((a, it) => a + s[it.key], 0) * 100) / 100);
 }
 
+/* ---------- 10.6 schema 迁移框架 ---------- */
+{
+  eq('schema·当前版本', core.SCHEMA_VERSION, 1);
+  eq('schema·日记录字段清单', core.DAY_FIELDS.map(function (f) { return f.key; }),
+    ['am', 'pm', 'lessons', 'note', 'rid', 'night', 'off']);
+  eq('schema·迁移表长度与版本匹配', core.MIGRATIONS.length, core.SCHEMA_VERSION - 1);
+  const legacy = {
+    v: 1, settings: {}, months: {}, term: {}, courses: [],
+    days: { '2026-11-02': { am: 'inv', pm: 'ot', lessons: 1 } }
+  };
+  eq('schema·v1 数据原样保留', core.migrate(legacy).days['2026-11-02'].lessons, 1);
+  eq('schema·v1 版本号不变', core.migrate(legacy).v, 1);
+  const future = {
+    v: 99, settings: {}, months: {}, term: {}, courses: [],
+    days: { '2026-11-02': { am: 'work', pm: 'work', lessons: 2 } }
+  };
+  eq('schema·未来版本不破坏数据', core.migrate(future).days['2026-11-02'].lessons, 2);
+  eq('schema·未来版本不被降级', core.migrate(future).v, 99);
+  eq('schema·normalize 走迁移后字段仍完整',
+    core.normalize({ v: 1, days: { '2026-11-02': { am: 'work', lessons: 2 } } }).days['2026-11-02'].lessons, 2);
+}
+
 /* ---------- 11. 覆盖哨兵：不许新函数悄悄落到测试之外 ----------
    架构演进第 2 步之后，HTML 的算法函数是 core.js 的转发层，CORE 段只是源码注入、
    **不算「被断言覆盖」**。所以这里只认真正生成了转发体的函数：core.js 里剩下的
@@ -783,8 +805,10 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   const forwarded = collect(html.slice(searchFrom),
     /function\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{\s*return Core\./g);
   /* noteTags / monthNotes 放在 HTML 切片外，靠 EXTRA_FNS 抽取，上面已逐字段比对 */
+  /* migrate 只在 core.js 内部被 normalize 调用，HTML 不需要转发；
+     它有 10.6 节的单版期望值断言，不算落到测试之外。 */
   const extra = new Set(['ymOf', 'isYm', 'monthKeysOf', 'hasContent', 'dayCount', 'localKeys',
-    'noteTags', 'monthNotes']);
+    'noteTags', 'monthNotes', 'migrate']);
   const coreFns = collect(fs.readFileSync(path.join(MP, 'utils', 'core.js'), 'utf8'),
     /function\s+([A-Za-z_$][\w$]*)\s*\(/g);
   /* HTML 里是内联等价实现（或小程序页面专属），没法并排比，只能钉死期望值 */
