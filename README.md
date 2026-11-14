@@ -66,11 +66,11 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 | 层次 | 命令 | 覆盖 |
 |---|---|---|
 | 内核双版比对 | `node tests/verify_core.js` | 让 HTML 的转发层与 core.js 吃同一批数据逐字段比对（46800 项，含课程表自动落账、备注标签与本月事项），验证 `DB` 注入位置正确；另有 **10 场景表驱动的金额快照**用人工核算期望值钉死算法本身，以及计薪项注册表、schema 迁移、生成链产物覆盖断言 |
-| 页面逻辑 | `node tests/test_pages.js` | 用桩模拟小程序运行时，跑五个页面的方法（382 项，含「开关 × 冻结 × 空月份」7 组状态矩阵、DAY_FIELDS 逐字段合并冲突验证、设置默认值与本月冻结值的差异可见性与一键同步） |
+| 页面逻辑 | `node tests/test_pages.js` | 用桩模拟小程序运行时，跑五个页面的方法（395 项，含「开关 × 冻结 × 空月份」7 组状态矩阵、DAY_FIELDS 逐字段合并冲突验证、设置默认值与本月冻结值的差异可见性与一键同步、**备份导出→导入逐字段无损的往返断言**） |
 | 结构自检 | `node tests/check_structure.js` | wxml 标签闭合、事件方法、wxss 花括号与 class 样式；**wxml 绑定契约**（94 个字段必须有 js 来源）、13 个动态 class、**SPEC / 转发层生成一致性护栏**、变异自检；外加两版文案哨兵（晚修填 0、应发公式、自动落账口径、冻结价说明、失焦提示） |
 | 连构哈希 | `node tools/build_preview.js` ×2 | 连构两次产物逐字节一致 |
 | 小程序预览冒烟 | `node tests/smoke_preview.js` | 真实浏览器点开预览页，走交互链路（30 条） |
-| 电脑版浏览器冒烟 | `node tests/smoke_html.js` | 真实 DOM：设置改价 → 记账 → 汇总看钱，含冻价回看、误开取消、会话确认、课程表自动落账、2027 内置表与 CDN 空缓存换源（39 条） |
+| 电脑版浏览器冒烟 | `node tests/smoke_html.js` | 真实 DOM：设置改价 → 记账 → 汇总看钱，含冻价回看、误开取消、会话确认、课程表自动落账、2027 内置表与 CDN 空缓存换源（39 条）。**探针页写到系统临时目录的一个全新空文件夹**，等于每次都在验证「单文件解压即用」不依赖同目录任何文件 |
 
 后两层需要一个能跑 `--dump-dom` 的 headless 浏览器。**换机器后先跑 `node tools/install_headless_shell.js`**：它会下载 Chrome for Testing 的独立 `chrome-headless-shell` 到 `%LOCALAPPDATA%\kqzb-headless\`（不进仓库），`tests/browser.js` 会自动发现它。本机 Edge / Chrome 157 的新版 headless 会创建隐藏窗口、在受限会话里启动即退出，只有这个独立 shell 能跑通。跑之前先拿极简本地页逐个自检：找不到浏览器或 `--dump-dom` 静默失效都标 `SKIP`（不假装通过，也不把环境故障报成功能失败）；自检过了而真实页面拿不到探针结果才算真失败。也可以 `BROWSER=路径` 指定。装好后六层应**全套通过、无 SKIP**，用 `node tools/probe_browser.js` 可查每个候选的状态。生成预览单独跑：`node tools/build_preview.js`，产物 `preview/mp-preview.html` 双击即可试交互。
 

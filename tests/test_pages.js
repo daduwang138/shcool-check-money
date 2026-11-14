@@ -1558,6 +1558,74 @@ reset();
   ok(p.data.baseDiff === false, '差异·同步后提示消失', String(p.data.baseDiff));
 }
 
+/* ================= 备份往返：导出 JSON → 导入必须逐字段无损 =================
+   数据全在本机，导出/导入是唯一保命路径；这条链路以前没有任何断言（只有 mergeInto 有）。
+   exportBackup 就是 JSON.stringify(db, null, 2)，所以这里用同样的文本喂给 parseBackup。 */
+reset();
+{
+  const st = require(path.join(ROOT, 'utils/store.js'));
+  /* 递归稳定序列化：键排序后比较，避免「对象键顺序不同」造成假失败 */
+  function stable(v) {
+    if (Array.isArray(v)) return '[' + v.map(stable).join(',') + ']';
+    if (v && typeof v === 'object') {
+      return '{' + Object.keys(v).sort()
+        .map(function (k) { return JSON.stringify(k) + ':' + stable(v[k]); }).join(',') + '}';
+    }
+    return JSON.stringify(v);
+  }
+  const db = seedDb();
+  db.settings.rates = [
+    { id: 'default', name: '正课', price: 120 },
+    { id: 'eve', name: '晚自习', price: 80 }
+  ];
+  db.settings.holidays = {
+    '2026': { off: [['2026-11-05', '2026-11-06']], work: [['2026-11-07', '2026-11-07']] }
+  };
+  db.settings.nightFee = 15;
+  db.months['2026-10'] = {
+    workdays: 18, base: 8000, rate: 120,
+    rates: [{ id: 'default', price: 120 }, { id: 'eve', price: 80 }],
+    night: { hours: 2, fee: 15 }, checked: true
+  };
+  db.days['2026-10-08'] = { am: 'work', pm: 'inv', lessons: 4, note: '月考监考', rid: 'eve', night: 1, upd: 1000 };
+  db.days['2026-11-03'] = { am: 'ot', pm: 'leave', lessons: 2, note: '', rid: 'default', night: 0, off: true, upd: 2000 };
+  db.courses = [{ id: 'a', name: '语文', weekdays: [1, 3], lessons: 2, startWeek: 1, endWeek: 16, parity: 'odd' }];
+  db.term = { start: '2026-09-01', defaultWeeks: 18 };
+
+  const before = core.normalize(db);
+  let back = null, err = '';
+  try { back = st.parseBackup(JSON.stringify(before, null, 2)); } catch (e) { err = e.message; }
+  ok(!err, '备份往返·能解析导出的 JSON', err);
+  if (back) {
+    ok(stable(Object.keys(back.days).sort()) === stable(Object.keys(before.days).sort()),
+      '备份往返·日记录键集合一致');
+    function canon(r, f) {
+      if (f.kind === 'int') return parseInt(r[f.key], 10) || 0;
+      if (f.kind === 'bool') return !!r[f.key];
+      return r[f.key] || '';
+    }
+    ok(Object.keys(before.days).every(function (k) {
+      const a = before.days[k], b = back.days[k];
+      return b && core.DAY_FIELDS.every(function (f) { return canon(a, f) === canon(b, f); });
+    }), '备份往返·每条日记录的业务字段无损');
+    ok(stable(back.months) === stable(before.months), '备份往返·冻结参数无损');
+    ok(stable(back.settings) === stable(before.settings), '备份往返·设置无损');
+    ok(stable(back.courses) === stable(before.courses), '备份往返·课程表无损');
+    ok(stable(back.term) === stable(before.term), '备份往返·学期设置无损');
+    ok(core.computeMonth(back, '2026-10').total === core.computeMonth(before, '2026-10').total,
+      '备份往返·导入后应发金额不变');
+  }
+  let threw = false; try { st.parseBackup('{坏掉的'); } catch (e) { threw = true; }
+  ok(threw, '备份往返·损坏 JSON 会报错');
+  threw = false; try { st.parseBackup('{}'); } catch (e) { threw = true; }
+  ok(threw, '备份往返·空对象会报错');
+  ok(!!st.parseBackup('{"days":{}}').settings, '备份往返·只有 days 的旧备份也能读');
+  ok(!!st.parseBackup('{"settings":{}}').days, '备份往返·只有 settings 的旧备份也能读');
+  const legacy = st.parseBackup('{"v":1,"days":{"2026-10-08":{"am":"work","pm":"work","lessons":2}},"settings":{}}');
+  ok(legacy.days['2026-10-08'].lset === true && legacy.days['2026-10-08'].lessons === 2,
+    '备份往返·老备份补齐 lset 且不丢记录');
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }
 console.log('页面逻辑全部通过');

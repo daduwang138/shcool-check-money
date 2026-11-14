@@ -1,7 +1,8 @@
 /* 电脑版真实浏览器冒烟：从设置页填价、记账页点开一天、到汇总页看钱，全走真实 DOM。
-   这些路径 test_pages.js 的桩测不到（桩只覆盖小程序），以前放在 .tmp 里被 .gitignore 吃掉，
-   每轮换台机器就没了；现在入库，由 tests/run-all.js 统一调用。 */
+   这些路径 test_pages.js 的桩测不到（桩只覆盖小程序）。探针页写到系统临时目录里
+   一个全新的空文件夹——顺带永久验证「单文件解压即用」：不依赖项目里任何同目录文件。 */
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const browser = require('./browser.js');
 
@@ -167,8 +168,9 @@ if (!browser.supported()) {
   process.exit(0);
 }
 
-fs.mkdirSync(path.join(ROOT, '.tmp'), { recursive: true });
-const out = path.join(ROOT, '.tmp', 'html-night-smoke.html');
+/* 独立空目录：HTML 旁边什么都没有，能跑通才算真的「双击即用」 */
+const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kqzb-standalone-'));
+const out = path.join(outDir, 'index.html');
 fs.writeFileSync(out, src.replace('</body>', probe + '\n</body>'), 'utf8');
 const lines = browser.titleLines(browser.runHeadless(out));
 if (!lines.length) { console.log('FAIL 电脑版浏览器冒烟：没拿到 title'); process.exit(1); }
