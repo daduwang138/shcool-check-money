@@ -279,6 +279,8 @@ input[type=text],input[type=password],input[type=number],select{
 select{text-align:left;background:#fff}
 input:focus,select:focus{outline:0;border-color:#8FB4D6;background:#fff;
   box-shadow:0 0 0 3px rgba(27,94,155,.12)}
+/* 开关关掉时参数框跟着锁住：能改却不算钱，比不能改更让人糊涂 */
+input:disabled{border-color:#EAE7DE;background:#F4F3EE;color:#9C9A91;cursor:not-allowed}
 input[type=password]{text-align:left;width:170px}
 input[type=date],input[type=month]{font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);
   border-radius:9px;background:#fff;color:var(--ink)}
@@ -2532,8 +2534,8 @@ function renderSum(){
   html+='<h2>'+y+' 年 '+m+' 月 · 工资核对</h2>';
   html+='<div class="grid2"><div>';
   html+='<div class="field"><div><label>当月法定工作日</label><div class="desc">按国务院放假安排自动算，可改</div></div><input type="number" id="sumWorkdays" min="0" max="31" step="1" value="'+c.workdays+'"></div>';
-  html+='<div class="field"><div><label>基本工资</label><div class="desc">本月取值；这月记过东西后就不再跟着设置变</div></div><input type="number" id="sumBase" min="0" step="0.01" value="'+monthBase(CUR)+'"></div>';
-  html+='<div class="field"><div><label>课时单价</label><div class="desc">每节</div></div><input type="number" id="sumRate" min="0" step="0.01" value="'+monthRate(CUR)+'"></div>';
+  html+='<div class="field"><div><label>基本工资</label><div class="desc">本月取值；这月记过东西后就不再跟着设置变'+(DB.settings.enableBase?'':'；设置里已关掉「基本工资按出勤折算」，这项不计入')+'</div></div><input type="number" id="sumBase" min="0" step="0.01" value="'+monthBase(CUR)+'"'+(DB.settings.enableBase?'':' disabled')+'></div>';
+  html+='<div class="field"><div><label>课时单价</label><div class="desc">每节'+(DB.settings.enableLesson?'':'；设置里已关掉「课时费」，这项不计入')+'</div></div><input type="number" id="sumRate" min="0" step="0.01" value="'+monthRate(CUR)+'"'+(DB.settings.enableLesson?'':' disabled')+'></div>';
   html+='</div><div>';
   html+='<table><tbody>';
   if(c.start&&c.start.slice(0,7)===CUR){
@@ -3079,8 +3081,8 @@ function renderSet(){
   var h="";
   h+='<div class="card"><h2>计薪参数</h2>';
   h+='<div class="fields">';
-  h+='<div class="field"><div><label>基本工资（元/月）</label><div class="desc">用于按出勤天数折算</div></div><input type="number" id="setBase" min="0" step="0.01" value="'+(s.baseSalary||0)+'"></div>';
-  h+='<div class="field"><div><label>课时单价（元/节）</label><div class="desc">正课这类默认单价；晚自习、代课等另加档位</div></div><input type="number" id="setRate" min="0" step="0.01" value="'+(s.rate||0)+'"></div>';
+  h+='<div class="field"><div><label>基本工资（元/月）</label><div class="desc">用于按出勤天数折算；这里改的是默认值，已记账的月份不跟着变，要改旧月份去汇总页「本月参数」</div></div><input type="number" id="setBase" min="0" step="0.01" value="'+(s.baseSalary||0)+'"'+(s.enableBase?'':' disabled')+'></div>';
+  h+='<div class="field"><div><label>课时单价（元/节）</label><div class="desc">正课这类默认单价；晚自习、代课等另加档位；已记账的月份按当时冻的价</div></div><input type="number" id="setRate" min="0" step="0.01" value="'+(s.rate||0)+'"'+(s.enableLesson?'':' disabled')+'></div>';
   h+='</div>';
   /* ---------- 多档课时单价 ---------- */
   var extraRates=(s.rates||[]).filter(function(r){return r&&r.id&&r.id!=="default";});
@@ -3287,6 +3289,10 @@ function renderSet(){
       var k=this.dataset.k;
       DB.settings[k]=!DB.settings[k];
       this.classList.toggle("on",DB.settings[k]);
+      /* 这两个开关直接决定上面两个数字框算不算钱：就地锁住／解锁，不整页重绘，
+         免得设置页滚动位置跳一下 */
+      if(k==="enableBase")$("setBase").disabled=!DB.settings.enableBase;
+      if(k==="enableLesson")$("setRate").disabled=!DB.settings.enableLesson;
       persist().then(function(){renderCal();});
     });
   });

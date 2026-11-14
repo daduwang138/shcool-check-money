@@ -19,12 +19,39 @@ function findBrowser() {
   return candidates.filter(p => fs.existsSync(p))[0] || '';
 }
 
-/* 找不到浏览器不算测试失败，只是这一层没跑到（跑 run-all 时会明确标 SKIP）。 */
-function supported() { return !!findBrowser(); }
+/* 找不到浏览器不算测试失败，只是这一层没跑到（跑 run-all 时会明确标 SKIP）。
+   但「文件在」不等于「能跑」：某些 Edge 版本 / 有常驻实例时，--dump-dom 会整个静默失效
+   （连一个本地静态页都吐不出来、--screenshot 也不产文件、stderr 全空），这时把两层冒烟
+   记成 FAIL 是误报。先拿极简本地页当「探针的探针」：过不了就诚实标 SKIP；
+   过得了对真实页面拿不到 title 仍然算真失败，不假装通过。 */
+let usable;
+function headlessUsable() {
+  const exe = findBrowser();
+  if (!exe) return false;
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'kqzb-probe-'));
+  const probe = path.join(profile, 'probe.html');
+  fs.writeFileSync(probe, '<!doctype html><meta charset="utf-8"><title>__headless_ok__</title>', 'utf8');
+  const args = ['--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
+    '--disable-extensions', '--allow-file-access-from-files', '--user-data-dir=' + profile,
+    '--virtual-time-budget=3000',
+    '--dump-dom', 'file:///' + probe.replace(/\\/g, '/')];
+  let dom = '';
+  try {
+    dom = cp.execFileSync(exe, args, { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024, timeout: 20000 });
+  } catch (e) {
+    dom = (e.stdout || '').toString();
+  }
+  try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) { /* 不管清理失败 */ }
+  return (dom || '').indexOf('__headless_ok__') >= 0;
+}
+function supported() {
+  if (usable === undefined) usable = headlessUsable();
+  return usable;
+}
 
 function runHeadless(file, budget) {
   const exe = findBrowser();
-  if (!exe) return null;
+  if (!exe || !supported()) return null;
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'kqzb-smoke-'));
   const args = ['--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
     '--disable-extensions', '--allow-file-access-from-files',

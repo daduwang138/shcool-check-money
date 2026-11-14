@@ -201,6 +201,31 @@
   word-break: break-all;
 }
 
+/* wxss 不跨页继承：settings.wxss 那份 .num-in.dim 到这页不算，得自己再写一遍 */
+.num-in.dim {
+  border-color: #EAE7DE;
+  background: #F4F3EE;
+  color: #9C9A91;
+}
+
+/* 冻结价的说明常驻，但压得很轻，别抢参数行的视觉 */
+.param-hint {
+  display: block;
+  margin-top: 14rpx;
+  color: #656A72;
+  font-size: 20rpx;
+  line-height: 1.6;
+}
+
+/* 只有开关真关了才出现：解释「为什么这行灰着、改了也不算钱」 */
+.param-off {
+  display: block;
+  margin-top: 8rpx;
+  color: #8A4B3F;
+  font-size: 20rpx;
+  line-height: 1.6;
+}
+
 /* 带说明的回退操作：整块可点，所以用实线白底（虚线在这个界面里表示「空位/占位」），
    前面加个 ↺ 提示这是「恢复」而不是一段只读说明。 */
 .note-action {

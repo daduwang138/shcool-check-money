@@ -1382,6 +1382,73 @@ reset();
     '汇总·事项带上当天状态', nSum.data.noteRows[0].meta);
 }
 
+/* ================= 改价不追溯：设置页 vs 汇总页 =================
+   10 月记过账后，当时工资会冻进 months['2026-10'].base；设置页改的是以后的默认值，
+   只有汇总页的「本月参数」或「让本月用设置里的新工资」能改到这个月。 */
+reset();
+{
+  const db = seedDb();
+  core.setRecord(db, '2026-10-08', 'work', 'work', 40, '');
+  core.setRecord(db, '2026-10-09', 'work', 'inv', 40, '');
+  mem['kqzb_db_v1'] = JSON.stringify(db);
+
+  ok(db.months['2026-10'] && db.months['2026-10'].base === 8000,
+    '改价不追溯·记过账就把当时的工资冻进月份', JSON.stringify(db.months['2026-10']));
+  const before = core.computeMonth(db, '2026-10');
+  db.settings.baseSalary = 600;
+  const afterSetting = core.computeMonth(db, '2026-10');
+  ok(afterSetting.total === before.total && afterSetting.base === 8000,
+    '改价不追溯·设置页改全局工资不动已冻结的 10 月',
+    before.total + ' → ' + afterSetting.total + ' / base=' + afterSetting.base);
+
+  const pSum = makePage('summary');
+  pSum.onLoad();
+  pSum.data.ym = '2026-10';
+  pSum.render();
+  ok(pSum.data.p.base === '8000',
+    '汇总页·参数卡显示的是本月冻结价，不是设置里的新值', pSum.data.p.base);
+
+  const cBefore = core.computeMonth(pSum.db, '2026-10');
+  pSum.setBase({ detail: { value: '600' } });
+  const cAfter = core.computeMonth(pSum.db, '2026-10');
+  ok(cAfter.base === 600, '汇总页·改「本月参数」写进冻结值', String(cAfter.base));
+  ok(cAfter.total < cBefore.total,
+    '汇总页·改完应发立刻跟着变', cBefore.total + ' → ' + cAfter.total);
+
+  /* resetParams 以前拿 monthP 的 q.workdays 拼 toast，那个函数不填价格，所以提示是
+     「应上班 undefined 天」。钉住它别再退回去。 */
+  pSum.db.settings.baseSalary = 600;
+  stShared.save(pSum.db);
+  const toastFrom = toasts.length;
+  pSum.resetParams();
+  const cReset = core.computeMonth(pSum.db, '2026-10');
+  ok(!pSum.db.months['2026-10'].base, '重置·删掉当月冻结的工资');
+  ok(cReset.base === 600, '重置·当月回到设置里的当前工资', String(cReset.base));
+  const newToasts = toasts.slice(toastFrom).join(' / ');
+  ok(newToasts.indexOf('undefined') < 0 && newToasts.indexOf('天') >= 0,
+    '重置·提示里不再出现 undefined', newToasts);
+
+  pSum.db.settings.enableBase = false;
+  pSum.db.settings.enableLesson = false;
+  const cOff = core.computeMonth(pSum.db, '2026-10');
+  ok(cOff.base === 0 && cOff.basePart === 0 && cOff.extraPart === 0,
+    '开关·关掉「启用基本工资」①②归零，改工资也不该影响总额',
+    JSON.stringify([cOff.base, cOff.basePart, cOff.extraPart]));
+
+  /* 参数卡得跟着开关走：以前开关关了框还能改，改完 computeMonth 不采信，
+     看起来就像「工资改了总额没变」。 */
+  pSum.render();
+  ok(pSum.data.enableBase === false && pSum.data.enableLesson === false,
+    '参数卡·关掉开关后 render 把两个禁用状态带出来',
+    JSON.stringify([pSum.data.enableBase, pSum.data.enableLesson]));
+  pSum.db.settings.enableBase = true;
+  pSum.db.settings.enableLesson = true;
+  pSum.render();
+  ok(pSum.data.enableBase === true && pSum.data.enableLesson === true,
+    '参数卡·重新打开开关后恢复可改',
+    JSON.stringify([pSum.data.enableBase, pSum.data.enableLesson]));
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }
 console.log('页面逻辑全部通过');

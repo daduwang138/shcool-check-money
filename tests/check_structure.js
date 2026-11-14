@@ -65,6 +65,13 @@ const mpSet = fs.readFileSync(path.join(PAGES, 'settings', 'settings.wxml'), 'ut
   if (/次数照常可记|算 0 元/.test(p[1])) bad.push(p[0] + '设置页仍承诺「填 0 也能照常记」，但录入区实际会隐藏');
   if (p[1].indexOf('填 0 就') < 0) bad.push(p[0] + '设置页没写清「填 0 即关闭晚修录入」');
 });
+/* 冻结价说明哨兵：设置页改的是「以后的默认值」，不是回改已记账的月份。
+   两版设置页以前都没写这句，用户改完全局工资以为当月总额会跟着变。 */
+[['电脑版', htmlSrc], ['小程序版', mpSet]].forEach(function (p) {
+  if (p[1].indexOf('已记账的月份不跟着变') < 0) {
+    bad.push(p[0] + '设置页没写清「改的是默认值、已记账月份不跟着变」');
+  }
+});
 if (htmlSrc.indexOf('法定工作日内置 2026 年（') >= 0) bad.push('电脑版说明卡写死只内置 2026 年，新增年份会漏');
 const ruleLine = (htmlSrc.match(/<p class="muted">计算规则：[^\n]*<\/p>/) || [''])[0];
 if (!/④/.test(ruleLine)) bad.push('电脑版说明卡的应发公式漏了 ④ 晚修监考费');

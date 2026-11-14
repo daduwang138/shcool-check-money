@@ -7,7 +7,7 @@ const browser = require('./browser.js');
 
 const ROOT = path.resolve(__dirname, '..');
 if (!browser.supported()) {
-  console.log('SKIP 小程序预览冒烟：没找到 Edge/Chrome，可设 BROWSER 环境变量指定');
+  console.log('SKIP 小程序预览冒烟：没有可用的 headless 浏览器（找不到 Edge/Chrome，或 --dump-dom 无输出）；可设 BROWSER=路径 指定后再跑');
   process.exit(0);
 }
 cp.execFileSync(process.execPath, [path.join(ROOT, 'tools', 'smoke.js')],

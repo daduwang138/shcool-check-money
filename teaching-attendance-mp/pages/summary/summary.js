@@ -11,6 +11,8 @@ Page({
     heroSubs: [],
     halfRows: [],
     p: { workdays: '', base: '', rate: '' },
+    enableBase: true,
+    enableLesson: true,
     otherRates: '',
     nightEach: '',
     checked: false,
@@ -94,6 +96,10 @@ Page({
         base: String(core.monthBase(db, ym)),
         rate: String(core.monthRate(db, ym))
       },
+      /* 开关关着还让人改工资／单价，改完 computeMonth 不采信，最像「算错了」。
+         参数卡跟着设置页的开关走：灰掉 + 禁用 + 一句原因 */
+      enableBase: !!db.settings.enableBase,
+      enableLesson: !!db.settings.enableLesson,
       ghostDays: core.fmtShort(c.ghostDays),
       checked: c.checked,
       dayCount: c.filledDays,
@@ -161,10 +167,12 @@ Page({
     delete p.workdays;
     delete p.base;
     delete p.rate;
-    var q = core.monthP(this.db, this.data.ym);
+    /* monthP 只负责拿到可写的参数对象、不填价格；删完之后再读一次 q.workdays
+       只会是 undefined（toast 里会显示「应上班 undefined 天」）。render() 已经重算过，
+       直接取它写回 data 的结果就行 */
     store.save(this.db);
     this.render();
-    wx.showToast({ title: '已回到默认参数（应上班 ' + q.workdays + ' 天）', icon: 'none' });
+    wx.showToast({ title: '已回到设置默认值（应上班 ' + this.data.p.workdays + ' 天）', icon: 'none' });
   },
 
   /* 复制核对单：和电脑版拼的是同一个函数（core.sumText），两边复制出来一字不差 */

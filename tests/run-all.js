@@ -44,13 +44,16 @@ if (browser.supported()) {
   console.log('=== 6/6 电脑版浏览器冒烟 ===');
   step('电脑版浏览器冒烟', ['tests/smoke_html.js']);
 } else {
-  console.log('SKIP 没找到 Edge/Chrome，两层浏览器冒烟都没跑；可用 BROWSER=路径 指定后再跑一次');
+  console.log('SKIP 没有可用的 headless 浏览器，两层浏览器冒烟都没跑；可用 BROWSER=路径 指定后再跑一次');
   results.push({ label: '小程序预览冒烟', ok: true, skipped: true });
   results.push({ label: '电脑版浏览器冒烟', ok: true, skipped: true });
 }
 
 const bad = results.filter(r => !r.ok);
+const skipped = results.filter(r => r.skipped).length;
 console.log('\n———— 汇总 ————');
 results.forEach(r => console.log((r.skipped ? 'SKIP ' : (r.ok ? 'OK   ' : 'FAIL ')) + r.label));
-console.log(bad.length ? ('\n失败 ' + bad.length + ' 项') : '\n全套通过');
+if (bad.length) console.log('\n失败 ' + bad.length + ' 项');
+else if (skipped) console.log('\n通过 ' + (results.length - skipped) + ' 项，跳过 ' + skipped + ' 项（浏览器层没跑到，需补跑）');
+else console.log('\n全套通过');
 process.exit(bad.length ? 1 : 0);

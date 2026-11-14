@@ -64,11 +64,13 @@
     </view>
     <view class="row">
       <text class="row-label">基本工资（元）</text>
-      <input class="num-in" type="digit" value="{{p.base}}" bindblur="setBase" />
+      <input class="num-in {{enableBase ? '' : 'dim'}}" type="digit" value="{{p.base}}" bindblur="setBase"
+        disabled="{{!enableBase}}" />
     </view>
     <view class="row">
       <text class="row-label">课时单价（元/节）</text>
-      <input class="num-in" type="digit" value="{{p.rate}}" bindblur="setRate" />
+      <input class="num-in {{enableLesson ? '' : 'dim'}}" type="digit" value="{{p.rate}}" bindblur="setRate"
+        disabled="{{!enableLesson}}" />
     </view>
     <view class="row" wx:if="{{otherRates}}">
       <text class="row-label">其他档位</text>
@@ -78,7 +80,9 @@
       <text class="row-label">晚修监考</text>
       <text class="row-value param-ro">{{nightEach}}</text>
     </view>
-    <view class="note-action" bindtap="resetParams">恢复成设置默认值；已记账月份的档位价、晚修价保留不动</view>
+    <text class="param-hint">本月取值：记过账的月份会把当时的工资和单价冻住，设置页改的是以后的默认值。上面的输入框改完，点一下别处才生效。</text>
+    <text class="param-off" wx:if="{{!enableBase || !enableLesson}}">设置里关掉了基本工资或课时费，对应这项不计入本月，灰掉的输入框先锁住；要改请先到设置页打开开关</text>
+    <view class="note-action" bindtap="resetParams">让本月用设置里的新工资／单价（档位价、晚修价保留不动）</view>
   </view>
 
   <view class="card">
