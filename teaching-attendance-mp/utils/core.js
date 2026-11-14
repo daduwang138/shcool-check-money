@@ -494,7 +494,7 @@ function setRecord(db, key, am, pm, lessons, note, lset, rid, night) {
    注意：新建记录时必须把当天"原本会默认上班"的状态写进去，
    否则一条 am/pm 为空的记录会盖掉默认出勤，出勤天数凭空减少（原版缺陷）。 */
 function fillLessonsFromCourses(db, ym) {
-  var q = ymd(ym + '-01'), y = q[0], m = q[1];
+  var firstDay = ymd(ym + '-01'), y = firstDay[0], m = firstDay[1];
   var n = new Date(y, m, 0).getDate();
   var filled = 0, skipped = 0, hol = 0;
   for (var d = 1; d <= n; d++) {
@@ -698,8 +698,8 @@ function computeMonth(db, ym) {
     }
   }
   /* 纯读：算工资、导出、复制核对单都不许顺手把当月参数冻上 */
-  var p = (db.months || {})[ym] || {};
-  var workdays = (p.workdays != null) ? p.workdays : autoWorkdays(y, m, db);
+  var frozen = (db.months || {})[ym] || {};
+  var workdays = (frozen.workdays != null) ? frozen.workdays : autoWorkdays(y, m, db);
   var base = db.settings.enableBase ? (monthBase(db, ym) || 0) : 0;
   var rate = db.settings.enableLesson ? (monthRate(db, ym) || 0) : 0;
   var dailyRate = workdays > 0 ? base / workdays : 0;
@@ -732,7 +732,7 @@ function computeMonth(db, ym) {
     capped: capped, extra: extra, basePart: basePart, extraPart: extraPart, lessonFee: lessonFee,
     nightCount: nightCount, nightHours: nightHours, nightFee: nightFee,
     nightHoursEach: np.hours, nightFeeEach: np.fee,
-    counted: counted, checked: !!p.checked,
+    counted: counted, checked: !!frozen.checked,
     start: db.settings.startDate || ''
   };
   /* 总额按注册表累加：加计薪项时不会忘了把它算进应发；

@@ -181,6 +181,20 @@ if (emptyCatch.length) {
     + emptyCatch.map(function (p) { return path.basename(p); }).join(', '));
 }
 
+/* Clean Code 棘轮（2026-11-14 基线）：单文件 UI 层的超长拼接行、内核的单字母变量
+   是「解压即用、零依赖」约束下的历史取舍，不强行重构；但只准变好、不准变坏。
+   改善了就同步下调基线，别让它们继续扩散。 */
+const uiLines = fs.readFileSync(HTML_SRC, 'utf8').replace(/\r\n/g, '\n').split('\n');
+const longCnt = uiLines.filter(function (l) { return l.length > 200; }).length;
+if (longCnt > 21) {
+  bad.push('电脑版超过 200 字符的行涨到 ' + longCnt + '（基线 21）；长 HTML 片段请用数组 join');
+}
+const coreAll = fs.readFileSync(path.join(PAGES, '..', 'utils', 'core.js'), 'utf8');
+const shortVarCnt = (coreAll.match(/\bvar [a-z]\b/g) || []).length;
+if (shortVarCnt > 96) {
+  bad.push('core.js 单字母变量涨到 ' + shortVarCnt + '（基线 96）；新变量请自解释命名');
+}
+
 /* spec.js 会被 JSON.stringify 序列化进电脑版，只能放纯数据。
    函数 / undefined 会变成 null 或丢键，两版行为静默分叉；
    SPEC 护栏比的是「同一份序列化结果」，自己发现不了 —— 必须单独拦。 */

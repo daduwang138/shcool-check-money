@@ -1327,7 +1327,7 @@ function setRecord(db, key, am, pm, lessons, note, lset, rid, night) {
    注意：新建记录时必须把当天"原本会默认上班"的状态写进去，
    否则一条 am/pm 为空的记录会盖掉默认出勤，出勤天数凭空减少（原版缺陷）。 */
 function fillLessonsFromCourses(db, ym) {
-  var q = ymd(ym + '-01'), y = q[0], m = q[1];
+  var firstDay = ymd(ym + '-01'), y = firstDay[0], m = firstDay[1];
   var n = new Date(y, m, 0).getDate();
   var filled = 0, skipped = 0, hol = 0;
   for (var d = 1; d <= n; d++) {
@@ -1531,8 +1531,8 @@ function computeMonth(db, ym) {
     }
   }
   /* 纯读：算工资、导出、复制核对单都不许顺手把当月参数冻上 */
-  var p = (db.months || {})[ym] || {};
-  var workdays = (p.workdays != null) ? p.workdays : autoWorkdays(y, m, db);
+  var frozen = (db.months || {})[ym] || {};
+  var workdays = (frozen.workdays != null) ? frozen.workdays : autoWorkdays(y, m, db);
   var base = db.settings.enableBase ? (monthBase(db, ym) || 0) : 0;
   var rate = db.settings.enableLesson ? (monthRate(db, ym) || 0) : 0;
   var dailyRate = workdays > 0 ? base / workdays : 0;
@@ -1565,7 +1565,7 @@ function computeMonth(db, ym) {
     capped: capped, extra: extra, basePart: basePart, extraPart: extraPart, lessonFee: lessonFee,
     nightCount: nightCount, nightHours: nightHours, nightFee: nightFee,
     nightHoursEach: np.hours, nightFeeEach: np.fee,
-    counted: counted, checked: !!p.checked,
+    counted: counted, checked: !!frozen.checked,
     start: db.settings.startDate || ''
   };
   /* 总额按注册表累加：加计薪项时不会忘了把它算进应发；
@@ -3166,8 +3166,24 @@ function renderSum(){
   html+='<div class="field"><div><label>当月法定工作日</label><div class="desc">按国务院放假安排自动算，可改</div></div><input type="number" id="sumWorkdays" min="0" max="31" step="1" value="'+c.workdays+'"></div>';
   var mb=monthBase(CUR), sb=parseFloat(DB.settings.baseSalary)||0;
   var diff=DB.settings.enableBase&&Math.abs(mb-sb)>0.005;
-  html+='<div class="field"><div><label>本月基本工资</label><div class="desc">本月取值；这月记过东西后就不再跟着设置变'+(DB.settings.enableBase?'':'；设置里已关掉「基本工资按出勤折算」，这项不计入')+'</div></div><input type="number" id="sumBase" min="0" step="0.01" value="'+mb+'"'+(DB.settings.enableBase?'':' disabled')+'></div>';
-  html+='<div class="field"><div><label>课时单价</label><div class="desc">每节'+(DB.settings.enableLesson?'':'；设置里已关掉「课时费」，这项不计入')+'</div></div><input type="number" id="sumRate" min="0" step="0.01" value="'+monthRate(CUR)+'"'+(DB.settings.enableLesson?'':' disabled')+'></div>';
+  /* 长 HTML 片段用数组拼，输出逐字不变但不用横向拖 280 个字符 */
+  html+=[
+    '<div class="field"><div><label>本月基本工资</label>',
+    '<div class="desc">本月取值；这月记过东西后就不再跟着设置变',
+    (DB.settings.enableBase ? '' : '；设置里已关掉「基本工资按出勤折算」，这项不计入'),
+    '</div></div><input type="number" id="sumBase" min="0" step="0.01" value="',
+    mb, '"',
+    (DB.settings.enableBase ? '' : ' disabled'),
+    '></div>'
+  ].join('');
+  html+=[
+    '<div class="field"><div><label>课时单价</label><div class="desc">每节',
+    (DB.settings.enableLesson ? '' : '；设置里已关掉「课时费」，这项不计入'),
+    '</div></div><input type="number" id="sumRate" min="0" step="0.01" value="',
+    monthRate(CUR), '"',
+    (DB.settings.enableLesson ? '' : ' disabled'),
+    '></div>'
+  ].join('');
   html+='<p class="muted" style="margin:8px 0 0">设置页改的是以后的默认值，已记账的月份按当时冻的价；上面的输入框改完点一下别处才生效。</p>';
   if(diff){html+='<p class="muted" style="margin:8px 0 0;color:#8A4B3F">本月按 ¥'+fmtShort(mb)+' 算（记账时冻结），设置里现在是 ¥'+fmtShort(sb)+'。两处数字不同是刻意的：改设置不会重算已记账的月份；要改这个月就改上面的输入框，或去设置页点「把当前参数同步到本月」。</p>';}
   html+='</div><div>';
