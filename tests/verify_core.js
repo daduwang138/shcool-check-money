@@ -722,6 +722,54 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('放假导入·电脑版手填值也保留', hh.months['2027-03'].workdays, 17);
 }
 
+/* ---------- 10.5 金额快照：钉死算法本身的正确性 ----------
+   架构演进第 2 步之后两版是同一份源码，双版比对只能验「转发层映射对不对」，
+   验不出「core.js 自己算错了」。改计薪模型（第 3 步）之前必须有一组
+   不依赖两版互比、由人工核算推出的期望值基线。 */
+{
+  const sdb = core.normalize({
+    v: 1, savedAt: 0,
+    settings: {
+      baseSalary: 6000, rate: 100, startDate: '', weekPattern: [0, 1, 1, 1, 1, 1, 0],
+      autoWork: false, autoLessons: false, enableBase: true, enableLesson: true,
+      nightHours: 2, nightFee: 10, rates: [{ id: 'default', name: '正课', price: 100 }]
+    },
+    months: {},
+    days: {
+      '2026-11-02': { am: 'work', pm: 'work', lessons: 2, note: '' },
+      '2026-11-03': { am: 'work', pm: 'work', lessons: 3, note: '', night: 1 },
+      '2026-11-04': { am: 'inv', pm: 'ot', lessons: 0, note: '' }
+    },
+    term: { start: '', defaultWeeks: 16 }, courses: []
+  });
+  const s = core.computeMonth(sdb, '2026-11');
+  /* 人工核算：3 天共 6 个计薪半天 → 实际出勤 3 天；课时 2+3+0=5 节；
+     晚修 1 次 × 10 元、2 小时；基本工资 6000 ÷ 当月法定工作日 × 3 天。 */
+  eq('金额快照·实际出勤 3 天', s.actual, 3);
+  eq('金额快照·超出天数', s.extra, 0);
+  eq('金额快照·课时 5 节', s.lessons, 5);
+  eq('金额快照·晚修 1 次 10 元 2 小时', [s.nightCount, s.nightFee, s.nightHours], [1, 10, 2]);
+  eq('金额快照·日薪', s.dailyRate, 6000 / s.workdays);
+  eq('金额快照·① 基本工资部分', s.basePart, Math.round(6000 / s.workdays * 3 * 100) / 100);
+  eq('金额快照·② 超出天数部分', s.extraPart, 0);
+  eq('金额快照·③ 课时费', s.lessonFee, 500);
+  eq('金额快照·④ 晚修监考费', s.nightFee, 10);
+  eq('金额快照·应发合计（四项之和，绝对值）', s.total,
+    Math.round((Math.round(6000 / s.workdays * 3 * 100) / 100 + 500 + 10) * 100) / 100);
+  /* 开关：关掉基本工资后 ①② 归零，③④ 是独立补贴不受影响 */
+  sdb.settings.enableBase = false;
+  const sOff = core.computeMonth(sdb, '2026-11');
+  eq('金额快照·关基本工资后 ①② 归零', [sOff.basePart, sOff.extraPart], [0, 0]);
+  eq('金额快照·关基本工资后 ③④ 不变', [sOff.lessonFee, sOff.nightFee], [500, 10]);
+  eq('金额快照·关基本工资后总额', sOff.total, 510);
+  /* 注册表里的每一项都必须在 computeMonth 结果里有对应金额，
+     否则加新计薪项时会被 `|| 0` 静默吞掉、钱算少了却没人发现。 */
+  eq('计薪项注册表·每项都有对应金额字段',
+    core.PAY_ITEMS.filter(it => s[it.key] === undefined).map(it => it.key), []);
+  eq('计薪项注册表·总额等于各项之和', s.total,
+    Math.round(core.PAY_ITEMS.reduce((a, it) => a + s[it.key], 0) * 100) / 100);
+}
+
 /* ---------- 11. 覆盖哨兵：不许新函数悄悄落到测试之外 ----------
    架构演进第 2 步之后，HTML 的算法函数是 core.js 的转发层，CORE 段只是源码注入、
    **不算「被断言覆盖」**。所以这里只认真正生成了转发体的函数：core.js 里剩下的

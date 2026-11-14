@@ -6,6 +6,7 @@ var spec = require('./spec.js');
 var STATES = spec.STATES;
 var CYCLE = spec.CYCLE;
 var HOLIDAYS = spec.HOLIDAYS;
+var PAY_ITEMS = spec.PAY_ITEMS;
 
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 function dk(y, m, d) { return y + '-' + pad(m) + '-' + pad(d); }
@@ -701,16 +702,22 @@ function computeMonth(db, ym) {
   var np = nightOf(db, ym);
   var nightHours = round2(nightCount * np.hours);
   var nightFee = round2(nightCount * np.fee);
-  return {
+  var out = {
     ym: ym, workdays: workdays, actual: actual, half: half, lessons: lessons, filledDays: filledDays,
     ghostDays: ghostHalf / 2,
     dailyRate: dailyRate, base: base, rate: rate, byRate: byRate,
     capped: capped, extra: extra, basePart: basePart, extraPart: extraPart, lessonFee: lessonFee,
     nightCount: nightCount, nightHours: nightHours, nightFee: nightFee,
     nightHoursEach: np.hours, nightFeeEach: np.fee,
-    total: round2(basePart + extraPart + lessonFee + nightFee), counted: counted, checked: !!p.checked,
+    counted: counted, checked: !!p.checked,
     start: db.settings.startDate || ''
   };
+  /* 总额按注册表累加：加计薪项时不会忘了把它算进应发；
+     少算一项会被 verify_core.js 的「总额等于各项之和」断言抓到。 */
+  out.total = round2(PAY_ITEMS.reduce(function (sum, it) {
+    return sum + (out[it.key] || 0);
+  }, 0));
+  return out;
 }
 
 /* 核对单文本：电脑版复制到剪贴板、小程序复制到微信，两版必须逐字一致 */
@@ -735,10 +742,11 @@ function sumText(c){
   }
   L.push("————————————————");
   L.push("折算日薪："+fmt(c.dailyRate)+" 元");
-  L.push("① 基本工资部分："+fmt(c.basePart)+" 元");
-  L.push("② 超出天数部分："+fmt(c.extraPart)+" 元");
-  L.push("③ 课时费："+fmt(c.lessonFee)+" 元");
-  if(c.nightCount>0){L.push("④ 晚修监考费："+fmt(c.nightFee)+" 元");}
+  /* 四段式的名字与顺序来自注册表，加计薪项时核对单自动跟着走 */
+  PAY_ITEMS.forEach(function(it){
+    if(it.onlyIfNight && !(c.nightCount>0)) return;
+    L.push(it.mark+" "+it.label+"："+fmt(c[it.key])+" 元");
+  });
   L.push("应发合计："+fmt(c.total)+" 元");
   return L.join("\n");
 }
@@ -853,8 +861,10 @@ function buildExportCsv(db, months, incSum, incDay) {
   var tot = { actual: 0, les: 0, base: 0, extra: 0, fee: 0, night: 0, nfee: 0, all: 0 };
   if (incSum) {
     L.push(csvRow(['月度汇总']));
+    /* 金额列头从注册表取，加计薪项不会漏列 */
+    var pl = PAY_ITEMS.map(function (it) { return it.csv; });
     L.push(csvRow(['月份', '法定工作日', '实际出勤(天)', '上班(半天)', '监考(半天)', '加班(半天)', '请假(半天)',
-      '课时(节)', '折算日薪', '基本工资部分', '超出天数部分', '课时费', '晚修(次)', '晚修补贴', '应发合计', '状态']));
+      '课时(节)', '折算日薪', pl[0], pl[1], pl[2], '晚修(次)', pl[3], '应发合计', '状态']));
     months.forEach(function (ym) {
       var c = computeMonth(db, ym);
       tot.actual += c.actual; tot.les += c.lessons; tot.base += c.basePart;
@@ -891,7 +901,7 @@ function buildExportCsv(db, months, incSum, incDay) {
 }
 
 module.exports = {
-  STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS,
+  STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS,
   pad: pad, dk: dk, ymd: ymd, todayKey: todayKey,
   round2: round2, num2: num2, fmt: fmt, fmtShort: fmtShort, sl: sl,
   isWorkday: isWorkday, autoWorkdays: autoWorkdays, refreshWorkdays: refreshWorkdays, isHoliday: isHoliday,

@@ -46,4 +46,19 @@ var HOLIDAYS = {
   }
 };
 
-module.exports = { STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS };
+/* 计薪项注册表：四段式口径的唯一真源。
+   computeMonth 按 key 累加应发；核对单、CSV 列头、汇总页都从这里取名字和公式说明。
+   以后加一项（如班主任津贴）只需在这里加一行 + 在 computeMonth 里算出该 key 的金额，
+   不用再去核对单 / CSV / 文档里各补一遍。onlyIfNight 表示核对单只在记过晚修时列。 */
+var PAY_ITEMS = [
+  { key: 'basePart', mark: '①', label: '基本工资部分', csv: '基本工资部分',
+    formula: '基本工资 ÷ 法定工作日 × min(实际出勤, 应上班)' },
+  { key: 'extraPart', mark: '②', label: '超出天数部分', csv: '超出天数部分',
+    formula: '日薪 × 超出应上班天数' },
+  { key: 'lessonFee', mark: '③', label: '课时费', csv: '课时费',
+    formula: 'Σ(各档课时 × 该档当月冻结价)' },
+  { key: 'nightFee', mark: '④', label: '晚修监考费', csv: '晚修补贴',
+    formula: '晚修次数 × 每次金额', onlyIfNight: true }
+];
+
+module.exports = { STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS };

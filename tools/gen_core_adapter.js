@@ -61,7 +61,7 @@ function buildCoreBundle() {
      是 core.js 的内部函数，没进 module.exports 但转发层要用。 */
   src = src.replace(me[0], 'return {\n' + names.map(n => '  ' + n + ': ' + n).join(',\n') + '\n};');
   return '\n' + MARK_START + '\nvar Core = (function(spec){\n' + src
-    + '\n})({ STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS });\n' + MARK_END;
+    + '\n})({ STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS });\n' + MARK_END;
 }
 
 /* 移除旧的 CORE 段时把它前后的空行一起归一化，否则每生成一次就多留一个换行，

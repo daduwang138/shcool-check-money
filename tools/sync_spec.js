@@ -30,6 +30,7 @@ function render(spec) {
     '',
     '/* 国务院办公厅公布的放假安排；缺年份时按「周末休、工作日上」的朴素规则 */',
     'var HOLIDAYS=' + j(spec.HOLIDAYS) + ';',
+    'var PAY_ITEMS=' + j(spec.PAY_ITEMS) + ';',
     MARK_END
   ].join('\n');
 }
