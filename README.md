@@ -118,7 +118,7 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 
 **计薪项注册表**：`PAY_ITEMS` 收在 `spec.js`，存四段式的标签、公式说明、CSV 列名。`computeMonth` 按它累加应发，核对单的 ①②③④ 和 CSV 金额列头都从它生成。加一个新计薪项只要「注册表加一行 + `computeMonth` 算出该金额 + UI 加一行显示」；漏算会被 `verify_core.js` 的「每项都有对应金额字段」「总额等于各项之和」拦住。
 
-**算法函数**：HTML 里的手写算法实现已全部换成 `core.js` 的转发层。`tools/gen_core_adapter.js` 把 `core.js` 包成 IIFE 注入 HTML（挂到全局 `Core`），**只替换 60 个同名函数的函数体**，不动函数声明、参数、位置、注释，139 个 UI / 存储 / 联网函数原样保留。映射规则机械：36 个签名一致直接转发、21 个注入首参 `DB`、3 个（`isWorkday` / `autoWorkdays` / `isHoliday`）注入末参 `DB`。`verify_core.js` 的 `ctx.DB` 机制正好用来验证转发结果，46702 项逐字段比对从「证明两版手写一样」变成「证明转发层映射正确」。
+**算法函数**：HTML 里的手写算法实现已全部换成 `core.js` 的转发层。`tools/gen_core_adapter.js` 把 `core.js` 包成 IIFE 注入 HTML（挂到全局 `Core`），**只替换 60 个同名函数的函数体**，不动函数声明、参数、位置、注释，139 个 UI / 存储 / 联网函数原样保留。映射规则机械：36 个签名一致直接转发、21 个注入首参 `DB`、3 个（`isWorkday` / `autoWorkdays` / `isHoliday`）注入末参 `DB`。`verify_core.js` 的 `ctx.DB` 机制正好用来验证转发结果，逐字段比对（当时 46702 项，现 46800 项）从「证明两版手写一样」变成「证明转发层映射正确」。
 
 **加一个 spec 导出只改一处**：`sync_spec.js` 的全局常量段和 `gen_core_adapter.js` 的 IIFE 参数都从 `Object.keys(spec)` 自动派生，不再需要手工补两遍；`verify_core.js` 有产物侧断言检查每个导出都进了电脑版。注意 `spec.js` 只能放纯数据（函数放 `core.js`）。
 
