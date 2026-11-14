@@ -96,6 +96,14 @@ const mpSet = fs.readFileSync(path.join(PAGES, 'settings', 'settings.wxml'), 'ut
     bad.push(p[0] + '设置页没写清「改的是默认值、已记账月份不跟着变」');
   }
 });
+/* 参数卡口径哨兵：两版输入框都是失焦保存，提示必须成对出现。
+   曾只给小程序加了这句、电脑版漏了，用户改完以为没生效。 */
+const mpSum = fs.readFileSync(path.join(PAGES, 'summary', 'summary.wxml'), 'utf8');
+[['电脑版', htmlSrc], ['小程序版', mpSum]].forEach(function (p) {
+  if (p[1].indexOf('别处才生效') < 0) {
+    bad.push(p[0] + '参数卡没写「改完点一下别处才生效」');
+  }
+});
 if (htmlSrc.indexOf('法定工作日内置 2026 年（') >= 0) bad.push('电脑版说明卡写死只内置 2026 年，新增年份会漏');
 const ruleLine = (htmlSrc.match(/<p class="muted">计算规则：[^\n]*<\/p>/) || [''])[0];
 if (!/④/.test(ruleLine)) bad.push('电脑版说明卡的应发公式漏了 ④ 晚修监考费');
