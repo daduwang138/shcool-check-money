@@ -1,5 +1,6 @@
 /* 截图核对：把预览页（小程序）或电脑版单文件复制一份，追加「自动切页 / 点开某天 / 塞一份示例数据」
-   的小脚本，再调无头 Edge 截一张 PNG。产物全落在系统临时目录，不进仓库、不参与构建。
+   的小脚本，再调可用的 headless 浏览器截一张 PNG（和冒烟共用同一套浏览器发现）。
+   产物全落在系统临时目录，不进仓库、不参与构建。
    用法：node tools/shot.js            小程序三页 + 记账面板，外加电脑版
          node tools/shot.js summary    只截指定的那几个
    产物路径直接打印出来，拿去比对就行。 */
@@ -29,14 +30,15 @@ const SHOTS = [
   { name: 'pc', pc: true, width: 1440, height: 1020, scale: 1 }
 ];
 
+/* 复用 tests/browser.js 的发现逻辑：逐个自检、优先 chrome-headless-shell。
+   本机 Edge/Chrome 157 的新版 headless 启动即退出，硬编码这两个路径只会拿到假成功。 */
+const browser = require('../tests/browser.js');
 function findEdge() {
-  const list = [
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
-  ];
-  for (const p of list) { if (fs.existsSync(p)) { return p; } }
-  throw new Error('没找到 Edge / Chrome，装一个或用 --screenshot 手动截');
+  const exe = browser.findBrowser();
+  if (!exe) {
+    throw new Error('没有可用的 headless 浏览器；跑 node tools/install_headless_shell.js 装一个');
+  }
+  return exe;
 }
 
 /* 电脑版是单文件应用，数据只从 localStorage 读；在 <head> 塞一条写入语句就等于先存了一份账 */

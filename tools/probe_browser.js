@@ -19,6 +19,7 @@ console.log('找到 ' + found + ' 个浏览器，其中 ' + usable + ' 个 headl
 console.log('当前选中：' + (browser.findBrowser() || '(无 → 两层冒烟会标 SKIP)'));
 if (!usable) {
   console.log('');
-  console.log('若在本机也全部不可用，常见原因是新版 headless 需要创建隐藏窗口、被会话策略挡住。');
-  console.log('可选：装 chrome-headless-shell 后设 BROWSER=它的路径，或换台机器跑 run-all.js。');
+  console.log('本机 Chrome/Edge 的新版 headless 需要创建隐藏窗口，在受限会话里会启动即退出。');
+  console.log('跑 `node tools/install_headless_shell.js` 装独立的 chrome-headless-shell，');
+  console.log('装完 browser.js 会自动发现它；也可以设 BROWSER=路径 临时指定。');
 }

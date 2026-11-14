@@ -10,6 +10,11 @@ const cp = require('child_process');
    以前用 filter(exists)[0]，Edge 排在第一 —— 就算装了 Chrome 也永远轮不到它，
    用户终端那次 SKIP 其实是 Edge 的结果，Chrome 从没被真正测过。 */
 const CANDIDATES = [
+  /* Chrome for Testing 的独立 headless shell：不创建隐藏窗口。
+     本机 Chrome/Edge 157 的新版 headless 会「启动即退出」，只有它能跑通真实 DOM 冒烟。
+     用 node tools/install_headless_shell.js 一键装到这个位置（不进仓库）。 */
+  path.join(os.homedir(), 'AppData', 'Local', 'kqzb-headless',
+    'chrome-headless-shell-win64', 'chrome-headless-shell.exe'),
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
   path.join(os.homedir(), 'AppData', 'Local', 'Google', 'Chrome', 'Application', 'chrome.exe'),

@@ -72,9 +72,9 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 | 小程序预览冒烟 | `node tests/smoke_preview.js` | 真实浏览器点开预览页，走交互链路（30 条） |
 | 电脑版浏览器冒烟 | `node tests/smoke_html.js` | 真实 DOM：设置改价 → 记账 → 汇总看钱，含冻价回看、误开取消、会话确认、课程表自动落账、2027 内置表与 CDN 空缓存换源（39 条） |
 
-后两层需要本机有能跑 headless 的 Edge 或 Chrome。跑之前先拿一个极简本地页自检：浏览器找不到、或 `--dump-dom` 静默失效都标 `SKIP`（既不会假装通过，也不会把环境故障报成功能失败）；自检过了而真实页面拿不到探针结果，才算真失败。也可以用 `BROWSER=路径` 指定。生成预览单独跑：`node tools/build_preview.js`，产物 `preview/mp-preview.html` 双击即可试交互。
+后两层需要一个能跑 `--dump-dom` 的 headless 浏览器。**换机器后先跑 `node tools/install_headless_shell.js`**：它会下载 Chrome for Testing 的独立 `chrome-headless-shell` 到 `%LOCALAPPDATA%\kqzb-headless\`（不进仓库），`tests/browser.js` 会自动发现它。本机 Edge / Chrome 157 的新版 headless 会创建隐藏窗口、在受限会话里启动即退出，只有这个独立 shell 能跑通。跑之前先拿极简本地页逐个自检：找不到浏览器或 `--dump-dom` 静默失效都标 `SKIP`（不假装通过，也不把环境故障报成功能失败）；自检过了而真实页面拿不到探针结果才算真失败。也可以 `BROWSER=路径` 指定。装好后六层应**全套通过、无 SKIP**，用 `node tools/probe_browser.js` 可查每个候选的状态。生成预览单独跑：`node tools/build_preview.js`，产物 `preview/mp-preview.html` 双击即可试交互。
 
-改了样式想先看一眼成什么样：`node tools/shot.js`（可以只截一页，如 `node tools/shot.js summary`）。它把预览页和电脑版各截一张 PNG 放到系统临时目录，电脑版那张会自动塞一份示例账，不然月历是空的看不出配色；要本机有 Edge / Chrome，产物不进仓库。生成前会先删掉同名旧 PNG，浏览器没产出时会**明确报错**，不会把上一次的图冒充本次结果（早期版本只查文件存在，headless 静默失效时会假成功）。
+改了样式想先看一眼成什么样：`node tools/shot.js`（可以只截一页，如 `node tools/shot.js summary`）。它把预览页和电脑版各截一张 PNG 放到系统临时目录，电脑版那张会自动塞一份示例账，不然月历是空的看不出配色；**复用和冒烟同一套浏览器发现**（同样优先 headless shell），产物不进仓库。生成前会先删掉同名旧 PNG，浏览器没产出时会**明确报错**，不会把上一次的图冒充本次结果（早期版本只查文件存在，headless 静默失效时会假成功）。
 
 ### 测试能证明什么（以及不能）
 
@@ -91,7 +91,7 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 - `seedDb()` 只有「开关全开」一套默认值，没有交叉状态；
 - 断言偏向「改了之后值对不对」，少有「不该变时没变」和「改完有没有给用户反馈」。
 
-补上的三层都在 `run-all.js` 里，**不依赖浏览器**（浏览器层 SKIP 时照常工作）：
+补上的三层都在 `run-all.js` 里，**不依赖浏览器**（即使浏览器层 SKIP 也照常工作；本机现在两层是真跑的）：
 
 | 层 | 拦什么 | 当前覆盖 |
 |---|---|---|
@@ -99,7 +99,7 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 | 动态 class 检查 | `{{on ? 'dim' : ''}}` 里的类名没在 wxss 定义 | 13 个动态 class |
 | 状态矩阵 | 开关 × 已冻结/未冻结 × 空月份 | 7 组 × 5 项断言，含 toast 文案与 undefined / NaN |
 
-约定：**每加一个用户可见的状态分支，先在矩阵里加一行**；每加一个 wxml 绑定，契约检查会自动确认它有来源。浏览器冒烟仍是唯一跑真实 DOM 的一层，长期 SKIP 不可接受，换 Chrome 或 `BROWSER=路径` 补跑。
+约定：**每加一个用户可见的状态分支，先在矩阵里加一行**；每加一个 wxml 绑定，契约检查会自动确认它有来源。浏览器冒烟是唯一跑真实 DOM 的一层（30 + 39 条），现已通过 `chrome-headless-shell` 恢复；换机器后记得先跑一次 `node tools/install_headless_shell.js`，别让两层长期 SKIP。
 
 ### 双版同步怎么改（两步生成）
 
@@ -124,7 +124,7 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 
 ## 待办 / 规划
 
-按「改一批 → 全套回归 → 提交」推进。**架构演进第 1～5 步及后续 3 项质量补齐已全部完成**；只剩浏览器安全网这一项环境限制。
+按「改一批 → 全套回归 → 提交」推进。**架构演进第 1～5 步、后续 3 项质量补齐、浏览器安全网恢复均已完成**；下面只剩两项产品规划未动。
 
 - [x] **金额快照机制化**：`verify_core.js` 里 13 条散落断言重构为 `SNAP_CASES` 表驱动，10 个场景（基础四段式 / 多档单价 / 超出应上班天数 / 晚修时长不乘钱 / 自定义放假补班 / 入职起算 / 两个开关 / 冻结价不追溯 / 空月份）逐字段钉死人工核算的期望值；加场景只加一行数据。两版比对退化成「验转发层映射」后，算法正确性靠这层守。
 - [x] **预览产物护栏**：`build_preview.js` 的生成逻辑抽成可复用的 `build()`（只返回字符串、不写文件），`check_structure.js` 把磁盘上的 `preview/mp-preview.html` 与当前源码的生成结果逐字比对，落后就报错——不再靠人记得重建。
@@ -133,10 +133,11 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 - [x] **计薪项注册表（第 3 步）**：`PAY_ITEMS` 收进 `spec.js`，`computeMonth` 按它累加、核对单与 CSV 列头从它生成，配「金额快照」断言钉死算法本身。加一个计薪项从原来的 10+ 处降到「注册一行 + 算一个金额 + UI 加一行」。
 - [x] **数据 schema / 状态写入收口（第 4～5 步）**：`spec.js` 加 `SCHEMA_VERSION` / `DAY_FIELDS`，`migrate()` 由 `normalize()` 调用；因为 `store.save()` / `load()` 都过 normalize，**37 处写入调用点不用改**就自动获得迁移能力。`dayBody()` 从 `DAY_FIELDS` 派生，加日记录字段不会漏掉合并冲突判断。当前 v1 是初始版本、迁移表为空，数据格式逐字不变。
   - **`MIGRATIONS` 住在 `core.js`，不在 `spec.js`**：它是函数，而 `spec.js` 被 `JSON.stringify` 序列化成电脑版全局常量，函数会变成 `null`，两版迁移行为会静默分叉。`core.js` 由生成器整体打包进 IIFE，函数天然带得过去。`check_structure.js` 有「spec.js 必须可无损序列化」护栏（含变异自检）钉住这条边界。
-- [ ] **恢复浏览器安全网**：本机 Edge 157 与 Chrome 157 都能打印 `--version`，但 headless 的 `--dump-dom` / `--screenshot` / `--print-to-pdf` 全部 0 字节、stderr 空、exit 0；CDP 端口回环超时、`--remote-debugging-pipe` 零响应且浏览器进程立即退出。已排除：文件路径、启动参数（`--single-process` / `--headless=shell` / 窗口相关 feature）、代理环境变量、工具沙箱（非沙箱模式同样失败）、版本子目录二进制。**结论：这两个 Chromium 157 的 headless 渲染模式在当前会话里启动即退出**，不是输出被吞。
-  - 已修的真实缺陷：`browser.js` 原来用 `filter(exists)[0]` 且 Edge 排在 Chrome 前面，装了 Chrome 也永远选不中。现在改为**逐个自检、选第一个真能跑 headless 的**，候选里 Chrome 优先并补了用户级安装路径。
-  - 诊断命令：`node tools/probe_browser.js`（列出每个候选「在不在 / 能不能出 DOM」）。请在**自己的普通 PowerShell 终端**跑一次把输出贴回来：工具会话与交互会话可能不同，这是目前唯一还没验证过的变量。
-  - 若交互终端也全部不可用，最终方案是装独立的 `chrome-headless-shell`（不创建隐藏窗口）后设 `BROWSER=路径`，或换台机器跑 `node tests/run-all.js`。`tools/shot.js` 已修掉「旧 PNG 冒充本次截图」的假成功，现在会明确报错。
+- [x] **浏览器安全网已恢复（全套 6/6 通过、无 SKIP）**：本机 Edge 157 / Chrome 157 的新版 headless 会创建隐藏窗口、在受限会话里启动即退出（`--dump-dom` / `--screenshot` / `--print-to-pdf` 全 0 字节、stderr 空、exit 0；CDP 端口回环超时、`--remote-debugging-pipe` 零响应）。最终方案是下载 **Chrome for Testing 的独立 `chrome-headless-shell`**（旧 headless 实现，不创建窗口），实测 `--dump-dom` 正常出 DOM。
+  - `node tools/install_headless_shell.js`：一键下载 + 解压到 `%LOCALAPPDATA%\kqzb-headless\`，装完自检；已装且可用时不会重复下载。产物不进仓库。
+  - `tests/browser.js` 的候选列表把 headless shell 放最前，逐个自检选第一个能跑的（原来 `filter(exists)[0]` 且 Edge 排第一，装了 Chrome 也永远选不中）。`tools/shot.js` 复用同一套发现，视觉截核对也一并恢复。
+  - `node tools/probe_browser.js` 可查每个候选「在不在 / 能不能出 DOM」；仍可用 `BROWSER=路径` 临时指定。
+  - 现状：`node tests/run-all.js` **六层全 OK**，小程序预览冒烟 30 条、电脑版 39 条全 PASS；`node tools/shot.js summary` 能出真实 PNG（早期「旧 PNG 冒充本次结果」的假成功已修）。
 
 以下两项也已列进规划，**本阶段不动实现**：
 
