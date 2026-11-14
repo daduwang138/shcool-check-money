@@ -20,21 +20,18 @@ function loadSpec() {
   return require(SPEC);
 }
 
+/* 自动遍历 spec.js 的所有导出：加一个导出只改 spec.js 一处，
+   不用再回来往这里和 gen_core_adapter.js 的 IIFE 参数里各补一行。 */
 function render(spec) {
   const j = o => JSON.stringify(o, null, 2);
-  return [
-    MARK_START,
-    /* 保持 `var STATES={` 这个开头：verify_core.js 靠它定位算法切片 */
-    'var STATES=' + j(spec.STATES) + ';',
-    'var CYCLE=' + j(spec.CYCLE) + ';',
-    '',
-    '/* 国务院办公厅公布的放假安排；缺年份时按「周末休、工作日上」的朴素规则 */',
-    'var HOLIDAYS=' + j(spec.HOLIDAYS) + ';',
-    'var PAY_ITEMS=' + j(spec.PAY_ITEMS) + ';',
-    'var SCHEMA_VERSION=' + j(spec.SCHEMA_VERSION) + ';',
-    'var DAY_FIELDS=' + j(spec.DAY_FIELDS) + ';',
-    MARK_END
-  ].join('\n');
+  const lines = [MARK_START];
+  /* Object.keys 按 spec.js 的声明顺序，STATES 必须是第一个：
+     verify_core.js 靠 `var STATES={` 定位算法切片。 */
+  Object.keys(spec).forEach(function (k) {
+    lines.push('var ' + k + '=' + j(spec[k]) + ';');
+  });
+  lines.push(MARK_END);
+  return lines.join('\n');
 }
 
 function expected() { return render(loadSpec()); }

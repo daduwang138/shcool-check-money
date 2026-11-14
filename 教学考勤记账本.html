@@ -683,8 +683,6 @@ var CYCLE=[
   "ot",
   "leave"
 ];
-
-/* 国务院办公厅公布的放假安排；缺年份时按「周末休、工作日上」的朴素规则 */
 var HOLIDAYS={
   "2026": {
     "note": "国办发明电〔2025〕7号",
@@ -1831,7 +1829,7 @@ return {
   buildExportCsv: buildExportCsv
 };
 
-})({ STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS, SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS });
+})({STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS, SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS});
 /* >>> CORE:END <<< */
 function $(id){return document.getElementById(id);}
 function pad(n){return Core.pad(n);}

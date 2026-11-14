@@ -167,16 +167,25 @@ const boot = `(function () {
   window.addEventListener('resize', fit);
 })();`;
 
-let html = shell
-  .replace('/*__SOURCES__*/', () => 'window.__MP_PAYLOAD__ = ' + esc(JSON.stringify(payload)) + ';')
-  .replace('/*__RUNTIME__*/', () => runtime)
-  .replace('/*__BOOT__*/', () => boot);
+/* 生成逻辑可被结构自检复用：只返回字符串、不写文件。
+   预览产物是入库的交付物，改了小程序源码忘了重建，之前只能靠人记得；
+   现在 check_structure.js 会把磁盘产物和这里的结果逐字比对。 */
+function build() {
+  return lf(shell
+    .replace('/*__SOURCES__*/', () => 'window.__MP_PAYLOAD__ = ' + esc(JSON.stringify(payload)) + ';')
+    .replace('/*__RUNTIME__*/', () => runtime)
+    .replace('/*__BOOT__*/', () => boot));
+}
 
-fs.mkdirSync(OUT_DIR, { recursive: true });
-/* 出口再归一化一次：模板字符串的换行取的是本文件自己的行尾，
-   本文件要是被编辑器存成 CRLF，产物里就会混进 CRLF。 */
-fs.writeFileSync(OUT, lf(html), 'utf8');
+module.exports = { build: build, OUT: OUT };
 
-const kb = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(1);
-console.log('已生成 ' + path.relative(ROOT, OUT) + '（' + kb + ' KB）');
-console.log('页面：' + Object.keys(pages).length + ' 个，示例数据 ' + core.dayCount(sample) + ' 天记录');
+if (require.main === module) {
+  const html = build();
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  /* 出口再归一化一次：模板字符串的换行取的是本文件自己的行尾，
+     本文件要是被编辑器存成 CRLF，产物里就会混进 CRLF。 */
+  fs.writeFileSync(OUT, html, 'utf8');
+  const kb = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(1);
+  console.log('已生成 ' + path.relative(ROOT, OUT) + '（' + kb + ' KB）');
+  console.log('页面：' + Object.keys(pages).length + ' 个，示例数据 ' + core.dayCount(sample) + ' 天记录');
+}

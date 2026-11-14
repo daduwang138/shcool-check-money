@@ -167,15 +167,17 @@ if (lossy.length) {
     + '（函数请放 core.js，由 gen_core_adapter.js 打包）');
 }
 
-/* spec.js 每加一个导出，都要同时进 sync_spec 的生成列表与 gen_core_adapter 的
-   IIFE 参数，否则电脑版拿到 undefined。以前这两处靠手工同步，钉住。 */
+/* 两个生成工具都从 Object.keys(spec) 自动派生，不再有需要手工同步的清单。
+   产物侧的覆盖交给 verify_core.js 的「生成链」断言（检查的是生成结果，更可靠）。
+   这里只钉住「别退回硬编码列表」。 */
 const syncSrc = fs.readFileSync(path.join(__dirname, '..', 'tools', 'sync_spec.js'), 'utf8');
 const genSrc = fs.readFileSync(path.join(__dirname, '..', 'tools', 'gen_core_adapter.js'), 'utf8');
-const specKeys = Object.keys(specObj);
-const missSync = specKeys.filter(function (k) { return syncSrc.indexOf('spec.' + k) < 0; });
-const missGen = specKeys.filter(function (k) { return genSrc.indexOf(k + ': ' + k) < 0; });
-if (missSync.length) bad.push('sync_spec.js 没生成这些 spec 导出：' + missSync.join(', '));
-if (missGen.length) bad.push('gen_core_adapter.js 的 IIFE 参数缺这些 spec 导出：' + missGen.join(', '));
+if (syncSrc.indexOf('Object.keys(spec)') < 0) {
+  bad.push('sync_spec.js 退回硬编码导出列表了，加 spec 导出又要改两处');
+}
+if (genSrc.indexOf('Object.keys(require(SPEC))') < 0) {
+  bad.push('gen_core_adapter.js 退回硬编码 IIFE 参数了');
+}
 if (htmlSrc.indexOf('法定工作日内置 2026 年（') >= 0) bad.push('电脑版说明卡写死只内置 2026 年，新增年份会漏');
 const ruleLine = (htmlSrc.match(/<p class="muted">计算规则：[^\n]*<\/p>/) || [''])[0];
 if (!/④/.test(ruleLine)) bad.push('电脑版说明卡的应发公式漏了 ④ 晚修监考费');
@@ -265,6 +267,18 @@ const mutJsBad = 'Page({ data: { total: 0 }, render: function(){ this.setData({ 
 if (orphanBindings(mutWxml, mutJsOk).orphans.length) bad.push('绑定契约自检·正常页面被误报');
 if (orphanBindings(mutWxml, mutJsBad).orphans.indexOf('enableBase') < 0) {
   bad.push('绑定契约自检·漏写的字段没被抓到，这层检查形同虚设');
+}
+
+/* 预览产物是入库的交付物：改了小程序源码忘了重建，产物就会落后，
+   而「连构哈希一致」只证明两次构建一样，证明不了它跟当前源码一致。 */
+try {
+  const bp = require('../tools/build_preview.js');
+  const onDisk = fs.readFileSync(bp.OUT, 'utf8').replace(/\r\n/g, '\n');
+  if (onDisk !== bp.build()) {
+    bad.push('preview/mp-preview.html 落后于小程序源码；请跑 node tools/build_preview.js 重建后再提交');
+  }
+} catch (e) {
+  bad.push('预览产物自检失败：' + e.message);
 }
 
 if (bad.length) { console.log('FAIL\n' + bad.join('\n')); process.exit(1); }

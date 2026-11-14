@@ -18,6 +18,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const CORE = path.join(ROOT, 'teaching-attendance-mp', 'utils', 'core.js');
+const SPEC = path.join(ROOT, 'teaching-attendance-mp', 'utils', 'spec.js');
 const HTML = path.join(ROOT, '教学考勤记账本.html');
 const SPEC_END = '/* >>> SPEC:END <<< */';
 const MARK_START = '/* >>> CORE:START 由 tools/gen_core_adapter.js 生成，别手改 <<< */';
@@ -60,9 +61,11 @@ function buildCoreBundle() {
   /* 导出全部函数，不只是公开 API：HTML 里转发的 table / customOf / inSpan 等
      是 core.js 的内部函数，没进 module.exports 但转发层要用。 */
   src = src.replace(me[0], 'return {\n' + names.map(n => '  ' + n + ': ' + n).join(',\n') + '\n};');
+  /* IIFE 参数从 spec.js 的导出自动派生，别再手工列一遍：
+     spec 加一个导出，这里和 sync_spec.js 都会自动跟上。 */
+  const specArgs = Object.keys(require(SPEC)).map(function (k) { return k + ': ' + k; }).join(', ');
   return '\n' + MARK_START + '\nvar Core = (function(spec){\n' + src
-    + '\n})({ STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS,'
-    + ' SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS });\n' + MARK_END;
+    + '\n})({' + specArgs + '});\n' + MARK_END;
 }
 
 /* 移除旧的 CORE 段时把它前后的空行一起归一化，否则每生成一次就多留一个换行，

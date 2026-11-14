@@ -722,52 +722,137 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('放假导入·电脑版手填值也保留', hh.months['2027-03'].workdays, 17);
 }
 
-/* ---------- 10.5 金额快照：钉死算法本身的正确性 ----------
+/* ---------- 10.5 金额快照：表驱动，钉死算法本身的正确性 ----------
    架构演进第 2 步之后两版是同一份源码，双版比对只能验「转发层映射对不对」，
-   验不出「core.js 自己算错了」。改计薪模型（第 3 步）之前必须有一组
-   不依赖两版互比、由人工核算推出的期望值基线。 */
+   验不出「core.js 自己算错了」。这里用固定场景 + 人工核算出的期望值逐字段钉死
+   computeMonth；以后加场景只要往 SNAP_CASES 里加一行数据，不用复制断言。
+
+   基准日历：2026-11-01 是周日，全月 9 个周末日，内置放假表该月无调整
+   → 21 个法定工作日。日薪 = 6000 / 21 ≈ 285.714…，出勤 3 天 → ① 857.14。 */
 {
-  const sdb = core.normalize({
-    v: 1, savedAt: 0,
-    settings: {
-      baseSalary: 6000, rate: 100, startDate: '', weekPattern: [0, 1, 1, 1, 1, 1, 0],
-      autoWork: false, autoLessons: false, enableBase: true, enableLesson: true,
-      nightHours: 2, nightFee: 10, rates: [{ id: 'default', name: '正课', price: 100 }]
+  function mkSnap(settings, days, months) {
+    return core.normalize({
+      v: 1, savedAt: 0,
+      settings: Object.assign({
+        baseSalary: 6000, rate: 100, startDate: '', weekPattern: [0, 1, 1, 1, 1, 1, 0],
+        autoWork: false, autoLessons: false, enableBase: true, enableLesson: true,
+        nightHours: 2, nightFee: 10, rates: [{ id: 'default', name: '正课', price: 100 }]
+      }, settings || {}),
+      months: months || {}, days: days || {},
+      term: { start: '', defaultWeeks: 16 }, courses: []
+    });
+  }
+  const DAYS_A = {
+    '2026-11-02': { am: 'work', pm: 'work', lessons: 2, note: '' },
+    '2026-11-03': { am: 'work', pm: 'work', lessons: 3, note: '', night: 1 },
+    '2026-11-04': { am: 'inv', pm: 'ot', lessons: 0, note: '' }
+  };
+  const HOL_CUSTOM = {
+    '2026': { off: [['2026-11-05', '2026-11-06']], work: [['2026-11-07', '2026-11-07']] }
+  };
+
+  /* expect 的键支持点路径（counted.work / byRate.1.fee），让用例保持纯数据。 */
+  const SNAP_CASES = [
+    {
+      name: '基础四段式', db: mkSnap({}, DAYS_A),
+      expect: {
+        workdays: 21, half: 6, actual: 3, capped: 3, extra: 0,
+        'counted.work': 4, 'counted.inv': 1, 'counted.ot': 1,
+        basePart: 857.14, extraPart: 0, lessons: 5, lessonFee: 500,
+        nightCount: 1, nightFee: 10, nightHours: 2, nightFeeEach: 10, nightHoursEach: 2,
+        total: 1367.14
+      }
     },
-    months: {},
-    days: {
-      '2026-11-02': { am: 'work', pm: 'work', lessons: 2, note: '' },
-      '2026-11-03': { am: 'work', pm: 'work', lessons: 3, note: '', night: 1 },
-      '2026-11-04': { am: 'inv', pm: 'ot', lessons: 0, note: '' }
+    {
+      name: '多档单价', db: mkSnap({
+        rate: 120,
+        rates: [{ id: 'default', name: '正课', price: 120 }, { id: 'eve', name: '晚自习', price: 80 }]
+      }, {
+        '2026-11-02': { am: 'work', pm: 'work', lessons: 2, rid: 'eve' },
+        '2026-11-03': { am: 'work', pm: 'work', lessons: 3, rid: 'default' }
+      }),
+      expect: {
+        actual: 2, basePart: 571.43, lessons: 5, lessonFee: 520,
+        'byRate.0.id': 'default', 'byRate.0.fee': 360,
+        'byRate.1.id': 'eve', 'byRate.1.fee': 160,
+        total: 1091.43
+      }
     },
-    term: { start: '', defaultWeeks: 16 }, courses: []
+    {
+      /* ①② 是同一次日薪乘算的拆分，尾差归 ②：3 天出勤、只算 1 天在编内 */
+      name: '超出应上班天数', db: mkSnap({}, DAYS_A, { '2026-11': { workdays: 1 } }),
+      expect: {
+        workdays: 1, actual: 3, capped: 1, extra: 2,
+        dailyRate: 6000, basePart: 6000, extraPart: 12000,
+        lessonFee: 500, nightFee: 10, total: 18510
+      }
+    },
+    {
+      /* 2 小时只写进核对单，绝不按小时乘钱 */
+      name: '晚修多次·时长不乘钱', db: mkSnap({}, {
+        '2026-11-02': { am: 'work', pm: 'work', night: 1 },
+        '2026-11-03': { am: 'work', pm: 'work', night: 1 }
+      }),
+      expect: {
+        actual: 2, lessons: 0, nightCount: 2, nightFee: 20, nightHours: 4,
+        nightFeeEach: 10, nightHoursEach: 2, total: 591.43
+      }
+    },
+    {
+      name: '自定义放假补班', db: mkSnap({ holidays: HOL_CUSTOM }, {}),
+      expect: { workdays: 20, actual: 0, total: 0 }
+    },
+    {
+      name: '入职起算', db: mkSnap({ startDate: '2026-11-03' }, DAYS_A),
+      expect: {
+        actual: 2, 'counted.work': 2, lessons: 3, lessonFee: 300,
+        basePart: 571.43, nightFee: 10, total: 881.43
+      }
+    },
+    {
+      name: '关基本工资', db: mkSnap({ enableBase: false }, DAYS_A),
+      expect: { dailyRate: 0, basePart: 0, extraPart: 0, lessonFee: 500, nightFee: 10, total: 510 }
+    },
+    {
+      name: '关课时费', db: mkSnap({ enableLesson: false }, DAYS_A),
+      expect: { basePart: 857.14, lessonFee: 0, nightFee: 10, total: 867.14 }
+    },
+    {
+      /* 设置里改成 9000/200，当月仍按记账时冻住的 6000/100 算 */
+      name: '冻结价不追溯', db: mkSnap({ baseSalary: 9000, rate: 200 }, DAYS_A,
+        { '2026-11': { workdays: 21, base: 6000, rate: 100 } }),
+      expect: { workdays: 21, basePart: 857.14, lessonFee: 500, total: 1367.14 }
+    },
+    {
+      name: '空月份', db: mkSnap({}, {}),
+      expect: { workdays: 21, actual: 0, ghostDays: 0, total: 0 }
+    }
+  ];
+
+  function pick(o, path) {
+    return path.split('.').reduce(function (v, k) { return v == null ? v : v[k]; }, o);
+  }
+  const r2 = function (v) { return Math.round(v * 100) / 100; };
+  SNAP_CASES.forEach(function (t) {
+    const c = core.computeMonth(t.db, '2026-11');
+    Object.keys(t.expect).forEach(function (k) {
+      eq('金额快照·' + t.name + '·' + k, pick(c, k), t.expect[k]);
+    });
+    eq('金额快照·' + t.name + '·总额等于注册表四项之和', c.total,
+      r2(core.PAY_ITEMS.reduce(function (a, it) { return a + c[it.key]; }, 0)));
   });
-  const s = core.computeMonth(sdb, '2026-11');
-  /* 人工核算：3 天共 6 个计薪半天 → 实际出勤 3 天；课时 2+3+0=5 节；
-     晚修 1 次 × 10 元、2 小时；基本工资 6000 ÷ 当月法定工作日 × 3 天。 */
-  eq('金额快照·实际出勤 3 天', s.actual, 3);
-  eq('金额快照·超出天数', s.extra, 0);
-  eq('金额快照·课时 5 节', s.lessons, 5);
-  eq('金额快照·晚修 1 次 10 元 2 小时', [s.nightCount, s.nightFee, s.nightHours], [1, 10, 2]);
-  eq('金额快照·日薪', s.dailyRate, 6000 / s.workdays);
-  eq('金额快照·① 基本工资部分', s.basePart, Math.round(6000 / s.workdays * 3 * 100) / 100);
-  eq('金额快照·② 超出天数部分', s.extraPart, 0);
-  eq('金额快照·③ 课时费', s.lessonFee, 500);
-  eq('金额快照·④ 晚修监考费', s.nightFee, 10);
-  eq('金额快照·应发合计（四项之和，绝对值）', s.total,
-    Math.round((Math.round(6000 / s.workdays * 3 * 100) / 100 + 500 + 10) * 100) / 100);
-  /* 开关：关掉基本工资后 ①② 归零，③④ 是独立补贴不受影响 */
-  sdb.settings.enableBase = false;
-  const sOff = core.computeMonth(sdb, '2026-11');
-  eq('金额快照·关基本工资后 ①② 归零', [sOff.basePart, sOff.extraPart], [0, 0]);
-  eq('金额快照·关基本工资后 ③④ 不变', [sOff.lessonFee, sOff.nightFee], [500, 10]);
-  eq('金额快照·关基本工资后总额', sOff.total, 510);
-  /* 注册表里的每一项都必须在 computeMonth 结果里有对应金额，
+
+  /* 自定义放假的逐日判定：11/5 周四原本上班改放假，11/7 周六原本休息改补班 */
+  const holDb = mkSnap({ holidays: HOL_CUSTOM }, {});
+  eq('金额快照·自定义放假·周四 11/5 不上班', core.isWorkday('2026-11-05', holDb), false);
+  eq('金额快照·自定义放假·周六 11/7 补班', core.isWorkday('2026-11-07', holDb), true);
+
+  /* 注册表每一项都必须在 computeMonth 结果里有对应金额，
      否则加新计薪项时会被 `|| 0` 静默吞掉、钱算少了却没人发现。 */
+  const baseResult = core.computeMonth(SNAP_CASES[0].db, '2026-11');
   eq('计薪项注册表·每项都有对应金额字段',
-    core.PAY_ITEMS.filter(it => s[it.key] === undefined).map(it => it.key), []);
-  eq('计薪项注册表·总额等于各项之和', s.total,
-    Math.round(core.PAY_ITEMS.reduce((a, it) => a + s[it.key], 0) * 100) / 100);
+    core.PAY_ITEMS.filter(function (it) { return baseResult[it.key] === undefined; })
+      .map(function (it) { return it.key; }), []);
 }
 
 /* ---------- 10.6 schema 迁移框架 ---------- */
@@ -796,6 +881,17 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('schema·行为没被塞回可序列化的 spec.js',
     Object.prototype.hasOwnProperty.call(specMod, 'MIGRATIONS'), false);
   eq('schema·迁移表在 core.js 里且是函数容器', Array.isArray(core.MIGRATIONS), true);
+
+  /* 生成链：spec.js 的每个导出都必须同时出现在电脑版的全局常量段
+     （sync_spec 生成）和 CORE 段的 IIFE 参数里（gen_core_adapter 生成），
+     否则 core 读到 undefined。检查产物而不是工具源码，自动生成/手写都能覆盖。 */
+  const specKeys = Object.keys(require(path.join(MP, 'utils', 'spec.js')));
+  const specSeg = html.slice(html.indexOf('/* >>> SPEC:START'), html.indexOf('/* >>> SPEC:END'));
+  const coreSeg = html.slice(html.indexOf('/* >>> CORE:START'), html.indexOf('/* >>> CORE:END'));
+  eq('生成链·spec 导出都生成了电脑版全局常量',
+    specKeys.filter(function (k) { return specSeg.indexOf('var ' + k + '=') < 0; }), []);
+  eq('生成链·spec 导出都进了 CORE 的 IIFE 参数',
+    specKeys.filter(function (k) { return coreSeg.indexOf(k + ': ' + k) < 0; }), []);
 }
 
 /* ---------- 11. 覆盖哨兵：不许新函数悄悄落到测试之外 ----------
