@@ -14,7 +14,14 @@ const b = html.indexOf('/* ---------- 加密 ---------- */');
 if (a < 0 || b < 0) throw new Error('切片失败 ' + a + ' ' + b);
 const slice = html.slice(a, b);
 
-const csvStart = html.indexOf('function qcsv(');
+/* 电脑版注入了 CORE 段（core.js 全文的 IIFE），里面有同名的 qcsv / noteTags 等。
+   下面这些「按名字找 HTML 函数」的定位必须从 CORE 段之后开始，否则会切进 IIFE 中间，
+   拼出一段带裸 return 的代码。CORE 段本身留在 slice 里，vm 要先执行它才能拿到 Core。 */
+const CORE_END_MARK = '/* >>> CORE:END <<< */';
+const coreEndAt = html.indexOf(CORE_END_MARK);
+const searchFrom = coreEndAt >= 0 ? coreEndAt + CORE_END_MARK.length : 0;
+
+const csvStart = html.indexOf('function qcsv(', searchFrom);
 const csvEnd = html.indexOf('/* 汇总页的「导出本月 CSV」');
 if (csvStart < 0 || csvEnd < 0) throw new Error('CSV 切片失败');
 const csvSlice = html.slice(csvStart, csvEnd);
@@ -27,7 +34,7 @@ vm.runInContext(csvSlice, ctx);
 /* 算法切片被「加密 / 存储」段切断，后面还有几个纯函数在两版都有同名实现。
    单独抽出来一起跑，别让它们悄悄落到测试覆盖之外。 */
 function extractFn(text, mark) {
-  const s = text.indexOf(mark);
+  const s = text.indexOf(mark, searchFrom);
   if (s < 0) { throw new Error('找不到 ' + mark); }
   const open = text.indexOf('{', s);
   let depth = 0;
@@ -716,28 +723,35 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
 }
 
 /* ---------- 11. 覆盖哨兵：不许新函数悄悄落到测试之外 ----------
-   以前「46564 项通过」只说明「切片里的函数两版一样」，不代表 core.js 全被覆盖：
-   实际有 9 个小程序专属的辅助函数从来没进过比对。这里把清单钉死，
-   以后往 core.js 加函数，要么放进切片一起比，要么在白名单里写明理由并补期望值断言。 */
+   架构演进第 2 步之后，HTML 的算法函数是 core.js 的转发层，CORE 段只是源码注入、
+   **不算「被断言覆盖」**。所以这里只认真正生成了转发体的函数：core.js 里剩下的
+   要么在 EXTRA_FNS 的单版断言里，要么在 MP_ONLY 白名单里并各有期望值断言。 */
 {
-  const fnRe = /function\s+([A-Za-z_$][\w$]*)\s*\(/g;
-  const collect = (text) => {
-    const s = new Set(); let m; fnRe.lastIndex = 0;
-    while ((m = fnRe.exec(text))) s.add(m[1]);
+  const collect = (text, re) => {
+    const s = new Set(); let m; re.lastIndex = 0;
+    while ((m = re.exec(text))) s.add(m[1]);
     return s;
   };
-  const sliced = collect(slice + '\n' + csvSlice);
+  const forwarded = collect(html.slice(searchFrom),
+    /function\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{\s*return Core\./g);
   /* noteTags / monthNotes 放在 HTML 切片外，靠 EXTRA_FNS 抽取，上面已逐字段比对 */
   const extra = new Set(['ymOf', 'isYm', 'monthKeysOf', 'hasContent', 'dayCount', 'localKeys',
     'noteTags', 'monthNotes']);
-  const coreFns = collect(fs.readFileSync(path.join(MP, 'utils', 'core.js'), 'utf8'));
-  const uncovered = [...coreFns].filter(n => !sliced.has(n) && !extra.has(n)).sort();
+  const coreFns = collect(fs.readFileSync(path.join(MP, 'utils', 'core.js'), 'utf8'),
+    /function\s+([A-Za-z_$][\w$]*)\s*\(/g);
   /* HTML 里是内联等价实现（或小程序页面专属），没法并排比，只能钉死期望值 */
   const MP_ONLY = ['addHolidaySpan', 'clearHolidayYear', 'daysInMonth', 'delHolidaySpan', 'dowLabel',
     'fillLessonsFromCourses', 'firstWeekdayOf', 'holidayOf', 'holidayYears'].sort();
-  eq('哨兵·未被双版比对覆盖的函数清单', uncovered, MP_ONLY);
+  const uncovered = [...coreFns]
+    .filter(n => !forwarded.has(n) && !extra.has(n) && MP_ONLY.indexOf(n) < 0).sort();
+  eq('哨兵·core.js 里没有落到测试之外的函数', uncovered, []);
   eq('哨兵·白名单里的函数确实都导出了',
     MP_ONLY.filter(n => typeof core[n] !== 'function').length, 0);
+  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 60);
+  /* 内部函数（table / customOf / inSpan / toHalf / dateNum 等）没进 module.exports，
+     但确实在 core.js 里、也被 CORE bundle 导出了，所以按源码函数清单判，不按导出对象判。 */
+  eq('哨兵·转发层没有指向不存在的函数',
+    [...forwarded].filter(n => !coreFns.has(n)).sort(), []);
 
   const legacy = core.normalize(mkLegacy());
   eq('额外抽取·monthKeysOf 两版一致', ctx.monthKeysOf(ctx.normalize(mkLegacy())), core.monthKeysOf(legacy));

@@ -196,7 +196,8 @@ function parseHolidayPacket(raw, wantYear) {
 function dowOf(key) {
   var p = ymd(key);
   return new Date(p[0], p[1] - 1, p[2]).getDay();
-}function weekdayOf(key) { return ((dowOf(key) + 6) % 7) + 1; }
+}
+function weekdayOf(key) { return ((dowOf(key) + 6) % 7) + 1; }
 function dateNum(key) {
   var p = ymd(key);
   return new Date(p[0], p[1] - 1, p[2]).getTime();

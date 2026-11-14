@@ -116,6 +116,18 @@ if (!specState.ok) {
 if (syncSpec.check(htmlSrc.replace(/"cls": "s-work"/, '"cls": "s-WORK"')).ok) {
   bad.push('SPEC 同步自检·常量被改动却没抓到，护栏形同虚设');
 }
+
+/* 算法转发层护栏：HTML 里不该再有手写的算法实现，60 个函数都应是 core.js 的转发体。
+   core.js 改了没跑生成器、或有人把转发体改回手写实现，这里都会拦住。 */
+const genAdapter = require('../tools/gen_core_adapter.js');
+const adapterState = genAdapter.check(htmlSrc);
+if (!adapterState.ok) {
+  bad.push('算法转发层不同步：' + adapterState.reason
+    + '；改了 utils/core.js 请跑 node tools/gen_core_adapter.js --write');
+}
+if (genAdapter.check(htmlSrc.replace('return Core.pad(', 'return Core.PAD(')).ok) {
+  bad.push('转发层同步自检·转发体被改坏却没抓到，护栏形同虚设');
+}
 if (htmlSrc.indexOf('法定工作日内置 2026 年（') >= 0) bad.push('电脑版说明卡写死只内置 2026 年，新增年份会漏');
 const ruleLine = (htmlSrc.match(/<p class="muted">计算规则：[^\n]*<\/p>/) || [''])[0];
 if (!/④/.test(ruleLine)) bad.push('电脑版说明卡的应发公式漏了 ④ 晚修监考费');

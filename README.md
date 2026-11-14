@@ -65,9 +65,9 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 
 | 层次 | 命令 | 覆盖 |
 |---|---|---|
-| 内核双版比对 | `node tests/verify_core.js` | 从 HTML 切出原始算法，和 core.js 吃同一批数据逐字段比对（46700 项，含课程表自动落账、备注标签与本月事项） |
+| 内核双版比对 | `node tests/verify_core.js` | 让 HTML 的转发层与 core.js 吃同一批数据逐字段比对（46702 项，含课程表自动落账、备注标签与本月事项），验证 `DB` 注入位置正确 |
 | 页面逻辑 | `node tests/test_pages.js` | 用桩模拟小程序运行时，跑五个页面的方法（373 项，含「开关 × 冻结 × 空月份」7 组状态矩阵） |
-| 结构自检 | `node tests/check_structure.js` | wxml 标签闭合、事件方法、wxss 花括号与 class 样式；**wxml 绑定契约**（94 个字段必须有 js 来源）、13 个动态 class、**SPEC 生成一致性护栏**、变异自检；外加两版文案哨兵（晚修填 0、应发公式、自动落账口径、冻结价说明、失焦提示） |
+| 结构自检 | `node tests/check_structure.js` | wxml 标签闭合、事件方法、wxss 花括号与 class 样式；**wxml 绑定契约**（94 个字段必须有 js 来源）、13 个动态 class、**SPEC / 转发层生成一致性护栏**、变异自检；外加两版文案哨兵（晚修填 0、应发公式、自动落账口径、冻结价说明、失焦提示） |
 | 连构哈希 | `node tools/build_preview.js` ×2 | 连构两次产物逐字节一致 |
 | 小程序预览冒烟 | `node tests/smoke_preview.js` | 真实浏览器点开预览页，走交互链路（30 条） |
 | 电脑版浏览器冒烟 | `node tests/smoke_html.js` | 真实 DOM：设置改价 → 记账 → 汇总看钱，含冻价回看、误开取消、会话确认、课程表自动落账、2027 内置表与 CDN 空缓存换源（39 条） |
@@ -101,27 +101,29 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 
 约定：**每加一个用户可见的状态分支，先在矩阵里加一行**；每加一个 wxml 绑定，契约检查会自动确认它有来源。浏览器冒烟仍是唯一跑真实 DOM 的一层，长期 SKIP 不可接受，换 Chrome 或 `BROWSER=路径` 补跑。
 
-### 口径常量怎么改
+### 双版同步怎么改（两步生成）
 
-`STATES` / `CYCLE` / `HOLIDAYS` 曾经两版各抄一份，加个放假年份得改两处。现在唯一真源是 `teaching-attendance-mp/utils/spec.js`：
+电脑版是**单文件、解压即用**，共享代码不能在运行时 `require`，只能构建时注入。两处都由生成工具负责，改完必须跑一次；漏跑由 `check_structure.js` 拦住，护栏自带变异自检。
 
-1. 改 `spec.js`（例如补 2028 年放假表）。
-2. 跑 `node tools/sync_spec.js`，把数据生成为电脑版单文件里的同名全局常量。
-3. 跑 `node tests/run-all.js`。漏了第 2 步，`check_structure.js` 会报「双版口径常量不同步」；护栏自带变异自检，不会变成永远通过的摆设。
+| 改什么 | 唯一真源 | 生成命令 |
+|---|---|---|
+| 状态定义 / 放假表 | `utils/spec.js` | `node tools/sync_spec.js` |
+| 算法函数 | `utils/core.js` | `node tools/gen_core_adapter.js --write` |
 
-小程序端由 `core.js` 直接 `require('./spec.js')`；电脑版仍是**单文件、解压即用**，没有引入运行时依赖或构建步骤，交付形态不变。算法函数尚未收敛（见「待办 / 规划」）。
+改完统一跑 `node tests/run-all.js`。
+
+**口径常量**：`STATES` / `CYCLE` / `HOLIDAYS` 曾经两版各抄一份，加个放假年份得改两处；现在改 `spec.js` 一处，`sync_spec.js` 生成电脑版的同名全局常量。
+
+**算法函数**：HTML 里的手写算法实现已全部换成 `core.js` 的转发层。`tools/gen_core_adapter.js` 把 `core.js` 包成 IIFE 注入 HTML（挂到全局 `Core`），**只替换 60 个同名函数的函数体**，不动函数声明、参数、位置、注释，139 个 UI / 存储 / 联网函数原样保留。映射规则机械：36 个签名一致直接转发、21 个注入首参 `DB`、3 个（`isWorkday` / `autoWorkdays` / `isHoliday`）注入末参 `DB`。`verify_core.js` 的 `ctx.DB` 机制正好用来验证转发结果，46702 项逐字段比对从「证明两版手写一样」变成「证明转发层映射正确」。
+
+小程序端 `core.js` 直接 `require('./spec.js')`；电脑版仍是单文件、无运行时依赖、解压即用，交付形态不变。
 
 ## 待办 / 规划
 
-按「改一批 → 全套回归 → 提交」推进。**架构演进第 1 步（口径常量单一真源）已完成**；第 2～5 步动的是算法函数与状态层，审核期间不一次性上：
+按「改一批 → 全套回归 → 提交」推进。**架构演进第 1、2 步已完成**（口径常量 + 算法函数单一真源）；第 3～5 步动的是计薪模型与状态层，单独排期：
 
-- [ ] **算法函数单一真源（架构演进第 2 步，前置条件未满足）**：迁移清单已探明，映射是机械的：
-  - HTML 共 199 个函数，其中 **59 个与 `core.js` 同名可映射**：35 个签名一致（直接转发）、24 个 core 多一个 `db`（21 个在首参、3 个在末参，需注入全局 `DB`）；其余 140 个是 UI / 存储 / 联网函数，保留原样。
-  - 这 59 个散落三处：算法切片区（内含 6 个要保留的 UI 工具函数 `$`/`toast`/`esc`/`weekdayOf`/`coursePreviewText`/`rec`）、CSV 段 7 个、以及 `verify_core.js` 的 `EXTRA_FNS` 等散在 UI 区的函数。
-  - `core.js` 另有 9 个小程序专属函数（`holidayOf` / `dowLabel` / `fillLessonsFromCourses` 等）HTML 无同名实现，不需要 adapter。
-  - 施工方式：把 `core.js` 包成 UMD 注入 HTML（生成时把 `require('./spec.js')` 换成读全局常量），删掉 59 个手写实现，按上面三类规则生成转发层；`verify_core.js` 现有的 `ctx.DB` 机制可原样保住 46700 项断言。
-  - **硬前置：先恢复浏览器安全网**。本机 Edge 157 的 `--dump-dom` 静默失效、CDP 回环超时，两层冒烟 SKIP；`tools/shot.js` 已修掉「旧 PNG 冒充本次截图」的假成功，现在会明确报错。没有真实 DOM 回归就改 4000 行 HTML 是盲改。先换 Chrome / 换机器 / 在非沙箱终端跑一次 `node tests/run-all.js` 让两层冒烟真跑起来，再动这一刀。
-- [ ] **计薪项注册表 / 数据 schema / 状态写入收口（第 3～5 步）**：让加一个计薪项从 10+ 处降到 1 处；`v:1` 变成可迁移的 schema；37 处 `store.save()` 收成单一写入口。都排在第 2 步之后，避免在三份副本上重复改。
+- [ ] **计薪项注册表 / 数据 schema / 状态写入收口（第 3～5 步）**：让加一个计薪项从 10+ 处降到 1 处；`v:1` 变成可迁移的 schema；37 处 `store.save()` 收成单一写入口。算法副本已消灭，这几步不用再在三份实现上重复改。
+- [ ] **恢复浏览器安全网**：本机 Edge 157 的 `--dump-dom` 静默失效、CDP 回环超时，两层冒烟 SKIP；`tools/shot.js` 已修掉「旧 PNG 冒充本次截图」的假成功，现在会明确报错。换 Chrome / 换机器 / 在非沙箱终端跑一次 `node tests/run-all.js` 让两层冒烟真跑起来，再做需要真实 DOM 验证的大改。
 
 以下两项也已列进规划，**本阶段不动实现**：
 
