@@ -68,6 +68,8 @@ function makeSample() {
 /* ---------------- 打包 ---------------- */
 const sources = {
   'app.js': rd('app.js'),
+  /* core.js 的口径常量改从 spec.js 取，预览的模块解析要靠这里注册 */
+  'utils/spec.js': rd('utils/spec.js'),
   'utils/core.js': rd('utils/core.js'),
   'utils/store.js': rd('utils/store.js'),
   'utils/lock.js': rd('utils/lock.js')

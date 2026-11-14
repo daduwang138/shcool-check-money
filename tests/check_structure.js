@@ -104,6 +104,18 @@ const mpSum = fs.readFileSync(path.join(PAGES, 'summary', 'summary.wxml'), 'utf8
     bad.push(p[0] + '参数卡没写「改完点一下别处才生效」');
   }
 });
+/* 口径常量唯一真源：spec.js 改了却没生成 HTML，这里要拦住。
+   以前放假表 / 状态定义是两版各抄一份，加年份得改两处，还容易漏。 */
+const syncSpec = require('../tools/sync_spec.js');
+const specState = syncSpec.check(htmlSrc);
+if (!specState.ok) {
+  bad.push('双版口径常量不同步：' + specState.reason
+    + '；改了 utils/spec.js 请跑 node tools/sync_spec.js');
+}
+/* 变异自检：故意把生成段改坏，check() 必须抓到，别让护栏变成摆设 */
+if (syncSpec.check(htmlSrc.replace(/"cls": "s-work"/, '"cls": "s-WORK"')).ok) {
+  bad.push('SPEC 同步自检·常量被改动却没抓到，护栏形同虚设');
+}
 if (htmlSrc.indexOf('法定工作日内置 2026 年（') >= 0) bad.push('电脑版说明卡写死只内置 2026 年，新增年份会漏');
 const ruleLine = (htmlSrc.match(/<p class="muted">计算规则：[^\n]*<\/p>/) || [''])[0];
 if (!/④/.test(ruleLine)) bad.push('电脑版说明卡的应发公式漏了 ④ 晚修监考费');
