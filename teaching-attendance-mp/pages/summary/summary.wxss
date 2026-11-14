@@ -226,6 +226,28 @@
   line-height: 1.6;
 }
 
+/* 设置默认值与本月冻结值不同时，把两个数字并排摆出来：
+   同一个字段在两个页面显示不同值，一句常驻灰字解释不清，得单独占一块。 */
+.base-diff {
+  display: block;
+  margin-top: 12rpx;
+  padding: 12rpx 14rpx;
+  border-left: 4rpx solid #B4652F;
+  border-radius: 6rpx;
+  background: #FBF3E9;
+  color: #6B3F1C;
+  font-size: 21rpx;
+  line-height: 1.6;
+}
+
+/* 有差异时的一键操作要比常态的回退入口更醒目 */
+.note-action.hot {
+  border-color: #D9A87B;
+  background: #FFF8EF;
+  color: #6B3F1C;
+  font-weight: 600;
+}
+
 /* 带说明的回退操作：整块可点，所以用实线白底（虚线在这个界面里表示「空位/占位」），
    前面加个 ↺ 提示这是「恢复」而不是一段只读说明。 */
 .note-action {

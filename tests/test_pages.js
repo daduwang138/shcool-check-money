@@ -1528,6 +1528,36 @@ reset();
   ok(st.mergeInto(l2, i2).conflicts === 0, 'schema·只改 upd 不算内容冲突');
 }
 
+/* ================= 设置默认值 vs 本月冻结值：差异要可见、可一键消除 =================
+   同一个字段在两页显示不同数字曾被当成 bug 反复问，界面必须把差异摆出来，
+   并且「只想同步工资」不能连带改掉本月单独设过的天数与单价。 */
+reset();
+{
+  const db = seedDb();
+  core.setRecord(db, '2026-10-08', 'work', 'work', 40, '');   /* 冻住 base=8000 */
+  db.settings.baseSalary = 9000;                              /* 用户在设置页改了 */
+  mem['kqzb_db_v1'] = JSON.stringify(db);
+  const p = makePage('summary');
+  p.onLoad();
+  p.data.ym = '2026-10';
+  p.render();
+  ok(p.data.baseDiff === true, '差异·冻结值与设置值不同时标出来', String(p.data.baseDiff));
+  ok(p.data.settingBase === '9000', '差异·显示设置里的新值', p.data.settingBase);
+  ok(p.data.p.base === '8000', '差异·本月仍显示冻结值', p.data.p.base);
+  ok(p.data.resetLabel.indexOf('9000') >= 0, '差异·按钮文案带上新值', p.data.resetLabel);
+
+  /* 本月单独设过天数与单价，一键只能改工资 */
+  core.monthP(p.db, '2026-10').workdays = 20;
+  core.monthP(p.db, '2026-10').rate = 150;
+  p.render();
+  p.useSettingBase();
+  const c2 = core.computeMonth(p.db, '2026-10');
+  ok(c2.base === 9000, '差异·一键后本月工资跟随设置', String(c2.base));
+  ok(p.db.months['2026-10'].workdays === 20 && p.db.months['2026-10'].rate === 150,
+    '差异·一键不动应上班天数与单价', JSON.stringify(p.db.months['2026-10']));
+  ok(p.data.baseDiff === false, '差异·同步后提示消失', String(p.data.baseDiff));
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }
 console.log('页面逻辑全部通过');

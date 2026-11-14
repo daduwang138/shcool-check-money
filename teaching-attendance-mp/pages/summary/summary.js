@@ -39,6 +39,11 @@ Page({
   render: function () {
     var db = this.db, ym = this.data.ym;
     var c = core.computeMonth(db, ym);
+    /* 设置页的「基本工资」是以后月份的默认值，这里的「本月基本工资」是当月实际采用的
+       （记过账就冻结）。两者不同时把差异显式摆出来，别只靠一句常驻灰字让人自己猜。 */
+    var mb = core.monthBase(db, ym);
+    var sb = parseFloat(db.settings.baseSalary) || 0;
+    var baseDiff = !!db.settings.enableBase && Math.abs(mb - sb) > 0.005;
     /* 只读渲染：不再借 monthP 顺手把当月参数冻上 */
     var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
 
@@ -93,9 +98,14 @@ Page({
       p: {
         /* 没记过账的月份 p.workdays 还是 undefined，输入框会显示 "undefined" 并卡死；取现算值 */
         workdays: String(c.workdays),
-        base: String(core.monthBase(db, ym)),
+        base: String(mb),
         rate: String(core.monthRate(db, ym))
       },
+      settingBase: core.fmtShort(sb),
+      baseDiff: baseDiff,
+      resetLabel: baseDiff
+        ? ('让本月改用设置里的 ¥' + core.fmtShort(sb) + '（只改工资，别的参数不动）')
+        : '让本月重新跟随设置（档位价、晚修价保留不动）',
       /* 开关关着还让人改工资／单价，改完 computeMonth 不采信，最像「算错了」。
          参数卡跟着设置页的开关走：灰掉 + 禁用 + 一句原因 */
       enableBase: !!db.settings.enableBase,
@@ -160,6 +170,17 @@ Page({
     store.save(this.db);
     this.render();
     wx.showToast({ title: p.checked ? '本月已标记核对' : '已取消核对标记', icon: 'none' });
+  },
+
+  /* 差异提示上的精准操作：只让本月工资跟随设置。
+     原来的 resetParams 会一次删掉 workdays / base / rate 三个参数，
+     用户只想同步工资时不该把本月单独设过的单价和天数也连带改掉。 */
+  useSettingBase: function () {
+    var p = core.monthP(this.db, this.data.ym);
+    delete p.base;
+    store.save(this.db);
+    this.render();
+    wx.showToast({ title: '本月已改用设置里的工资', icon: 'none' });
   },
 
   resetParams: function () {

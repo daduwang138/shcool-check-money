@@ -9,8 +9,8 @@
 
     <view class="row">
       <view class="col">
-        <text class="row-label">基本工资（元/月）</text>
-        <text class="sub">按法定工作日折算成日薪；这里改的是默认值，已记账的月份不跟着变</text>
+        <text class="row-label">基本工资默认值（元/月）</text>
+        <text class="sub">按法定工作日折算成日薪；这里改的是默认值，已记账的月份不跟着变；当月实际用的值在汇总页「本月参数」</text>
       </view>
       <switch checked="{{enableBase}}" data-key="enableBase" bindchange="toggle" color="#1B5E9B" />
     </view>

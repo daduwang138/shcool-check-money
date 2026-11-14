@@ -104,6 +104,15 @@ const mpSum = fs.readFileSync(path.join(PAGES, 'summary', 'summary.wxml'), 'utf8
     bad.push(p[0] + '参数卡没写「改完点一下别处才生效」');
   }
 });
+/* 两处都叫「基本工资」却显示不同数字，是用户反复困惑的根源。
+   标签必须显式区分「默认值」与「本月取值」，差异解释也要两版都在。 */
+[['电脑版', htmlSrc], ['小程序版', mpSet]].forEach(function (p) {
+  if (p[1].indexOf('基本工资默认值') < 0) bad.push(p[0] + '设置页没把基本工资标成「默认值」');
+});
+[['电脑版', htmlSrc], ['小程序版', mpSum]].forEach(function (p) {
+  if (p[1].indexOf('本月基本工资') < 0) bad.push(p[0] + '汇总页没把基本工资标成「本月取值」');
+  if (p[1].indexOf('记账时冻结') < 0) bad.push(p[0] + '汇总页没解释冻结值与设置值的差异');
+});
 /* 口径常量唯一真源：spec.js 改了却没生成 HTML，这里要拦住。
    以前放假表 / 状态定义是两版各抄一份，加年份得改两处，还容易漏。 */
 const syncSpec = require('../tools/sync_spec.js');
