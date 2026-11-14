@@ -21,6 +21,10 @@ const SHOTS = [
   { name: 'calendar', path: 'pages/calendar/calendar' },
   { name: 'summary', path: 'pages/summary/summary' },
   { name: 'summary-2', path: 'pages/summary/summary', scrollY: 760 },
+  /* 常态示例数据的设置值与冻结值一致，参数卡的差异块不会出现；
+     这个场景专门造一份不一致的数据，让新增 UI 每次都被真实渲染到。 */
+  { name: 'summary-diff', path: 'pages/summary/summary', scrollY: 760,
+    diffBase: { setting: 9000, frozen: 8000 } },
   { name: 'settings', path: 'pages/settings/settings' },
   { name: 'sheet', path: 'pages/calendar/calendar', tapDay: '19' },
   /* 放假安排 / 课程表 / 口令都不在 tabBar 上，只能从设置页那一行点进去 */
@@ -113,6 +117,28 @@ function boot(shot) {
   return lines.join('\n');
 }
 
+/* 差异场景：改写预览页内联的 SAMPLE，造一份「设置默认工资 != 本月冻结工资」的数据。
+   不碰仓库里的预览产物，只在内存里替换后写到临时目录。 */
+function mpDiff(shot, src) {
+  const marker = 'var SAMPLE = ';
+  const a = src.indexOf(marker);
+  if (a < 0) throw new Error('预览页里找不到 SAMPLE，差异场景没法构造');
+  const start = a + marker.length;
+  let d = 0, end = -1;
+  for (let i = start; i < src.length; i++) {
+    if (src[i] === '{') d++;
+    else if (src[i] === '}') { d--; if (d === 0) { end = i + 1; break; } }
+  }
+  if (end < 0) throw new Error('SAMPLE 括号不配平');
+  const sample = JSON.parse(src.slice(start, end));
+  sample.settings.baseSalary = shot.diffBase.setting;
+  sample.months = sample.months || {};
+  sample.months['2026-11'] = Object.assign({}, sample.months['2026-11'] || {},
+    { base: shot.diffBase.frozen });
+  return (src.slice(0, start) + JSON.stringify(sample) + src.slice(end))
+    .replace('</body>', boot(shot) + '\n</body>');
+}
+
 const only = process.argv.slice(2);
 const list = only.length ? SHOTS.filter(s => only.indexOf(s.name) >= 0) : SHOTS;
 if (!list.length) { throw new Error('没有匹配的截图名：' + only.join(', ')); }
@@ -124,7 +150,9 @@ const mpHtml = fs.readFileSync(MP_SRC, 'utf8');
 for (const shot of list) {
   const page = path.join(OUT, shot.name + '.html');
   const png = path.join(OUT, shot.name + '.png');
-  fs.writeFileSync(page, shot.pc ? pcDemo() : mpHtml.replace('</body>', boot(shot) + '\n</body>'), 'utf8');
+  const html = shot.pc ? pcDemo()
+    : (shot.diffBase ? mpDiff(shot, mpHtml) : mpHtml.replace('</body>', boot(shot) + '\n</body>'));
+  fs.writeFileSync(page, html, 'utf8');
   /* 旧 PNG 会让 existsSync 假成功：Edge headless 静默失效时一个字节都不产，
      工具却报「截图成功」并把上一次的图当本次结果给人看。先删掉再按本次产物判断。 */
   try { fs.unlinkSync(png); } catch (e) { /* 第一次跑本来就没有 */ }
@@ -137,7 +165,7 @@ for (const shot of list) {
     'file:///' + page.replace(/\\/g, '/')
   ], { stdio: 'ignore' });
   if (r.error || r.status !== 0 || !fs.existsSync(png) || fs.statSync(png).size === 0) {
-    throw new Error(shot.name + ' 截图失败：浏览器没产出 PNG（本机 Edge/Chrome headless 可能不可用，'
+    throw new Error(shot.name + ' 截图失败：浏览器没产出 PNG（本机 headless 浏览器可能不可用，'
       + '可设 BROWSER=路径 换一个）；不要用上一次留下的旧图冒充本次结果');
   }
   console.log(png + '  ' + Math.round(fs.statSync(png).size / 1024) + ' KB');
