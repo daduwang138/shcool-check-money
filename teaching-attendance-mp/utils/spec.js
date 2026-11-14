@@ -61,10 +61,14 @@ var PAY_ITEMS = [
     formula: '晚修次数 × 每次金额', onlyIfNight: true }
 ];
 
-/* 数据 schema：版本号 + 日记录业务字段清单 + 迁移表。
+/* 数据 schema：版本号 + 日记录业务字段清单。
    DAY_FIELDS 是「比较两天是不是同一条账」的唯一依据（store.js 的 dayBody 由它生成）：
    以后加日记录字段只改这里，不会漏掉导入合并时的冲突判断。
-   MIGRATIONS[i] 负责把 v=i+1 升到 v=i+2；当前 v1 是初始版本，表为空。 */
+
+   ⚠ 这个文件只能放**纯数据**：sync_spec.js 用 JSON.stringify 把它序列化成电脑版的
+   全局常量，函数 / undefined 会被悄悄变成 null 或丢键，两版行为就此分叉而护栏发现不了。
+   迁移函数 MIGRATIONS 是行为，放在 core.js（由生成器整体打包进电脑版 IIFE）。
+   check_structure.js 有「spec.js 必须可无损序列化」的护栏。 */
 var SCHEMA_VERSION = 1;
 var DAY_FIELDS = [
   { key: 'am', kind: 'str' },
@@ -75,9 +79,7 @@ var DAY_FIELDS = [
   { key: 'night', kind: 'int' },
   { key: 'off', kind: 'bool' }
 ];
-var MIGRATIONS = [];
-
 module.exports = {
   STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS,
-  SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS, MIGRATIONS: MIGRATIONS
+  SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS
 };

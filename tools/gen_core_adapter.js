@@ -62,7 +62,7 @@ function buildCoreBundle() {
   src = src.replace(me[0], 'return {\n' + names.map(n => '  ' + n + ': ' + n).join(',\n') + '\n};');
   return '\n' + MARK_START + '\nvar Core = (function(spec){\n' + src
     + '\n})({ STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS,'
-    + ' SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS, MIGRATIONS: MIGRATIONS });\n' + MARK_END;
+    + ' SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS });\n' + MARK_END;
 }
 
 /* 移除旧的 CORE 段时把它前后的空行一起归一化，否则每生成一次就多留一个换行，
@@ -81,6 +81,12 @@ function forward(h, c) {
   const extra = c.args.length - h.args.length;
   let call;
   if (extra === 0) {
+    /* 参数个数相同不代表语义相同：名字/顺序不一致时静默转发会算错，
+       直接抛错让人处理，别把隐患藏进生成结果里。 */
+    if (c.args.join(',') !== h.args.join(',')) {
+      throw new Error(h.name + ' 参数名或顺序不一致，不能直接转发：HTML('
+        + h.args.join(',') + ') vs core(' + c.args.join(',') + ')');
+    }
     call = 'Core.' + h.name + '(' + h.args.join(', ') + ')';
   } else if (extra === 1 && c.args.includes('db') && !h.args.includes('db')) {
     const idx = c.args.indexOf('db');

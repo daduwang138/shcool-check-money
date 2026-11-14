@@ -144,6 +144,38 @@ const storeSrc = fs.readFileSync(path.join(PAGES, '..', 'utils', 'store.js'), 'u
 if (storeSrc.indexOf('core.DAY_FIELDS.map') < 0) {
   bad.push('store.js 的 dayBody 没从 spec.js 的 DAY_FIELDS 派生');
 }
+
+/* spec.js 会被 JSON.stringify 序列化进电脑版，只能放纯数据。
+   函数 / undefined 会变成 null 或丢键，两版行为静默分叉；
+   SPEC 护栏比的是「同一份序列化结果」，自己发现不了 —— 必须单独拦。 */
+const specObj = require(path.join(PAGES, '..', 'utils', 'spec.js'));
+function hasFn(v) {
+  if (typeof v === 'function') return true;
+  if (Array.isArray(v)) return v.some(hasFn);
+  if (v && typeof v === 'object') return Object.keys(v).some(function (k) { return hasFn(v[k]); });
+  return false;
+}
+/* 变异自检：嵌套在函数数组/对象里的函数也要抓到，别让护栏变成摆设 */
+if (!hasFn([{ nested: [function () {}] }]) || !hasFn({ a: { b: function () {} } })) {
+  bad.push('spec 纯数据自检·嵌套函数没被抓到，护栏形同虚设');
+}
+const lossy = Object.keys(specObj).filter(function (k) {
+  return hasFn(specObj[k]) || specObj[k] === undefined;
+});
+if (lossy.length) {
+  bad.push('spec.js 含不能无损序列化的导出：' + lossy.join(', ')
+    + '（函数请放 core.js，由 gen_core_adapter.js 打包）');
+}
+
+/* spec.js 每加一个导出，都要同时进 sync_spec 的生成列表与 gen_core_adapter 的
+   IIFE 参数，否则电脑版拿到 undefined。以前这两处靠手工同步，钉住。 */
+const syncSrc = fs.readFileSync(path.join(__dirname, '..', 'tools', 'sync_spec.js'), 'utf8');
+const genSrc = fs.readFileSync(path.join(__dirname, '..', 'tools', 'gen_core_adapter.js'), 'utf8');
+const specKeys = Object.keys(specObj);
+const missSync = specKeys.filter(function (k) { return syncSrc.indexOf('spec.' + k) < 0; });
+const missGen = specKeys.filter(function (k) { return genSrc.indexOf(k + ': ' + k) < 0; });
+if (missSync.length) bad.push('sync_spec.js 没生成这些 spec 导出：' + missSync.join(', '));
+if (missGen.length) bad.push('gen_core_adapter.js 的 IIFE 参数缺这些 spec 导出：' + missGen.join(', '));
 if (htmlSrc.indexOf('法定工作日内置 2026 年（') >= 0) bad.push('电脑版说明卡写死只内置 2026 年，新增年份会漏');
 const ruleLine = (htmlSrc.match(/<p class="muted">计算规则：[^\n]*<\/p>/) || [''])[0];
 if (!/④/.test(ruleLine)) bad.push('电脑版说明卡的应发公式漏了 ④ 晚修监考费');

@@ -65,7 +65,7 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 
 | 层次 | 命令 | 覆盖 |
 |---|---|---|
-| 内核双版比对 | `node tests/verify_core.js` | 让 HTML 的转发层与 core.js 吃同一批数据逐字段比对（46725 项，含课程表自动落账、备注标签与本月事项），验证 `DB` 注入位置正确；另有「金额快照」用人工核算的期望值钉死算法本身，以及计薪项注册表、schema 迁移断言 |
+| 内核双版比对 | `node tests/verify_core.js` | 让 HTML 的转发层与 core.js 吃同一批数据逐字段比对（46727 项，含课程表自动落账、备注标签与本月事项），验证 `DB` 注入位置正确；另有「金额快照」用人工核算的期望值钉死算法本身，以及计薪项注册表、schema 迁移断言 |
 | 页面逻辑 | `node tests/test_pages.js` | 用桩模拟小程序运行时，跑五个页面的方法（382 项，含「开关 × 冻结 × 空月份」7 组状态矩阵、DAY_FIELDS 逐字段合并冲突验证、设置默认值与本月冻结值的差异可见性与一键同步） |
 | 结构自检 | `node tests/check_structure.js` | wxml 标签闭合、事件方法、wxss 花括号与 class 样式；**wxml 绑定契约**（94 个字段必须有 js 来源）、13 个动态 class、**SPEC / 转发层生成一致性护栏**、变异自检；外加两版文案哨兵（晚修填 0、应发公式、自动落账口径、冻结价说明、失焦提示） |
 | 连构哈希 | `node tools/build_preview.js` ×2 | 连构两次产物逐字节一致 |
@@ -125,7 +125,8 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 按「改一批 → 全套回归 → 提交」推进。**架构演进第 1～5 步已全部完成**；只剩浏览器安全网这一项环境限制。
 
 - [x] **计薪项注册表（第 3 步）**：`PAY_ITEMS` 收进 `spec.js`，`computeMonth` 按它累加、核对单与 CSV 列头从它生成，配「金额快照」断言钉死算法本身。加一个计薪项从原来的 10+ 处降到「注册一行 + 算一个金额 + UI 加一行」。
-- [x] **数据 schema / 状态写入收口（第 4～5 步）**：`spec.js` 加 `SCHEMA_VERSION` / `DAY_FIELDS` / `MIGRATIONS`，`migrate()` 由 `normalize()` 调用；因为 `store.save()` / `load()` 都过 normalize，**37 处写入调用点不用改**就自动获得迁移能力。`dayBody()` 从 `DAY_FIELDS` 派生，加日记录字段不会漏掉合并冲突判断。当前 v1 是初始版本、迁移表为空，数据格式逐字不变。
+- [x] **数据 schema / 状态写入收口（第 4～5 步）**：`spec.js` 加 `SCHEMA_VERSION` / `DAY_FIELDS`，`migrate()` 由 `normalize()` 调用；因为 `store.save()` / `load()` 都过 normalize，**37 处写入调用点不用改**就自动获得迁移能力。`dayBody()` 从 `DAY_FIELDS` 派生，加日记录字段不会漏掉合并冲突判断。当前 v1 是初始版本、迁移表为空，数据格式逐字不变。
+  - **`MIGRATIONS` 住在 `core.js`，不在 `spec.js`**：它是函数，而 `spec.js` 被 `JSON.stringify` 序列化成电脑版全局常量，函数会变成 `null`，两版迁移行为会静默分叉。`core.js` 由生成器整体打包进 IIFE，函数天然带得过去。`check_structure.js` 有「spec.js 必须可无损序列化」护栏（含变异自检）钉住这条边界。
 - [ ] **恢复浏览器安全网**：本机 Edge 157 与 Chrome 157 都能打印 `--version`，但 headless 的 `--dump-dom` / `--screenshot` / `--print-to-pdf` 全部 0 字节、stderr 空、exit 0；CDP 端口回环超时、`--remote-debugging-pipe` 零响应且浏览器进程立即退出。已排除：文件路径、启动参数（`--single-process` / `--headless=shell` / 窗口相关 feature）、代理环境变量、工具沙箱（非沙箱模式同样失败）、版本子目录二进制。**结论：这两个 Chromium 157 的 headless 渲染模式在当前会话里启动即退出**，不是输出被吞。
   - 已修的真实缺陷：`browser.js` 原来用 `filter(exists)[0]` 且 Edge 排在 Chrome 前面，装了 Chrome 也永远选不中。现在改为**逐个自检、选第一个真能跑 headless 的**，候选里 Chrome 优先并补了用户级安装路径。
   - 诊断命令：`node tools/probe_browser.js`（列出每个候选「在不在 / 能不能出 DOM」）。请在**自己的普通 PowerShell 终端**跑一次把输出贴回来：工具会话与交互会话可能不同，这是目前唯一还没验证过的变量。

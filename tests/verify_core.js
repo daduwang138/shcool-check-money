@@ -790,6 +790,12 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('schema·未来版本不被降级', core.migrate(future).v, 99);
   eq('schema·normalize 走迁移后字段仍完整',
     core.normalize({ v: 1, days: { '2026-11-02': { am: 'work', lessons: 2 } } }).days['2026-11-02'].lessons, 2);
+  /* 架构边界：MIGRATIONS 是行为（函数），只能住在 core.js。
+     spec.js 会被 JSON.stringify 序列化成电脑版全局常量，函数会变成 null。 */
+  const specMod = require(path.join(MP, 'utils', 'spec.js'));
+  eq('schema·行为没被塞回可序列化的 spec.js',
+    Object.prototype.hasOwnProperty.call(specMod, 'MIGRATIONS'), false);
+  eq('schema·迁移表在 core.js 里且是函数容器', Array.isArray(core.MIGRATIONS), true);
 }
 
 /* ---------- 11. 覆盖哨兵：不许新函数悄悄落到测试之外 ----------

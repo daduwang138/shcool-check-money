@@ -33,7 +33,6 @@ function render(spec) {
     'var PAY_ITEMS=' + j(spec.PAY_ITEMS) + ';',
     'var SCHEMA_VERSION=' + j(spec.SCHEMA_VERSION) + ';',
     'var DAY_FIELDS=' + j(spec.DAY_FIELDS) + ';',
-    'var MIGRATIONS=' + j(spec.MIGRATIONS) + ';',
     MARK_END
   ].join('\n');
 }
