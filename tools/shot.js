@@ -123,6 +123,9 @@ for (const shot of list) {
   const page = path.join(OUT, shot.name + '.html');
   const png = path.join(OUT, shot.name + '.png');
   fs.writeFileSync(page, shot.pc ? pcDemo() : mpHtml.replace('</body>', boot(shot) + '\n</body>'), 'utf8');
+  /* 旧 PNG 会让 existsSync 假成功：Edge headless 静默失效时一个字节都不产，
+     工具却报「截图成功」并把上一次的图当本次结果给人看。先删掉再按本次产物判断。 */
+  try { fs.unlinkSync(png); } catch (e) { /* 第一次跑本来就没有 */ }
   const r = spawnSync(edge, [
     '--headless=new', '--disable-gpu', '--hide-scrollbars',
     '--force-device-scale-factor=' + (shot.scale || 2),
@@ -131,6 +134,9 @@ for (const shot of list) {
     '--screenshot=' + png,
     'file:///' + page.replace(/\\/g, '/')
   ], { stdio: 'ignore' });
-  if (r.error || !fs.existsSync(png)) { throw new Error(shot.name + ' 截图失败'); }
+  if (r.error || r.status !== 0 || !fs.existsSync(png) || fs.statSync(png).size === 0) {
+    throw new Error(shot.name + ' 截图失败：浏览器没产出 PNG（本机 Edge/Chrome headless 可能不可用，'
+      + '可设 BROWSER=路径 换一个）；不要用上一次留下的旧图冒充本次结果');
+  }
   console.log(png + '  ' + Math.round(fs.statSync(png).size / 1024) + ' KB');
 }
