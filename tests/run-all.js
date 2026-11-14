@@ -44,7 +44,7 @@ if (browser.supported()) {
   console.log('=== 6/6 电脑版浏览器冒烟 ===');
   step('电脑版浏览器冒烟', ['tests/smoke_html.js']);
 } else {
-  console.log('SKIP 没有可用的 headless 浏览器，两层浏览器冒烟都没跑；可用 BROWSER=路径 指定后再跑一次');
+  console.log('SKIP 候选浏览器都没通过 headless 自检，两层浏览器冒烟都没跑；跑 node tools/probe_browser.js 定位，或设 BROWSER=路径 指定后再跑一次');
   results.push({ label: '小程序预览冒烟', ok: true, skipped: true });
   results.push({ label: '电脑版浏览器冒烟', ok: true, skipped: true });
 }

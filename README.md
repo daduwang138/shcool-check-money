@@ -126,7 +126,10 @@ node tests/run-all.js          # 一键跑全套（推荐，提交前跑这个�
 
 - [x] **计薪项注册表（第 3 步）**：`PAY_ITEMS` 收进 `spec.js`，`computeMonth` 按它累加、核对单与 CSV 列头从它生成，配「金额快照」断言钉死算法本身。加一个计薪项从原来的 10+ 处降到「注册一行 + 算一个金额 + UI 加一行」。
 - [x] **数据 schema / 状态写入收口（第 4～5 步）**：`spec.js` 加 `SCHEMA_VERSION` / `DAY_FIELDS` / `MIGRATIONS`，`migrate()` 由 `normalize()` 调用；因为 `store.save()` / `load()` 都过 normalize，**37 处写入调用点不用改**就自动获得迁移能力。`dayBody()` 从 `DAY_FIELDS` 派生，加日记录字段不会漏掉合并冲突判断。当前 v1 是初始版本、迁移表为空，数据格式逐字不变。
-- [ ] **恢复浏览器安全网**：这台机器（**包括用户自己的终端**，已实测）Edge 157 的 `--dump-dom` / `--screenshot` 静默失效、CDP 回环超时，两层冒烟 SKIP；`tools/shot.js` 已修掉「旧 PNG 冒充本次截图」的假成功，现在会明确报错。装一个 Chrome 后用 `BROWSER=路径` 指过去，或换台机器跑一次 `node tests/run-all.js`，才能补上真实 DOM 回归。这不是沙箱限制，是本机 Edge 的问题。
+- [ ] **恢复浏览器安全网**：本机 Edge 157 与 Chrome 157 都能打印 `--version`，但 headless 的 `--dump-dom` / `--screenshot` / `--print-to-pdf` 全部 0 字节、stderr 空、exit 0；CDP 端口回环超时、`--remote-debugging-pipe` 零响应且浏览器进程立即退出。已排除：文件路径、启动参数（`--single-process` / `--headless=shell` / 窗口相关 feature）、代理环境变量、工具沙箱（非沙箱模式同样失败）、版本子目录二进制。**结论：这两个 Chromium 157 的 headless 渲染模式在当前会话里启动即退出**，不是输出被吞。
+  - 已修的真实缺陷：`browser.js` 原来用 `filter(exists)[0]` 且 Edge 排在 Chrome 前面，装了 Chrome 也永远选不中。现在改为**逐个自检、选第一个真能跑 headless 的**，候选里 Chrome 优先并补了用户级安装路径。
+  - 诊断命令：`node tools/probe_browser.js`（列出每个候选「在不在 / 能不能出 DOM」）。请在**自己的普通 PowerShell 终端**跑一次把输出贴回来：工具会话与交互会话可能不同，这是目前唯一还没验证过的变量。
+  - 若交互终端也全部不可用，最终方案是装独立的 `chrome-headless-shell`（不创建隐藏窗口）后设 `BROWSER=路径`，或换台机器跑 `node tests/run-all.js`。`tools/shot.js` 已修掉「旧 PNG 冒充本次截图」的假成功，现在会明确报错。
 
 以下两项也已列进规划，**本阶段不动实现**：
 

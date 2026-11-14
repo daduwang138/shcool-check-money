@@ -163,7 +163,7 @@ const probe = [
 ].join('\n');
 
 if (!browser.supported()) {
-  console.log('SKIP 电脑版浏览器冒烟：没有可用的 headless 浏览器（找不到 Edge/Chrome，或 --dump-dom 无输出）；可设 BROWSER=路径 指定后再跑');
+  console.log('SKIP 电脑版浏览器冒烟：候选浏览器都没通过 headless 自检；跑 node tools/probe_browser.js 看是哪个环节不可用，或设 BROWSER=路径 指定');
   process.exit(0);
 }
 
