@@ -9,6 +9,9 @@ const fs = require('fs');
 const path = require('path');
 
 const FILE = path.resolve(__dirname, '..', 'teaching-attendance-mp', 'project.config.json');
+/* 开发者工具也会读本机私有配置；它不入库、但里面同样写死了 appid。
+   只换主配置的话，工具里可能仍旧显示测试号，上传还是灰的。 */
+const PRIVATE_FILE = path.resolve(__dirname, '..', 'teaching-attendance-mp', 'project.private.config.json');
 const TEST_APPID = 'wx4c5f8d6035cb8021';
 
 const next = (process.argv[2] || '').trim();
@@ -42,6 +45,15 @@ if (after !== next) {
   process.exit(1);
 }
 console.log('已改为：' + after);
+/* 私有配置存在就同步换，否则开发者工具可能仍按本地那份旧的测试号显示 */
+if (fs.existsSync(PRIVATE_FILE)) {
+  const priv = JSON.parse(fs.readFileSync(PRIVATE_FILE, 'utf8'));
+  if (priv.appid !== next) {
+    priv.appid = next;
+    fs.writeFileSync(PRIVATE_FILE, JSON.stringify(priv, null, 2) + '\n', 'utf8');
+    console.log('本机私有配置也同步改为：' + next);
+  }
+}
 console.log('');
 console.log('接着做两件事：');
 console.log('  1. 微信开发者工具里重新打开项目（或在「详情 → 基本信息」里改成新 AppID），确认能编译');
