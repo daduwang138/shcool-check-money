@@ -513,6 +513,7 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
         <button id="bulkSet" class="btn sm">批量设置</button>
         <button id="fillCourse" class="btn sm primary">按课程表填课时</button>
         <button id="fillWork" class="btn sm">恢复默认出勤</button>
+        <button id="calYear" class="btn sm">年历总览</button>
         <button id="clearM" class="btn sm danger">清空本月</button>
       </div>
     </div>
@@ -4668,6 +4669,8 @@ function bindEvents(){
       renderCal();
     });
   });
+  /* 记账页直达年历：和顶部 tab 的「年历」同一视图，排课时顺手看全年放假 */
+  $("calYear").addEventListener("click",function(){setView("year");});
   $("fillWork").addEventListener("click",function(){
     if(!DB.settings.autoWork){toast("默认出勤是关闭的，请先在设置里打开「法定工作日默认算全天上班」");return;}
     if(!editOK(CUR,"本月已标记核对，仍要恢复默认出勤？"))return;

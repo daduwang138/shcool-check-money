@@ -845,6 +845,11 @@ Page({
     this._allowEdit(ym, go);
   },
 
+  /* 记账页直达年历：和设置页那个入口同一目标，方便排课时时顺手看全年放假 */
+  gotoYear: function () {
+    wx.navigateTo({ url: '/pages/year/year' });
+  },
+
   restoreDefault: function () {
     var db = this.db, ym = this.data.ym;
     if (!db.settings.autoWork) {

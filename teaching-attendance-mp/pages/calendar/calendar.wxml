@@ -60,8 +60,9 @@
     <view class="btn primary" bindtap="fillCourse">按课程表填课时</view>
     <view class="btn" bindtap="openBulk">批量设置</view>
   </view>
-  <view class="tools tools-single">
+  <view class="tools">
     <view class="btn" bindtap="restoreDefault">恢复默认出勤</view>
+    <view class="btn" bindtap="gotoYear">年历总览</view>
   </view>
 
   <!-- 用法收进折叠区：默认只留一行，说明不再占掉半屏；「清空本月」从按钮降成文字链，

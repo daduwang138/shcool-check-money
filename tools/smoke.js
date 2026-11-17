@@ -157,12 +157,18 @@ const probe = `
       ok('课程编辑面板', !!q('.sheet'));
     }
 
-    /* 11. 年历总览 */
+    /* 11. 年历总览：先从记账页新按钮进，再验证内容；设置页原入口另测 */
+    q('#mp-tab div[data-path="pages/calendar/calendar"]').click();
+    await sleep(300);
+    ok('记账页有年历按钮', !!q('[data-mp-ev-tap="gotoYear"]'));
+    q('[data-mp-ev-tap="gotoYear"]').click();
+    await sleep(450);
+    ok('从记账页进年历', qa('.ymonth').length === 12, qa('.ymonth').length + ' 个月');
     q('#mp-tab div[data-path="pages/settings/settings"]').click();
     await sleep(350);
     q('[data-mp-ev-tap="gotoYear"]').click();
     await sleep(450);
-    ok('进入年历', qa('.ymonth').length === 12, qa('.ymonth').length + ' 个月');
+    ok('从设置页进年历', qa('.ymonth').length === 12, qa('.ymonth').length + ' 个月');
     ok('年历有周序号', qa('.ywk').length > 20, qa('.ywk').length + ' 行');
     ok('法定休假单独标出', qa('.ycl-hol').length > 0, qa('.ycl-hol').length + ' 天');
     ok('调休补班单独标出', qa('.ycl-mk').length > 0, qa('.ycl-mk').length + ' 天');
