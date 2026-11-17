@@ -259,7 +259,7 @@ const MP_ROOT = path.resolve(__dirname, '..', 'teaching-attendance-mp');
   const m = fs.readFileSync(path.join(MP_ROOT, f[0]), 'utf8').match(f[1]);
   if (!m || m[1].indexOf(APP_NAME) !== 0) bad.push('小程序 ' + f[0] + ' 的名称不是「' + APP_NAME + '」');
 });
-const SHARE_PAGES = ['calendar', 'summary', 'settings', 'courses', 'holiday'];
+const SHARE_PAGES = ['calendar', 'summary', 'settings', 'courses', 'year', 'holiday'];
 SHARE_PAGES.forEach(function (pg) {
   const src = fs.readFileSync(path.join(PAGES, pg, pg + '.js'), 'utf8');
   if (src.indexOf("title: '" + APP_NAME) < 0) bad.push('页面 ' + pg + ' 的转发标题没用新名称');

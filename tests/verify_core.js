@@ -166,6 +166,7 @@ for (const [label, raw] of cases) {
         dayChecked++;
         eq(label + '·isWorkday ' + k, ctx.isWorkday(k), core.isWorkday(k, cdb));
         eq(label + '·isHoliday ' + k, ctx.isHoliday(k), core.isHoliday(k, cdb));
+        eq(label + '·isoWeek ' + k, ctx.isoWeek(k), core.isoWeek(k));
         eq(label + '·defaultHalf ' + k, [ctx.defaultHalf(k, 'am'), ctx.defaultHalf(k, 'pm')],
           [core.defaultHalf(cdb, k, 'am'), core.defaultHalf(cdb, k, 'pm')]);
         eq(label + '·effHalf ' + k, [ctx.effHalf(k, 'am'), ctx.effHalf(k, 'pm')],
@@ -921,7 +922,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('哨兵·core.js 里没有落到测试之外的函数', uncovered, []);
   eq('哨兵·白名单里的函数确实都导出了',
     MP_ONLY.filter(n => typeof core[n] !== 'function').length, 0);
-  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 60);
+  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 61);
   /* 内部函数（table / customOf / inSpan / toHalf / dateNum 等）没进 module.exports，
      但确实在 core.js 里、也被 CORE bundle 导出了，所以按源码函数清单判，不按导出对象判。 */
   eq('哨兵·转发层没有指向不存在的函数',
@@ -931,6 +932,8 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('额外抽取·monthKeysOf 两版一致', ctx.monthKeysOf(ctx.normalize(mkLegacy())), core.monthKeysOf(legacy));
   eq('额外抽取·monthKeysOf 钉死月份', core.monthKeysOf(legacy), ['2026-09', '2026-10', '2026-11', '2027-01']);
   eq('额外抽取·ymOf', core.ymOf('2026-10-08'), '2026-10');
+  eq('额外抽取·isoWeek 跨年', [core.isoWeek('2026-01-01'), core.isoWeek('2026-12-31'),
+    core.isoWeek('2027-01-01'), core.isoWeek('2026-11-17')], [1, 53, 53, 47]);
   eq('额外抽取·isYm', [core.isYm('2026-10'), core.isYm('2026-10-01'), core.isYm('x')], [true, false, false]);
   eq('额外抽取·hasContent 两版同判', ctx.hasContent({ night: 1 }), core.hasContent({ night: 1 }));
   eq('额外抽取·dayCount 两版同数', ctx.dayCount(legacy), core.dayCount(legacy));

@@ -25,6 +25,16 @@ function todayKey() {
   var t = new Date();
   return dk(t.getFullYear(), t.getMonth() + 1, t.getDate());
 }
+/* ISO 周：周一为一周之始，第 1 周是含当年第一个周四的那一周。
+   年历左侧的周序号要用它，不能用教学周（weekOf：从开学第一周算起）。 */
+function isoWeek(key) {
+  var parts = ymd(key);
+  var day = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  var weekday = day.getUTCDay() || 7;
+  day.setUTCDate(day.getUTCDate() + 4 - weekday);
+  var yearStart = new Date(Date.UTC(day.getUTCFullYear(), 0, 1));
+  return Math.ceil((((day - yearStart) / 86400000) + 1) / 7);
+}
 function round2(v) { return Math.round(v * 100) / 100; }
 function num2(v) { return (Math.round(v * 100) / 100).toFixed(2); }
 function fmtShort(n) {
@@ -926,7 +936,7 @@ function buildExportCsv(db, months, incSum, incDay) {
 module.exports = {
   STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS,
   SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS, MIGRATIONS: MIGRATIONS, migrate: migrate,
-  pad: pad, dk: dk, ymd: ymd, todayKey: todayKey,
+  pad: pad, dk: dk, ymd: ymd, todayKey: todayKey, isoWeek: isoWeek,
   round2: round2, num2: num2, fmt: fmt, fmtShort: fmtShort, sl: sl,
   isWorkday: isWorkday, autoWorkdays: autoWorkdays, refreshWorkdays: refreshWorkdays, isHoliday: isHoliday,
   holidayOf: holidayOf, addHolidaySpan: addHolidaySpan, delHolidaySpan: delHolidaySpan,

@@ -174,6 +174,41 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .nighttag{display:inline-block;margin-left:5px;padding:0 5px;border-radius:6px;background:#E7EDF5;
   color:#3F6080;font-size:10.5px;font-weight:600;line-height:1.7;vertical-align:1px}
 
+/* ---------- 年历总览 ---------- */
+.yearly{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+@media(max-width:1000px){.yearly{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.yearly{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.yearly{grid-template-columns:1fr}}
+.ymonth{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 11px 12px;
+  box-shadow:var(--sh1)}
+.ymonth h3{margin:0 0 7px;font-size:13.5px;display:flex;align-items:center;
+  justify-content:space-between;gap:6px}
+.ym-go{border:0;background:transparent;color:#3C4046;font:inherit;font-size:13.5px;
+  font-weight:600;padding:0;cursor:pointer;border-bottom:1px dashed #C9D9E8}
+.ym-go:hover{color:#174C7C;border-bottom-color:#1B5E9B}
+.ym-range{font-size:10.5px;color:#74726B;font-weight:400;font-variant-numeric:tabular-nums}
+.ygrid{display:grid;grid-template-columns:20px repeat(7,minmax(0,1fr));gap:2px 1px;align-items:center}
+.ygrid .yw{font-size:10.5px;font-weight:600;color:#5E5749;text-align:center;padding-bottom:3px}
+.ygrid .yw.we{color:#8A8377}
+.ygrid .ywk{font-size:10px;color:#8A857B;text-align:center;font-variant-numeric:tabular-nums}
+.ycell{position:relative;height:22px;border-radius:5px;font-size:11.5px;
+  font-variant-numeric:tabular-nums;display:grid;place-items:center;color:#41474F}
+.ycell.blank{visibility:hidden}
+.ycell.we{background:#FBFAF6;color:#6F6A60}
+.ycell.hol{background:#EFD5CE;color:#5E2A20;font-weight:600}
+.ycell.mk{background:#F7D3A2;color:#66390A;font-weight:600;
+  background-image:radial-gradient(rgba(160,90,0,.4) .6px,rgba(160,90,0,0) .8px);background-size:4px 4px}
+.ycell.today{box-shadow:inset 0 0 0 1.5px #1B5E9B;color:#1B5E9B;font-weight:700}
+.ycell .ymark{position:absolute;top:-2px;right:1px;font-size:8px;font-style:normal;line-height:1;font-weight:600}
+.ycell.hol .ymark{color:#9B4A3C}
+.ycell.mk .ymark{color:#A05A00}
+.year-tip{font-size:11.5px;color:#6F6A60;background:#FBFAF6;border:1px solid var(--line-soft);
+  border-radius:10px;padding:7px 12px;margin-bottom:14px}
+.legend .sw.hol{background:#EFD5CE;border:1px solid #9B4A3C;color:#5E2A20}
+.legend .sw.mk{background:#F7D3A2;border:1px solid #A05A00;color:#66390A}
+.legend .sw.we{background:#FBFAF6;border:1px solid #E6E2D7;color:#6F6A60}
+.legend .sw.td{background:#fff;border:1.5px solid #1B5E9B;color:#1B5E9B}
+
 /* ---------- 拖选 ---------- */
 .cal .cell{touch-action:none}
 body.dragging{cursor:crosshair;-webkit-user-select:none;user-select:none}
@@ -441,6 +476,7 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
     </div>
     <nav class="tabs">
       <button data-view="cal" class="tab active">记账</button>
+      <button data-view="year" class="tab">年历</button>
       <button data-view="sum" class="tab">汇总</button>
       <button data-view="set" class="tab">设置</button>
     </nav>
@@ -485,6 +521,25 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
       <summary>使用说明与图例含义</summary>
       <p>法定工作日默认就算全天上班（<b>虚框「班」</b>），<b>不用一天天点</b>。只有例外才需要动：点虚框格子先确认为上班，再点依次切换 监考 → 加班 → 请假 → 空。点日期空白处录入课时和备注。<br><b>每格不看颜色也能认</b>：上午、下午两个小格里直接写着「班 / 监 / 加 / 假」，实心=上班、斜纹=监考、点纹=加班、灰底=请假、虚框=默认上班（还没确认）。<br><b>入职当月起算</b>：在「设置 → 入职起算日」填一次，之前的日子全部灰显、不计出勤和课时，不用逐天去点。<br><b>在日期上按住拖动可圈选多天</b>（周末自动跳过，要改周末请用「批量设置」勾周六日），松手后底部出现操作条，一次套用到整片；跨月的规则用「批量设置」。<br>「清空本月」会把出勤、课时一起归零（可撤销）；想让法定工作日重新自动算回来，点「恢复默认出勤」。<br>课时现在按课程表<b>自动记入已过去的日子</b>，不用一天天填；淡色的 <b>4 节?</b> 只剩未来日期会出现。改过的日子以你填的为准，不会被自动覆盖；不想要自动填，到「设置 → 出勤默认值」关开关。</p>
     </details>
+  </section>
+
+  <section id="view-year" hidden>
+    <div class="bar">
+      <div class="monnav">
+        <button id="prevY" class="btn icon">‹</button>
+        <strong id="yearLabel"></strong>
+        <button id="nextY" class="btn icon">›</button>
+        <button id="toThisY" class="btn sm">今年</button>
+      </div>
+      <div class="legend">
+        <span><i class="sw hol">休</i>法定休假</span>
+        <span><i class="sw mk">班</i>调休补班</span>
+        <span><i class="sw we">休</i>普通周末</span>
+        <span><i class="sw td">今</i>今天</span>
+      </div>
+    </div>
+    <div class="year-tip" id="yearTip"></div>
+    <div class="yearly" id="year"></div>
   </section>
 
   <section id="view-sum" hidden></section>
@@ -636,7 +691,7 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
 "use strict";
 
 var DB_KEY="kqzb_data_v1", META_KEY="kqzb_meta_v1";
-var DB=null, META={pass:false,salt:""}, PASS=null, CUR="", VIEW="cal", EDIT=null;
+var DB=null, META={pass:false,salt:""}, PASS=null, CUR="", VIEW="cal", EDIT=null, YEAR=0;
 var DIR=null, DIRWARNED=false;          /* 用户指定的数据目录句柄（File System Access API） */
 var DIR_STALE=false;                    /* 有目录、但这次没能写进文件（多为权限被浏览器降级） */
 var PERM_HOOKED=false;                  /* 是否已挂上「下一次点击时补授权」的监听 */
@@ -857,6 +912,16 @@ function ymd(key) {
 function todayKey() {
   var t = new Date();
   return dk(t.getFullYear(), t.getMonth() + 1, t.getDate());
+}
+/* ISO 周：周一为一周之始，第 1 周是含当年第一个周四的那一周。
+   年历左侧的周序号要用它，不能用教学周（weekOf：从开学第一周算起）。 */
+function isoWeek(key) {
+  var parts = ymd(key);
+  var day = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  var weekday = day.getUTCDay() || 7;
+  day.setUTCDate(day.getUTCDate() + 4 - weekday);
+  var yearStart = new Date(Date.UTC(day.getUTCFullYear(), 0, 1));
+  return Math.ceil((((day - yearStart) / 86400000) + 1) / 7);
 }
 function round2(v) { return Math.round(v * 100) / 100; }
 function num2(v) { return (Math.round(v * 100) / 100).toFixed(2); }
@@ -1761,6 +1826,7 @@ return {
   dk: dk,
   ymd: ymd,
   todayKey: todayKey,
+  isoWeek: isoWeek,
   round2: round2,
   num2: num2,
   fmtShort: fmtShort,
@@ -1875,6 +1941,7 @@ function dowOf(key){return Core.dowOf(key);}
 function dateNum(key){return Core.dateNum(key);}
 function weekOf(key){return Core.weekOf(DB, key);}
 function isHoliday(key){return Core.isHoliday(key, DB);}
+function isoWeek(key){return Core.isoWeek(key);}
 /* 一门课可以排在多个星期几上。老备份只有 weekday 单值，这里统一折成数组读，
    写回去时 weekday 仍然保留为第一天，旧版程序/旧导出文件照样能算对。 */
 function courseDays(c){return Core.courseDays(c);}
@@ -2289,6 +2356,7 @@ function hydrateFromDir(force){
 }
 function renderAll(){
   renderCal();
+  if(!$("view-year").hidden)renderYear();
   if(!$("view-sum").hidden)renderSum();
   if(!$("view-set").hidden)renderSet();
 }
@@ -2778,6 +2846,56 @@ function renderCal(){
   if(hasMine)ch+='<span class="chip" style="color:#854F0B;border-color:#EF9F27">放假安排按你填的算</span>';
   else if(!hasTable)ch+='<span class="chip" style="color:#854F0B;border-color:#EF9F27">该年放假安排未内置，按周一至周五估算</span>';
   chips.innerHTML=ch;
+}
+
+function shiftYear(delta){
+  YEAR+=delta;
+  renderYear();
+}
+/* 年历：12 个月一次看完。左侧是 ISO 周序号（和教学周不是一回事）；
+   法定休假砖红「休」、调休补班橙色「班」、普通周末米白，今天蓝框。 */
+function renderYear(){
+  $("yearLabel").textContent=YEAR+" 年";
+  var today=todayKey(), t=table(YEAR), c=customOf(YEAR);
+  var hasMine=!!(c&&((c.off&&c.off.length)||(c.work&&c.work.length)));
+  var holN=0, mkN=0, html="";
+  for(var m=1;m<=12;m++){
+    var lead=(new Date(YEAR,m-1,1).getDay()+6)%7;
+    var n=new Date(YEAR,m,0).getDate();
+    var rows=Math.ceil((lead+n)/7);
+    var firstIn=isoWeek(dk(YEAR,m,1)), lastIn=isoWeek(dk(YEAR,m,n));
+    html+='<article class="ymonth"><h3><button class="ym-go" data-ym="'
+      +YEAR+"-"+pad(m)+'" title="去这个月记账">'+m+' 月</button>';
+    html+='<span class="ym-range">第 '+firstIn+(lastIn===firstIn?"":"–"+lastIn)+' 周</span></h3>';
+    html+='<div class="ygrid"><span></span>';
+    ["一","二","三","四","五","六","日"].forEach(function(w,i){
+      html+='<span class="yw'+(i>4?" we":"")+'">'+w+'</span>';
+    });
+    for(var r=0;r<rows;r++){
+      var d0=1+r*7-lead, inRow=d0>0?d0:1;
+      html+='<span class="ywk">'+isoWeek(dk(YEAR,m,inRow))+'</span>';
+      for(var col=0;col<7;col++){
+        var d=d0+col;
+        if(d<1||d>n){html+='<span class="ycell blank"></span>';continue;}
+        var k=dk(YEAR,m,d), hol=isHoliday(k);
+        var mk=!hol&&!!((c&&c.work&&inSpan(k,c.work))||(t&&t.makeup.indexOf(k)>=0));
+        var cls="ycell"+(hol?" hol":(mk?" mk":(isWeekendKey(k)?" we":"")));
+        var mark=hol?"休":(mk?"班":"");
+        if(k===today)cls+=" today";
+        html+='<span class="'+cls+'" title="'+k+(mark?" "+mark:"")+'">'+d
+          +(mark?'<i class="ymark">'+mark+'</i>':'')+'</span>';
+        if(hol)holN++;
+        if(mk)mkN++;
+      }
+    }
+    html+='</div></article>';
+  }
+  $("year").innerHTML=html;
+  var tip=YEAR+" 年法定休假 <b>"+holN+"</b> 天 · 调休补班 <b>"+mkN+"</b> 天。";
+  if(hasMine)tip+="放假安排按你填的算（设置 → 放假安排）。";
+  else if(!t)tip+="该年放假安排未内置，未填的日子按周一至周五估算；可在设置里补。";
+  else tip+="依据：内置国办发安排。点月份名可直接去那个月记账。";
+  $("yearTip").innerHTML=tip;
 }
 
 function cycleHalf(key,which){
@@ -4278,7 +4396,8 @@ function showApp(){
   $("app").hidden=false;
   var t=new Date();
   CUR=t.getFullYear()+"-"+pad(t.getMonth()+1);
-  renderCal();renderSum();
+  YEAR=t.getFullYear();
+  renderCal();renderYear();renderSum();
   bindEvents();
   refreshDirBadge();updateDirNotice();
   /* 以数据文件为准：有目录就尝试读一次，文件更新则采用 */
@@ -4348,9 +4467,11 @@ function setView(v){
   VIEW=v;
   Array.prototype.forEach.call(document.querySelectorAll(".tab"),function(x){x.classList.toggle("active",x.dataset.view===v);});
   $("view-cal").hidden=v!=="cal";
+  $("view-year").hidden=v!=="year";
   $("view-sum").hidden=v!=="sum";
   $("view-set").hidden=v!=="set";
   if(v==="cal")renderCal();
+  if(v==="year")renderYear();
   if(v==="sum")renderSum();
   if(v==="set")renderSet();
   updateDirNotice();
@@ -4364,6 +4485,13 @@ function bindEvents(){
   $("nextM").addEventListener("click",function(){shiftMonth(1);});
   $("toNow").addEventListener("click",function(){
     var t=new Date();CUR=t.getFullYear()+"-"+pad(t.getMonth()+1);renderCal();
+  });
+  $("prevY").addEventListener("click",function(){shiftYear(-1);});
+  $("nextY").addEventListener("click",function(){shiftYear(1);});
+  $("toThisY").addEventListener("click",function(){YEAR=new Date().getFullYear();renderYear();});
+  $("year").addEventListener("click",function(e){
+    var go=e.target.closest(".ym-go");
+    if(go){CUR=go.dataset.ym;setView("cal");}
   });
   Array.prototype.forEach.call(document.querySelectorAll(".tab"),function(b){
     b.addEventListener("click",function(){setView(this.dataset.view);});

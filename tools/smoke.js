@@ -157,6 +157,16 @@ const probe = `
       ok('课程编辑面板', !!q('.sheet'));
     }
 
+    /* 11. 年历总览 */
+    q('#mp-tab div[data-path="pages/settings/settings"]').click();
+    await sleep(350);
+    q('[data-mp-ev-tap="gotoYear"]').click();
+    await sleep(450);
+    ok('进入年历', qa('.ymonth').length === 12, qa('.ymonth').length + ' 个月');
+    ok('年历有周序号', qa('.ywk').length > 20, qa('.ywk').length + ' 行');
+    ok('法定休假单独标出', qa('.ycl-hol').length > 0, qa('.ycl-hol').length + ' 天');
+    ok('调休补班单独标出', qa('.ycl-mk').length > 0, qa('.ycl-mk').length + ' 天');
+
   } catch (e) {
     log.push('ERROR: ' + e.message + ' @ ' + (e.stack || '').split('\\n')[1]);
   }

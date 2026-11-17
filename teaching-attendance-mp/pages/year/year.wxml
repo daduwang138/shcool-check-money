@@ -1,0 +1,31 @@
+<view class="page">
+  <view class="topbar">
+    <view class="nav" bindtap="prevYear" hover-class="nav-hover">‹</view>
+    <view class="mon">{{year}} 年</view>
+    <view class="nav" bindtap="nextYear" hover-class="nav-hover">›</view>
+    <view class="go-today" bindtap="goThisYear">今年</view>
+  </view>
+
+  <view class="legend">
+    <view class="lg"><view class="sw sw-hol"></view><text class="lg-t">法定休假</text></view>
+    <view class="lg"><view class="sw sw-mk"></view><text class="lg-t">调休补班</text></view>
+    <view class="lg"><view class="sw sw-we"></view><text class="lg-t">普通周末</text></view>
+    <view class="lg"><view class="sw sw-td"></view><text class="lg-t">今天</text></view>
+  </view>
+  <view class="year-tip" wx:if="{{tip}}">{{tip}}</view>
+
+  <view class="ymonth" wx:for="{{months}}" wx:for-item="m" wx:key="key">
+    <view class="ym-head">
+      <view class="ym-go" data-ym="{{m.ym}}" bindtap="openMonth">{{m.label}}</view>
+      <text class="ym-range">{{m.range}}</text>
+    </view>
+    <view class="ygrid">
+      <text class="yw"></text>
+      <text wx:for="{{m.heads}}" wx:for-item="h" wx:key="t" class="{{h.cls}}">{{h.t}}</text>
+      <block wx:for="{{m.weeks}}" wx:for-item="wk" wx:key="id">
+        <text class="ywk">{{wk.num}}</text>
+        <text wx:for="{{wk.cells}}" wx:for-item="cell" wx:key="id" class="ycl {{cell.cls}}">{{cell.d}}<text wx:if="{{cell.mark}}" class="ymark">{{cell.mark}}</text></text>
+      </block>
+    </view>
+  </view>
+</view>

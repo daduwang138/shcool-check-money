@@ -15,6 +15,8 @@ let toasts = [], modals = [], nextSheetPick = 0, clips = [];
 let relaunched = [];
 /* 跳转与返回、导航栏标题：口令相关的页面用它 */
 let navigated = [], backCount = 0, titles = [];
+const appStub = { globalData: {} };
+global.getApp = () => appStub;
 global.wx = {
   getStorageSync: k => (mem[k] === undefined ? '' : mem[k]),
   setStorageSync: (k, v) => { mem[k] = v; },
@@ -36,6 +38,7 @@ global.wx = {
   reLaunch: o => { relaunched.push(o.url); },
   redirectTo: o => { relaunched.push(o.url); },
   navigateTo: o => { navigated.push(o.url); },
+  switchTab: o => { navigated.push(o.url); },
   navigateBack: () => { backCount++; },
   setNavigationBarTitle: o => { titles.push(o.title); }
 };
@@ -97,6 +100,7 @@ function reset() {
   Object.keys(mem).forEach(k => delete mem[k]);
   toasts = []; modals = []; nextSheetPick = 0;
   navigated = []; backCount = 0; titles = [];
+  appStub.globalData = {};
 }
 
 /* ================= 记账页 ================= */
@@ -1117,7 +1121,7 @@ ok(lock.isUnlocked() === false, '冷却期间即使口令对也先拦住');
 
 /* ---------- 转发：五个业务页都能发，落点必须是 app.json 里真实存在的页面 ---------- */
 const appJson = JSON.parse(require('fs').readFileSync(path.join(ROOT, 'app.json'), 'utf8'));
-['calendar', 'summary', 'settings', 'courses', 'holiday'].forEach(function (name) {
+['calendar', 'summary', 'settings', 'courses', 'year', 'holiday'].forEach(function (name) {
   reset();
   const p = makePage(name);
   ok(typeof p.onShareAppMessage === 'function', name + ' 定义了转发');
@@ -1624,6 +1628,37 @@ reset();
   const legacy = st.parseBackup('{"v":1,"days":{"2026-10-08":{"am":"work","pm":"work","lessons":2}},"settings":{}}');
   ok(legacy.days['2026-10-08'].lset === true && legacy.days['2026-10-08'].lessons === 2,
     '备份往返·老备份补齐 lset 且不丢记录');
+}
+
+/* ---------- 年历总览 ---------- */
+reset();
+lock.clear();
+{
+  const cy = String(new Date().getFullYear());
+  const ydb = seedDb();
+  ydb.settings.holidays = {
+    [cy]: { off: [[cy + '-11-05', cy + '-11-06']], work: [[cy + '-11-07', cy + '-11-07']] }
+  };
+  mem['kqzb_db_v1'] = JSON.stringify(ydb);
+  const yp = makePage('year');
+  yp.onLoad();
+  ok(yp.data.months.length === 12, '年历一次渲染 12 个月', String(yp.data.months.length));
+  const ycells = [];
+  yp.data.months.forEach(function (mo) {
+    mo.weeks.forEach(function (wk) { wk.cells.forEach(function (c) { ycells.push(c); }); });
+  });
+  ok(ycells.some(function (c) { return c.cls.indexOf('ycl-hol') >= 0; }), '法定休假有单独标记');
+  ok(ycells.some(function (c) { return c.cls.indexOf('ycl-mk') >= 0; }), '调休补班有单独标记');
+  ok(yp.data.months.every(function (mo) {
+    return mo.weeks.every(function (wk) { return /^\d+$/.test(wk.num); });
+  }), '每个月的每一周都有周序号');
+  ok(yp.data.tip.indexOf('法定休假') >= 0, '年历顶部给出全年假期统计');
+  yp.prevYear();
+  ok(yp.data.year === new Date().getFullYear() - 1, '可以翻到上一年');
+  yp.goThisYear();
+  yp.openMonth({ currentTarget: { dataset: { ym: '2026-11' } } });
+  ok(appStub.globalData.yearJump === '2026-11', '点月份记下要跳的月份');
+  ok(navigated.indexOf('/pages/calendar/calendar') >= 0, '点月份跳到记账页');
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

@@ -29,9 +29,11 @@ const SHOTS = [
   { name: 'sheet', path: 'pages/calendar/calendar', tapDay: '19' },
   /* 放假安排 / 课程表 / 口令都不在 tabBar 上，只能从设置页那一行点进去 */
   { name: 'courses', path: 'pages/settings/settings', viaText: '课程表' },
+  { name: 'year', path: 'pages/settings/settings', viaText: '年历总览' },
   { name: 'holiday', path: 'pages/settings/settings', viaText: '放假安排' },
   { name: 'pass', path: 'pages/settings/settings', viaText: '修改口令' },
-  { name: 'pc', pc: true, width: 1440, height: 1020, scale: 1 }
+  { name: 'pc', pc: true, width: 1440, height: 1020, scale: 1 },
+  { name: 'pc-year', pc: true, pcView: 'year', width: 1440, height: 1020, scale: 1 }
 ];
 
 /* 复用 tests/browser.js 的发现逻辑：逐个自检、优先 chrome-headless-shell。
@@ -46,7 +48,7 @@ function findEdge() {
 }
 
 /* 电脑版是单文件应用，数据只从 localStorage 读；在 <head> 塞一条写入语句就等于先存了一份账 */
-function pcDemo() {
+function pcDemo(shot) {
   const days = {};
   for (let d = 1; d <= 31; d++) {
     const k = '2026-11-' + String(d).padStart(2, '0');
@@ -63,8 +65,13 @@ function pcDemo() {
     months: {}, days, term: { start: '' }, courses: []
   };
   /* 注入到临时演示页的代码；隐私模式下 localStorage 不可用，塞不进示例账就显示空月历 */
-  const code = 'try{localStorage.setItem("kqzb_data_v1",' + JSON.stringify(JSON.stringify(db))
+  let code = 'try{localStorage.setItem("kqzb_data_v1",' + JSON.stringify(JSON.stringify(db))
     + ');}catch(e){/* 忽略：隐私模式没有 localStorage */}';
+  if (shot.pcView) {
+    code += "window.addEventListener('load',function(){setTimeout(function(){"
+      + "var b=document.querySelector('.tab[data-view=\"" + shot.pcView + "\"]');"
+      + 'if(b){b.click();}},350);});';
+  }
   const inject = '<script>' + code + '</scr' + 'ipt>';
   return fs.readFileSync(PC_SRC, 'utf8').replace('<head>', '<head>' + inject);
 }
@@ -152,7 +159,7 @@ const mpHtml = fs.readFileSync(MP_SRC, 'utf8');
 for (const shot of list) {
   const page = path.join(OUT, shot.name + '.html');
   const png = path.join(OUT, shot.name + '.png');
-  const html = shot.pc ? pcDemo()
+  const html = shot.pc ? pcDemo(shot)
     : (shot.diffBase ? mpDiff(shot, mpHtml) : mpHtml.replace('</body>', boot(shot) + '\n</body>'));
   fs.writeFileSync(page, html, 'utf8');
   /* 旧 PNG 会让 existsSync 假成功：Edge headless 静默失效时一个字节都不产，

@@ -59,6 +59,13 @@ Page({
 
   onShow: function () {
     if (!lock.guard()) { return; }
+    /* 从年历点月份过来：只改浏览月份，不写任何账 */
+    var app = typeof getApp === "function" ? getApp() : null;
+    var jump = app && app.globalData && app.globalData.yearJump;
+    if (jump && /^\d{4}-\d{2}$/.test(jump)) {
+      app.globalData.yearJump = '';
+      this.setData({ ym: jump });
+    }
     if (!this.db) { this.db = store.load(); this.render(); return; }
     /* 设置页、课程表页可能改过数据，回来时重新读一次 */
     this.db = store.load();

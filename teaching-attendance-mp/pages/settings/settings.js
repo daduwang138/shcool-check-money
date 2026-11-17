@@ -248,6 +248,10 @@ Page({
     wx.navigateTo({ url: '/pages/holiday/holiday' });
   },
 
+  gotoYear: function () {
+    wx.navigateTo({ url: '/pages/year/year' });
+  },
+
   openPass: function (mode) {
     wx.navigateTo({ url: '/pages/pass/pass?mode=' + mode });
   },
