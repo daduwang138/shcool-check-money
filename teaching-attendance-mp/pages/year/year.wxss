@@ -148,7 +148,8 @@
 
 .ygrid {
   display: grid;
-  grid-template-columns: 34rpx repeat(7, minmax(0, 1fr));
+  /* 左：ISO 周序号；中：七天；右：自定义教学周 */
+  grid-template-columns: 34rpx repeat(7, minmax(0, 1fr)) 46rpx;
   gap: 2rpx 2rpx;
   align-items: center;
 }
@@ -170,6 +171,31 @@
   font-size: 20rpx;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+/* 右侧教学周：课表页设的第 1 教学周算起，和左侧 ISO 周刻意分色 */
+.ywh {
+  color: #2D6FA8;
+  font-size: 19rpx;
+  font-weight: 600;
+  text-align: center;
+  padding-bottom: 4rpx;
+}
+.yuk {
+  height: 38rpx;
+  display: grid;
+  place-items: center;
+  font-size: 19rpx;
+  font-variant-numeric: tabular-nums;
+  border-radius: 6rpx;
+}
+.yuk-on {
+  color: #1B5E9B;
+  background: #EDF4FA;
+  font-weight: 600;
+}
+.yuk-off {
+  color: #B4B0A8;
 }
 
 .ycl {

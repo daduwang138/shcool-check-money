@@ -22,9 +22,11 @@
     <view class="ygrid">
       <text class="yw"></text>
       <text wx:for="{{m.heads}}" wx:for-item="h" wx:key="t" class="{{h.cls}}">{{h.t}}</text>
+      <text class="ywh">教周</text>
       <block wx:for="{{m.weeks}}" wx:for-item="wk" wx:key="id">
         <text class="ywk">{{wk.num}}</text>
         <text wx:for="{{wk.cells}}" wx:for-item="cell" wx:key="id" class="ycl {{cell.cls}}">{{cell.d}}<text wx:if="{{cell.mark}}" class="ymark">{{cell.mark}}</text></text>
+        <text class="yuk {{wk.twCls}}">{{wk.tw}}</text>
       </block>
     </view>
   </view>

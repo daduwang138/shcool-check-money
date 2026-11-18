@@ -910,8 +910,9 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   /* noteTags / monthNotes 放在 HTML 切片外，靠 EXTRA_FNS 抽取，上面已逐字段比对 */
   /* migrate 只在 core.js 内部被 normalize 调用，HTML 不需要转发；
      它有 10.6 节的单版期望值断言，不算落到测试之外。 */
+  /* mondayOf 是 weekOf 的内部辅助，UI 不需要转发；它和 weekOf 一样有单版期望值断言 */
   const extra = new Set(['ymOf', 'isYm', 'monthKeysOf', 'hasContent', 'dayCount', 'localKeys',
-    'noteTags', 'monthNotes', 'migrate']);
+    'noteTags', 'monthNotes', 'migrate', 'mondayOf']);
   const coreFns = collect(fs.readFileSync(path.join(MP, 'utils', 'core.js'), 'utf8'),
     /function\s+([A-Za-z_$][\w$]*)\s*\(/g);
   /* HTML 里是内联等价实现（或小程序页面专属），没法并排比，只能钉死期望值 */
@@ -1045,6 +1046,29 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   const noOt = core.computeMonth(d, '2026-10');
   eq('开关·关加班不抹掉已记的加班半天', noOt.counted.ot, base.counted.ot);
   eq('开关·关加班不抹掉④', noOt.nightFee, base.nightFee);
+}
+
+/* ---------- 教学周边界：年历右侧 W 列的取值口径 ---------- */
+{
+  const d = core.normalize(core.blankDB());
+  eq('教学周·未设基准返回 null', core.weekOf(d, '2026-09-03'), null);
+  d.term.start = '2026-09-03';              /* 用户场景：9 月 3 日开学，那一周是第 1 教学周 */
+  eq('教学周·开学当天是 W1', core.weekOf(d, '2026-09-03'), 1);
+  eq('教学周·同周内仍是 W1', core.weekOf(d, '2026-09-06'), 1);
+  eq('教学周·下一自然周周一是 W2', core.weekOf(d, '2026-09-07'), 2);
+  eq('教学周·W2 整周都是 W2', core.weekOf(d, '2026-09-10'), 2);
+  eq('教学周·再下周一是 W3', core.weekOf(d, '2026-09-14'), 3);
+  eq('教学周·同周内开学前的日子也算 W1', core.weekOf(d, '2026-09-02'), 1);
+  eq('教学周·上一自然周返回 0', core.weekOf(d, '2026-08-30'), 0);
+  eq('教学周·超出默认周数照实递增', core.weekOf(d, '2026-12-03'), 14);
+  /* mondayOf 是 weekOf 的内部辅助，也钉死期望值，别成为覆盖哨兵的漏网之鱼 */
+  eq('教学周·基准日归到所在周一', core.mondayOf('2026-09-03'), '2026-08-31');
+  eq('教学周·周日归到本周一', core.mondayOf('2026-09-06'), '2026-08-31');
+  /* 两版的年历都读这个口径，边界值必须在转发层也一致 */
+  ctx.DB = d;
+  eq('教学周·HTML 转发层 W1 一致', ctx.weekOf('2026-09-03'), core.weekOf(d, '2026-09-03'));
+  eq('教学周·HTML 转发层下一周一致', ctx.weekOf('2026-09-07'), core.weekOf(d, '2026-09-07'));
+  eq('教学周·HTML 转发层上一周一致', ctx.weekOf('2026-08-30'), core.weekOf(d, '2026-08-30'));
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项；逐日核对 ' + dayChecked + ' 天');

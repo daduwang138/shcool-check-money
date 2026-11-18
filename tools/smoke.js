@@ -170,6 +170,10 @@ const probe = `
     await sleep(450);
     ok('从设置页进年历', qa('.ymonth').length === 12, qa('.ymonth').length + ' 个月');
     ok('年历有周序号', qa('.ywk').length > 20, qa('.ywk').length + ' 行');
+    /* 教学周：示例数据设了第 1 教学周 2026-08-31，右侧应出现 W1 起的周次 */
+    ok('年历右侧有教学周列', qa('.yuk').length === qa('.ywk').length, qa('.yuk').length + ' 行');
+    ok('教学周从 W1 起', qa('.yuk').some(function (e) { return e.textContent.trim() === 'W1'; }));
+    ok('教学周高亮样式生效', qa('.yuk-on').length > 0, qa('.yuk-on').length + ' 行');
     ok('法定休假单独标出', qa('.ycl-hol').length > 0, qa('.ycl-hol').length + ' 天');
     ok('调休补班单独标出', qa('.ycl-mk').length > 0, qa('.ycl-mk').length + ' 天');
 

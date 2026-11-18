@@ -48,9 +48,15 @@ function buildMonth(year, month, db, today) {
       cells.push({ id: key, d: String(d), cls: cls, mark: hol ? '休' : (mk ? '班' : '') });
     }
     var inRow = start > 0 ? start : 1;
+    var rowKey = core.dk(year, month, inRow);
+    /* 教学周取自课程表页设的「第 1 教学周的周一」，和自动落账用的是同一口径。
+       未配置 / 开学前显示破折号，不编造周次；超出默认周数照实显示，老师自己清楚。 */
+    var week = core.weekOf(db, rowKey);
     weeks.push({
       id: 'w' + r,
-      num: String(core.isoWeek(core.dk(year, month, inRow))),
+      num: String(core.isoWeek(rowKey)),
+      tw: (week && week > 0) ? ('W' + week) : '—',
+      twCls: (week && week > 0) ? 'yuk-on' : 'yuk-off',
       cells: cells
     });
   }
@@ -99,6 +105,11 @@ Page({
       mkN += one.mk;
     }
     var tip = year + ' 年法定休假 ' + holN + ' 天 · 调休补班 ' + mkN + ' 天。';
+    if (!db.term || !db.term.start) {
+      tip += '右侧教学周未启用：去「课程表」设第 1 教学周的周一。';
+    } else {
+      tip += '右侧 W 为你的教学周（自 ' + db.term.start + ' 那周起）。';
+    }
     var custom = db.settings.holidays && db.settings.holidays[year];
     if (custom && ((custom.off && custom.off.length) || (custom.work && custom.work.length))) {
       tip += '放假安排按你填的算。';

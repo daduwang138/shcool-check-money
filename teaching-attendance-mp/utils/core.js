@@ -222,12 +222,24 @@ function dateNum(key) {
 }
 function dowLabel(key) { return ['日', '一', '二', '三', '四', '五', '六'][dowOf(key)]; }
 
-/* ---------- 教学周 ---------- */
+/* ---------- 教学周 ----------
+   按自然周算（周一为一周起点）：基准日所在周是 W1，往后的每个周一是 W2、W3…
+   早期实现是「从基准日起满 7 天才进下一周」，开学日不是周一时会晚几天跳，
+   和老师「过了周末就是下一教学周」的直觉对不上。改自然周后，年历右侧显示
+   和课表落账用的是同一套周次，基准日请填第 1 教学周的周一。 */
+function mondayOf(key) {
+  var parts = ymd(key);
+  var date = new Date(parts[0], parts[1] - 1, parts[2]);
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return dk(date.getFullYear(), date.getMonth() + 1, date.getDate());
+}
 function weekOf(db, key) {
   if (!db.term || !db.term.start) return null;
-  var diff = Math.floor((dateNum(key) - dateNum(db.term.start)) / 86400000);
-  if (diff < 0) return 0;
-  return Math.floor(diff / 7) + 1;
+  var baseMonday = mondayOf(db.term.start);
+  var keyMonday = mondayOf(key);
+  /* YYYY-MM-DD 的字典序就是时间序 */
+  if (keyMonday < baseMonday) return 0;
+  return Math.round((dateNum(keyMonday) - dateNum(baseMonday)) / (7 * 86400000)) + 1;
 }
 function preStart(db, key) {
   var s = db.settings.startDate;
@@ -943,7 +955,7 @@ module.exports = {
   clearHolidayYear: clearHolidayYear, holidayYears: holidayYears,
   parseHolidayJson: parseHolidayJson, parseHolidayPacket: parseHolidayPacket,
   dowOf: dowOf, weekdayOf: weekdayOf, dowLabel: dowLabel, isWeekendKey: isWeekendKey,
-  weekOf: weekOf, preStart: preStart, courseDays: courseDays, lessonsFor: lessonsFor, parseCourses: parseCourses,
+  weekOf: weekOf, mondayOf: mondayOf, preStart: preStart, courseDays: courseDays, lessonsFor: lessonsFor, parseCourses: parseCourses,
   blankDB: blankDB, normalize: normalize, peek: peek, hasContent: hasContent, dayCount: dayCount,
   defaultHalf: defaultHalf, effHalf: effHalf, isGhostHalf: isGhostHalf, isGhost: isGhost,
   setRecord: setRecord, monthP: monthP, freezeMonth: freezeMonth, computeMonth: computeMonth,
