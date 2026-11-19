@@ -104,9 +104,18 @@ const mpSet = fs.readFileSync(path.join(PAGES, 'settings', 'settings.wxml'), 'ut
       bad.push(p[0] + '「怎么用」没写清年历教学周需先填开学那周的时间');
     }
   });
+const mpSum = fs.readFileSync(path.join(PAGES, 'summary', 'summary.wxml'), 'utf8');
+/* 年度四标签哨兵：名称、顺序、默认项两版必须一致，否则用户切来切去会对不上。
+   应发·总览是默认标签，其余三个是它的构成下钻。 */
+[['电脑版', htmlSrc], ['小程序版', mpSum]].forEach(function (p) {
+  ['应发', '出勤', '课时', '晚修'].forEach(function (label) {
+    if (p[1].indexOf(label) < 0) {
+      bad.push(p[0] + '年度四标签缺少「' + label + '」');
+    }
+  });
+});
 /* 参数卡口径哨兵：两版输入框都是失焦保存，提示必须成对出现。
    曾只给小程序加了这句、电脑版漏了，用户改完以为没生效。 */
-const mpSum = fs.readFileSync(path.join(PAGES, 'summary', 'summary.wxml'), 'utf8');
 [['电脑版', htmlSrc], ['小程序版', mpSum]].forEach(function (p) {
   if (p[1].indexOf('别处才生效') < 0) {
     bad.push(p[0] + '参数卡没写「改完点一下别处才生效」');

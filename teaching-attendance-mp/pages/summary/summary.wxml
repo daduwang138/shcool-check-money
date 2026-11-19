@@ -19,29 +19,49 @@
     <view class="nav" bindtap="nextYear" hover-class="nav-hover">›</view>
   </view>
 
+  <!-- 年度：四标签切换（应发总览 / 出勤 / 课时 / 晚修） -->
+  <view class="year-tabs" wx:if="{{mode === 'year'}}">
+    <view class="yt {{yearTab === item.k ? 'on' : ''}}" wx:for="{{yearTabs}}" wx:key="k"
+      data-tab="{{item.k}}" bindtap="setYearTab">{{item.t}}</view>
+  </view>
+
   <view class="hero">
-    <text class="hero-label">{{mode === 'year' ? '全年应发' : '本月应发'}}</text>
-    <view class="hero-num"><text class="cur">¥</text><text class="amt">{{total}}</text></view>
+    <text class="hero-label">{{mode === 'year' ? yearHead.label : '本月应发'}}</text>
+    <view class="hero-num">
+      <text class="cur" wx:if="{{mode === 'month' || yearHead.cur}}">{{mode === 'month' ? '¥' : yearHead.cur}}</text>
+      <text class="amt">{{mode === 'year' ? yearHead.value : total}}</text>
+    </view>
     <view class="hero-sub">
-      <text class="hs" wx:for="{{heroSubs}}" wx:key="k">{{item.k}} {{item.v}}</text>
+      <text class="hs" wx:if="{{mode === 'month'}}" wx:for="{{heroSubs}}" wx:key="k">{{item.k}} {{item.v}}</text>
+      <text class="hs" wx:else>{{yearHead.sub}}</text>
     </view>
   </view>
 
-  <view class="halves-card">
-    <view class="hb" wx:for="{{halfRows}}" wx:key="k">
-      <view class="hb-dot {{item.cls}}"></view>
-      <text class="hb-k">{{item.k}}</text>
-      <text class="hb-v">{{item.v}}<text class="hb-u"> 天</text></text>
+  <!-- 年度：构成卡片（应发=①②③④，出勤=状态，课时=档位，晚修=次数金额小时） -->
+  <view class="year-cards" wx:if="{{mode === 'year'}}">
+    <view class="yc" wx:for="{{yearCards}}" wx:key="k">
+      <text class="yc-k">{{item.k}}</text>
+      <text class="yc-v">{{item.v}}</text>
     </view>
   </view>
 
-  <view class="card">
-    <text class="card-title">{{mode === 'year' ? '全年计算过程' : '计算过程'}}</text>
-    <view class="row" wx:for="{{rows}}" wx:key="k">
-      <text class="row-label">{{item.k}}</text>
-      <text class="row-value">{{item.v}}</text>
+  <block wx:if="{{mode === 'month'}}">
+    <view class="halves-card">
+      <view class="hb" wx:for="{{halfRows}}" wx:key="k">
+        <view class="hb-dot {{item.cls}}"></view>
+        <text class="hb-k">{{item.k}}</text>
+        <text class="hb-v">{{item.v}}<text class="hb-u"> 天</text></text>
+      </view>
     </view>
-  </view>
+
+    <view class="card">
+      <text class="card-title">计算过程</text>
+      <view class="row" wx:for="{{rows}}" wx:key="k">
+        <text class="row-label">{{item.k}}</text>
+        <text class="row-value">{{item.v}}</text>
+      </view>
+    </view>
+  </block>
 
   <view class="card" wx:if="{{noteRows.length}}">
     <text class="card-title">本月事项</text>
@@ -68,33 +88,18 @@
     </view>
   </view>
 
-  <view class="card" wx:if="{{mode === 'year'}}">
-    <text class="card-title">全年合计</text>
-    <view class="row">
-      <text class="row-label">有记录的月份</text>
-      <text class="row-value">{{paidMonths}} 个月</text>
+  <!-- 年度：逐月横条，按当前标签的值缩放；点一行回到该月 -->
+  <view class="card" wx:if="{{mode === 'year' && yearBars.length}}">
+    <text class="card-title">逐月{{yearTab === 'pay' ? '应发' : (yearTab === 'att' ? '出勤' : (yearTab === 'les' ? '课时' : '晚修'))}} · 点一行看该月</text>
+    <view class="ybar" wx:for="{{yearBars}}" wx:key="ym" data-ym="{{item.ym}}" bindtap="openYearMonth">
+      <text class="yb-label">{{item.label}}</text>
+      <view class="yb-track"><view class="yb-fill" style="width:{{item.pct}}%"></view></view>
+      <text class="yb-value">{{item.value}} ›</text>
     </view>
-    <view class="row">
-      <text class="row-label">全年课时</text>
-      <text class="row-value">{{yearLessons}} 节</text>
-    </view>
-    <view class="row">
-      <text class="row-label">晚修监考</text>
-      <text class="row-value">{{nightCount}} 次</text>
-    </view>
-    <view class="row">
-      <text class="row-label">待确认天数</text>
-      <text class="row-value">{{ghostDays}} 天</text>
-    </view>
-    <text class="param-hint">全年数据按月累加；每月工资和单价按当月冻结值计算，改设置不会重算已记账的月份。</text>
+    <text class="param-hint">横条按当月数值相对全年最高月缩放；每月工资和单价取当月冻结值。</text>
   </view>
-
-  <view class="card" wx:if="{{mode === 'year'}}">
-    <text class="card-title">逐月应发</text>
-    <view class="row" wx:for="{{yearRows}}" wx:key="ym" data-ym="{{item.ym}}" bindtap="openYearMonth">
-      <text class="row-label">{{item.label}}</text>
-      <text class="row-value">¥{{item.total}}<text class="caret"> ›</text></text>
-    </view>
+  <view class="card" wx:if="{{mode === 'year' && !yearBars.length}}">
+    <text class="empty-tip">{{yearEmpty}}</text>
   </view>
 
   <view class="card" wx:if="{{mode === 'month'}}">

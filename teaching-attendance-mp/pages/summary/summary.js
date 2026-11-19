@@ -6,6 +6,12 @@ Page({
   data: {
     /* 默认月度：老用户进来看到的还是当月，年度要手动切 */
     mode: 'month',
+    /* 年度四标签：应发是总览层，其余三个是它的构成下钻 */
+    yearTab: 'pay',
+    yearTabs: [
+      { k: 'pay', t: '应发·总览' }, { k: 'att', t: '出勤' },
+      { k: 'les', t: '课时' }, { k: 'nig', t: '晚修' }
+    ],
     year: 0,
     yearLabel: '',
     ym: '',
@@ -130,47 +136,94 @@ Page({
     });
   },
 
-  /* 年度视图：逐月同口径累加，展示和月度一样的指标 + 全年合计。
-     工资/单价参数卡只对单月有意义，年度模式下不显示，避免「年度基本工资」这种没意义的数。 */
+  /* 年度视图：逐月同口径累加。四个标签共用一份 computeYear 结果，
+     只是取不同字段展示；标签切换纯 UI，不重算、不写库。
+     工资/单价参数卡只对单月有意义，年度模式一律不显示。 */
   renderYear: function () {
-    var db = this.db, year = this.data.year;
+    var db = this.db, year = this.data.year, tab = this.data.yearTab;
     var c = core.computeYear(db, year);
-    var rows = [
-      { k: '全年法定工作日', v: c.workdays + ' 天' },
-      { k: '全年实际出勤', v: core.fmtShort(c.actual) + ' 天' },
-      { k: '基本工资部分', v: '¥' + core.fmt(c.basePart) },
-      { k: '超出天数部分', v: '¥' + core.fmt(c.extraPart) },
-      { k: '课时费', v: '¥' + core.fmt(c.lessonFee) + (c.lessons ? '（' + c.lessons + ' 节）' : '') }
-    ];
-    if (c.nightCount > 0) {
-      rows.push({ k: '晚修监考费', v: '¥' + core.fmt(c.nightFee) + '（' + c.nightCount + ' 次）' });
-    }
-    if (c.byRateList && c.byRateList.length > 1) {
-      rows.push({
-        k: '全年课时明细',
-        v: c.byRateList.map(function (r) { return r.name + ' ' + r.lessons + ' 节 ¥' + core.fmt(r.fee); }).join(' + ')
+    var months = c.months;
+
+    /* 逐月横条：按当前标签的值相对全年最大月缩放，最大值 0 时给 0% 不除零 */
+    var makeBars = function (pick, valueText) {
+      var vals = months.map(pick);
+      var max = Math.max.apply(null, vals.concat([0]));
+      return months.map(function (m, i) {
+        return {
+          ym: m.ym, label: parseInt(m.ym.slice(5, 7), 10) + ' 月',
+          pct: max > 0 ? Math.round(vals[i] / max * 100) : 0,
+          value: valueText(m), raw: vals[i]
+        };
       });
+    };
+
+    var head, cards = [], bars = [], empty = '';
+    if (tab === 'att') {
+      head = {
+        label: '全年实际出勤', cur: '', value: core.fmtShort(c.actual) + ' 天',
+        sub: '应上班 ' + c.workdays + ' 天 · 待确认 ' + core.fmtShort(c.ghostDays) + ' 天'
+      };
+      cards = [
+        { k: '上班', v: core.fmtShort(c.counted.work / 2) + ' 天' },
+        { k: '监考', v: core.fmtShort(c.counted.inv / 2) + ' 天' },
+        { k: '加班', v: core.fmtShort(c.counted.ot / 2) + ' 天' },
+        { k: '请假', v: core.fmtShort(c.counted.leave / 2) + ' 天' }
+      ];
+      bars = makeBars(function (m) { return m.actual; }, function (m) {
+        return core.fmtShort(m.actual) + ' / ' + m.workdays;
+      });
+      empty = '全年还没有出勤记录';
+    } else if (tab === 'les') {
+      head = {
+        label: '全年课时', cur: '', value: c.lessons + ' 节',
+        sub: '课时费 ¥' + core.fmt(c.lessonFee)
+      };
+      cards = (c.byRateList || []).map(function (r) {
+        return { k: r.name, v: r.lessons + ' 节 · ¥' + core.fmtShort(r.fee) };
+      });
+      if (!cards.length) { cards = [{ k: '课时', v: '0 节' }]; }
+      bars = makeBars(function (m) { return m.lessons; }, function (m) { return String(m.lessons); });
+      empty = '全年还没有课时记录';
+    } else if (tab === 'nig') {
+      head = {
+        label: '全年晚修监考', cur: '', value: c.nightCount + ' 次 · ¥' + core.fmt(c.nightFee),
+        sub: '共 ' + core.fmtShort(c.nightHours) + ' 小时'
+      };
+      cards = [
+        { k: '次数', v: c.nightCount + ' 次' },
+        { k: '金额', v: '¥' + core.fmtShort(c.nightFee) },
+        { k: '小时', v: core.fmtShort(c.nightHours) + ' 小时' }
+      ];
+      bars = makeBars(function (m) { return m.nightCount; }, function (m) { return String(m.nightCount); });
+      empty = '全年没有晚修记录';
+    } else {
+      tab = 'pay';  /* 未知标签一律回到总览，不让页面空白 */
+      head = {
+        label: '全年应发', cur: '¥', value: core.fmt(c.total),
+        sub: c.paidMonths + ' 个月 · ' + core.fmtShort(c.actual) + ' 天 · ' + c.lessons + ' 节 · ' + c.nightCount + ' 次晚修'
+      };
+      cards = [
+        { k: '① 基本', v: '¥' + core.fmtShort(c.basePart) },
+        { k: '② 超出', v: '¥' + core.fmtShort(c.extraPart) },
+        { k: '③ 课时', v: '¥' + core.fmtShort(c.lessonFee) },
+        { k: '④ 晚修', v: '¥' + core.fmtShort(c.nightFee) }
+      ];
+      bars = makeBars(function (m) { return m.total; }, function (m) { return '¥' + core.fmt(m.total); });
+      empty = '全年还没有记录';
     }
-    var halfRows = [
-      { k: '上班', v: core.fmtShort(c.counted.work / 2), cls: 's-work' },
-      { k: '监考', v: core.fmtShort(c.counted.inv / 2), cls: 's-inv' },
-      { k: '加班', v: core.fmtShort(c.counted.ot / 2), cls: 's-ot' },
-      { k: '请假', v: core.fmtShort(c.counted.leave / 2), cls: 's-leave' }
-    ].filter(function (x, i) { return i === 0 || parseFloat(x.v) > 0; });
+
+    /* 有值才画横条：整年为 0 的标签显示空提示，而不是 12 行 0 */
+    var hasData = bars.some(function (b) { return b.raw > 0; });
     this.setData({
+      yearTab: tab,
       yearLabel: year + ' 年',
+      yearHead: head,
+      yearCards: cards,
+      yearBars: hasData ? bars : [],
+      yearEmpty: hasData ? '' : empty,
       paidMonths: c.paidMonths,
       checkedMonths: c.checkedMonths,
-      yearLessons: c.lessons,
-      nightCount: c.nightCount,
-      /* 逐月应发：点一行回到那个月的月度视图，和电脑版年度表一致 */
-      yearRows: c.months.map(function (m) {
-        return { ym: m.ym, label: parseInt(m.ym.slice(5, 7), 10) + ' 月', total: core.fmt(m.total) };
-      }),
       total: core.fmt(c.total),
-      rows: rows,
-      heroSubs: rows.slice(0, 3),
-      halfRows: halfRows,
       noteRows: [],
       ghostDays: core.fmtShort(c.ghostDays),
       checked: false,
@@ -180,6 +233,13 @@ Page({
       otherRates: '', nightEach: '', baseDiff: false,
       p: { workdays: '', base: '', rate: '' }
     });
+  },
+
+  setYearTab: function (e) {
+    var t = e.currentTarget.dataset.tab;
+    if (!t || t === this.data.yearTab) { return; }
+    this.setData({ yearTab: t });
+    this.render();
   },
 
   setMode: function (e) {

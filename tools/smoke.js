@@ -138,7 +138,7 @@ const probe = `
     var amt = q('.hero .amt');
     ok('汇总页出金额', !!amt && amt.textContent !== '0.00', amt ? amt.textContent : '');
     ok('汇总页有计算过程', qa('.card').length >= 3, qa('.card').length + ' 卡片');
-    /* 年度视角：默认月度（有「本月应发」），点年度出 12 个月 + 合计，点月份回月度 */
+    /* 年度视角：默认月度，点年度后默认「应发·总览」四标签，可切标签、点月份回月度 */
     ok('汇总默认月度', qa('.hero-label').some(function (e) { return e.textContent.indexOf('本月应发') >= 0; }));
     /* 预览 runtime 把 data-mode 渲成 data-mp-ds-mode，不是原生 dataset */
     var mtYear = q('[data-mp-ds-mode="year"]');
@@ -146,10 +146,21 @@ const probe = `
     if (mtYear) {
       mtYear.click(); await sleep(450);
       ok('切到年度显示全年应发', qa('.hero-label').some(function (e) { return e.textContent.indexOf('全年应发') >= 0; }));
-      ok('年度有全年合计卡', qa('.card-title').some(function (e) { return e.textContent.indexOf('全年合计') >= 0; }));
-      /* 同样是 data-mp-ds-* 前缀，不是原生 data-* */
+      ok('年度有四个标签', qa('.yt').length === 4, qa('.yt').length + ' 个');
+      ok('年度默认停在应发总览', qa('.yt.on').some(function (e) { return e.textContent.indexOf('应发') >= 0; }));
+      ok('应发总览有四项构成', qa('.yc').length === 4, qa('.yc').length + ' 项');
+      /* 切到出勤标签：大数变为出勤、构成卡变四项、有逐月横条 */
+      var tabAtt = q('[data-mp-ds-tab="att"]');
+      ok('有出勤标签', !!tabAtt);
+      if (tabAtt) {
+        tabAtt.click(); await sleep(350);
+        ok('切出勤显示全年实际出勤', qa('.hero-label').some(function (e) { return e.textContent.indexOf('全年实际出勤') >= 0; }));
+        ok('出勤有逐月横条', qa('.ybar').length > 0, qa('.ybar').length + ' 行');
+        ok('横条有比例条', qa('.yb-fill').length > 0);
+      }
+      /* 点逐月横条回月度 */
       var ymGo = q('[data-mp-ds-ym="2026-11"]');
-      ok('年度有逐月明细可点', !!ymGo);
+      ok('年度有逐月可点', !!ymGo);
       if (ymGo) { ymGo.click(); await sleep(350); }
     }
 

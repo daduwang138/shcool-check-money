@@ -197,6 +197,28 @@ button:disabled{opacity:.45;cursor:not-allowed}
   font-size:9.5px;font-variant-numeric:tabular-nums}
 .ygrid .yuk.on{color:#1B5E9B;background:#EDF4FA;font-weight:600}
 .ygrid .yuk.off{color:#B4B0A8}
+
+/* 年度汇总四标签与横条（与小程序口径、名称、顺序一致） */
+.sum-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.sum-tabs button{border:1px solid var(--line);border-radius:999px;background:#fff;
+  color:var(--muted);font-size:12px;padding:6px 14px;cursor:pointer}
+.sum-tabs button.on{border-color:#1B5E9B;background:#EDF4FA;color:#1B5E9B;font-weight:600}
+.sum-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0 4px}
+@media(max-width:760px){.sum-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.sum-card{background:#F7F6F2;border:1px solid var(--line-soft);
+  border-radius:9px;padding:10px 12px}
+.sum-card .k{display:block;font-size:11px;color:var(--faint);margin-bottom:4px}
+.sum-card .v{display:block;font-size:15px;font-weight:600;color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.ybar-row{display:flex;align-items:center;gap:12px;padding:8px 0;
+  border-bottom:1px solid var(--line-soft)}
+.ybar-row:last-of-type{border-bottom:0}
+.ybar-row .lab{width:46px;flex:0 0 46px;font-size:12px;color:var(--ink)}
+.ybar-track{flex:1;height:8px;background:#EEF1F4;border-radius:999px;overflow:hidden}
+.ybar-fill{height:100%;background:#1B5E9B;border-radius:999px}
+.ybar-row .val{width:96px;flex:0 0 96px;text-align:right;font-size:12px;
+  color:var(--ink);font-variant-numeric:tabular-nums}
+.ybar-empty{padding:24px 0;text-align:center;color:var(--faint);font-size:13px}
 .ycell{position:relative;height:22px;border-radius:5px;font-size:11.5px;
   font-variant-numeric:tabular-nums;display:grid;place-items:center;color:#41474F}
 .ycell.blank{visibility:hidden}
@@ -3346,49 +3368,89 @@ var SUM_ONLY=false;
    年度只读、不改任何参数——工资和单价仍按各月冻结值算。 */
 var SUM_MODE="month";
 var SUM_YEAR=0;
+var SUM_TAB="pay";
+var SUM_TABS=[["pay","应发·总览"],["att","出勤"],["les","课时"],["nig","晚修"]];
 /* 年度视图：逐月 computeMonth 再累加，和月度同一套口径。
-   列出 12 个月的可点明细 + 全年合计行；参数卡不显示（工资/单价只对单月有意义）。 */
+   四标签共用一份 computeYear，只取不同字段展示（应发是总览，其余是构成下钻）。
+   标签切换是纯 UI，不重算、不写库；参数卡不显示（工资/单价只对单月有意义）。 */
 function renderSumYear(){
   var yr=SUM_YEAR||ymd(CUR+"-01")[0];
-  var c=computeYear(yr);
+  var c=computeYear(yr), months=c.months;
   var v=$("view-sum");
+  var tab=SUM_TAB;
+
   var html='<div class="bar"><div class="monnav">'
     +'<button class="btn icon" id="sumPrevY">‹</button>'
     +'<strong>'+yr+' 年 · 全年汇总</strong>'
     +'<button class="btn icon" id="sumNextY">›</button></div>'
     +'<div class="chips"><span class="chip b">月度</span><span class="chip active b">年度</span></div></div>';
-  html+='<div class="card"><h2>全年应发 ¥'+fmt(c.total)+'</h2>';
-  html+='<div class="chips" style="margin:8px 0 4px">'
-    +'<span class="chip">法定工作日 <b>'+c.workdays+'</b> 天</span>'
-    +'<span class="chip">实际出勤 <b>'+fmtShort(c.actual)+'</b> 天</span>'
-    +'<span class="chip">课时 <b>'+c.lessons+'</b> 节</span>'
-    +'<span class="chip">晚修 <b>'+c.nightCount+'</b> 次</span>'
-    +'<span class="chip">有记录 <b>'+c.paidMonths+'</b> 个月</span></div>';
-  html+='<p class="muted" style="margin:6px 0 0">按当前年份汇总全年数据；各月工资与单价取当月冻结值，改设置不会重算已记账的月份。</p></div>';
-  /* 逐月明细：点月份直接去那个月的月度视图，保持和年历一致的跳转体验 */
-  html+='<div class="card"><h2>逐月明细</h2><table><thead><tr><th>月份</th>'
-    +'<th class="num">工作日</th><th class="num">出勤</th><th class="num">课时</th>'
-    +'<th class="num">晚修</th><th class="num">① 基本</th><th class="num">② 超出</th>'
-    +'<th class="num">③ 课时费</th><th class="num">④ 晚修费</th><th class="num">应发</th></tr></thead><tbody>';
-  c.months.forEach(function(m){
-    var mm=parseInt(m.ym.slice(5,7),10);
-    html+='<tr><td><button class="ym-go" data-ym="'+m.ym+'">'+mm+' 月</button></td>'
-      +'<td class="num">'+m.workdays+'</td><td class="num">'+fmtShort(m.actual)+'</td>'
-      +'<td class="num">'+m.lessons+'</td><td class="num">'+m.nightCount+'</td>'
-      +'<td class="num">'+fmtShort(m.basePart)+'</td><td class="num">'+fmtShort(m.extraPart)+'</td>'
-      +'<td class="num">'+fmtShort(m.lessonFee)+'</td><td class="num">'+fmtShort(m.nightFee)+'</td>'
-      +'<td class="num">'+fmtShort(m.total)+'</td></tr>';
-  });
-  html+='<tr class="total"><td>全年合计</td>'
-    +'<td class="num">'+c.workdays+'</td><td class="num">'+fmtShort(c.actual)+'</td>'
-    +'<td class="num">'+c.lessons+'</td><td class="num">'+c.nightCount+'</td>'
-    +'<td class="num">'+fmtShort(c.basePart)+'</td><td class="num">'+fmtShort(c.extraPart)+'</td>'
-    +'<td class="num">'+fmtShort(c.lessonFee)+'</td><td class="num">'+fmtShort(c.nightFee)+'</td>'
-    +'<td class="num">'+fmtShort(c.total)+'</td></tr></tbody></table>';
-  html+='<p class="muted" style="margin:10px 0 0">全年应发 = ① + ② + ③ + ④ 之和；空月份按默认全勤口径照常计算，和月度看到的结果一致。</p></div>';
+
+  /* 四标签：名称、顺序、默认项与小程序一致 */
+  html+='<div class="sum-tabs">'+SUM_TABS.map(function(t){
+    return '<button data-tab="'+t[0]+'" class="'+(tab===t[0]?'on':'')+'">'+t[1]+'</button>';
+  }).join('')+'</div>';
+
+  /* 当前标签的大数、摘要、构成卡、逐月取值 */
+  var head,cards=[],pick,valText,empty;
+  if(tab==="att"){
+    head=['全年实际出勤',fmtShort(c.actual)+' 天','应上班 '+c.workdays+' 天 · 待确认 '+fmtShort(c.ghostDays)+' 天'];
+    cards=[["上班",fmtShort(c.counted.work/2)+' 天'],["监考",fmtShort(c.counted.inv/2)+' 天'],
+      ["加班",fmtShort(c.counted.ot/2)+' 天'],["请假",fmtShort(c.counted.leave/2)+' 天']];
+    pick=function(m){return m.actual;};
+    valText=function(m){return fmtShort(m.actual)+' / '+m.workdays;};
+    empty='全年还没有出勤记录';
+  }else if(tab==="les"){
+    head=['全年课时',c.lessons+' 节','课时费 ¥'+fmt(c.lessonFee)];
+    cards=(c.byRateList||[]).map(function(r){return [r.name,r.lessons+' 节 · ¥'+fmtShort(r.fee)];});
+    if(!cards.length)cards=[["课时","0 节"]];
+    pick=function(m){return m.lessons;};
+    valText=function(m){return String(m.lessons);};
+    empty='全年还没有课时记录';
+  }else if(tab==="nig"){
+    head=['全年晚修监考',c.nightCount+' 次 · ¥'+fmt(c.nightFee),'共 '+fmtShort(c.nightHours)+' 小时'];
+    cards=[["次数",c.nightCount+' 次'],["金额",'¥'+fmtShort(c.nightFee)],["小时",fmtShort(c.nightHours)+' 小时']];
+    pick=function(m){return m.nightCount;};
+    valText=function(m){return String(m.nightCount);};
+    empty='全年没有晚修记录';
+  }else{
+    tab="pay";
+    head=['全年应发','¥'+fmt(c.total),c.paidMonths+' 个月 · '+fmtShort(c.actual)+' 天 · '+c.lessons+' 节 · '+c.nightCount+' 次晚修'];
+    cards=[["① 基本",'¥'+fmtShort(c.basePart)],["② 超出",'¥'+fmtShort(c.extraPart)],
+      ["③ 课时",'¥'+fmtShort(c.lessonFee)],["④ 晚修",'¥'+fmtShort(c.nightFee)]];
+    pick=function(m){return m.total;};
+    valText=function(m){return '¥'+fmt(m.total);};
+    empty='全年还没有记录';
+  }
+
+  html+='<div class="card"><h2>'+head[0]+' '+head[1]+'</h2>'
+    +'<p class="muted" style="margin:4px 0 0">'+head[2]+'</p>'
+    +'<div class="sum-cards">'+cards.map(function(card){
+      return '<div class="sum-card"><span class="k">'+esc(card[0])+'</span><span class="v">'+esc(card[1])+'</span></div>';
+    }).join('')+'</div></div>';
+
+  var vals=months.map(pick), max=Math.max.apply(null,vals.concat([0]));
+  var hasData=vals.some(function(x){return x>0;});
+  if(hasData){
+    var barTitle=tab==="pay"?"逐月应发":(tab==="att"?"逐月出勤":(tab==="les"?"逐月课时":"逐月晚修"));
+    html+='<div class="card"><h2>'+barTitle+' · 点一行看该月</h2>';
+    months.forEach(function(m,i){
+      var pct=max>0?Math.round(vals[i]/max*100):0;
+      html+='<div class="ybar-row"><span class="lab"><button class="ym-go" data-ym="'+m.ym+'">'
+        +(parseInt(m.ym.slice(5,7),10))+' 月</button></span>'
+        +'<span class="ybar-track"><span class="ybar-fill" style="width:'+pct+'%"></span></span>'
+        +'<span class="val">'+esc(valText(m))+' ›</span></div>';
+    });
+    html+='<p class="muted" style="margin:10px 0 0">横条按当月数值相对全年最高月缩放；每月工资和单价取当月冻结值。</p></div>';
+  }else{
+    html+='<div class="card"><div class="ybar-empty">'+empty+'</div></div>';
+  }
+
   v.innerHTML=html;
   $("sumPrevY").addEventListener("click",function(){SUM_YEAR=yr-1;renderSumYear();});
   $("sumNextY").addEventListener("click",function(){SUM_YEAR=yr+1;renderSumYear();});
+  Array.prototype.forEach.call(v.querySelectorAll(".sum-tabs button"),function(b){
+    b.addEventListener("click",function(){SUM_TAB=b.dataset.tab;renderSumYear();});
+  });
   Array.prototype.forEach.call(v.querySelectorAll(".ym-go"),function(b){
     b.addEventListener("click",function(){CUR=b.dataset.ym;SUM_MODE="month";renderSum();});
   });

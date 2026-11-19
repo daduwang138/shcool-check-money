@@ -23,6 +23,99 @@
   font-weight: 600;
 }
 
+/* 年度四标签：应发是总览，其余三个是构成下钻 */
+.year-tabs {
+  display: flex;
+  gap: 8rpx;
+  padding: 0 24rpx 12rpx;
+}
+.yt {
+  flex: 1;
+  padding: 14rpx 4rpx;
+  border: 1rpx solid #E7E5DD;
+  border-radius: 12rpx;
+  background: #FFFFFF;
+  color: #656A72;
+  font-size: 22rpx;
+  text-align: center;
+}
+.yt.on {
+  border-color: #1B5E9B;
+  background: #EDF4FA;
+  color: #1B5E9B;
+  font-weight: 600;
+}
+
+/* 年度构成卡：2×2，比列表更省纵向空间 */
+.year-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12rpx;
+  padding: 0 24rpx 4rpx;
+}
+.yc {
+  background: #FFFFFF;
+  border: 1rpx solid #E7E5DD;
+  border-radius: 12rpx;
+  padding: 16rpx 18rpx;
+}
+.yc-k {
+  display: block;
+  color: #8A8377;
+  font-size: 20rpx;
+  margin-bottom: 6rpx;
+}
+.yc-v {
+  display: block;
+  color: #3C4046;
+  font-size: 26rpx;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 年度逐月横条：月份 + 比例条 + 数值，一眼看出淡旺季 */
+.ybar {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 12rpx 0;
+  border-bottom: 1rpx solid #F0EEE7;
+}
+.ybar:last-of-type { border-bottom: none; }
+.yb-label {
+  width: 72rpx;
+  flex-shrink: 0;
+  color: #4C5057;
+  font-size: 22rpx;
+}
+.yb-track {
+  flex: 1;
+  height: 14rpx;
+  background: #EEF1F4;
+  border-radius: 999rpx;
+  overflow: hidden;
+}
+.yb-fill {
+  height: 100%;
+  background: #1B5E9B;
+  border-radius: 999rpx;
+}
+.yb-value {
+  width: 180rpx;
+  flex-shrink: 0;
+  text-align: right;
+  color: #3C4046;
+  font-size: 22rpx;
+  font-variant-numeric: tabular-nums;
+}
+.empty-tip {
+  display: block;
+  padding: 28rpx 0;
+  color: #8A8377;
+  font-size: 24rpx;
+  text-align: center;
+}
+
 .topbar {
   display: flex;
   align-items: center;
