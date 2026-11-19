@@ -96,12 +96,12 @@ const mpSet = fs.readFileSync(path.join(PAGES, 'settings', 'settings.wxml'), 'ut
     bad.push(p[0] + '设置页没写清「改的是默认值、已记账月份不跟着变」');
   }
 });
-/* 教学周显示条件哨兵：年历右侧的 W 列读的是设置页那个「第 1 教学周的周一」，
-   没配置时显示「—」。这句必须与代码一致，且两版都要有——否则用户会以为年历坏了。 */
+/* 教学周显示条件哨兵：年历右边的 W 列要先在设置里填开学那周的时间才显示，
+   没填默认「—」。这句必须与代码一致，且两版都要有——否则用户会以为年历坏了。 */
 [['电脑版', htmlSrc], ['小程序版', fs.readFileSync(path.join(PAGES, 'calendar', 'calendar.wxml'), 'utf8')]]
   .forEach(function (p) {
-    if (p[1].indexOf('第 1 教学周的周一') < 0 || p[1].indexOf('才显示') < 0) {
-      bad.push(p[0] + '「怎么用」没写清年历教学周需先在第 1 教学周的周一配置后才显示');
+    if (p[1].indexOf('W1、W2') < 0 || p[1].indexOf('开学那周的时间') < 0) {
+      bad.push(p[0] + '「怎么用」没写清年历教学周需先填开学那周的时间');
     }
   });
 /* 参数卡口径哨兵：两版输入框都是失焦保存，提示必须成对出现。
