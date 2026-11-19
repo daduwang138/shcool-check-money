@@ -25,6 +25,8 @@ const SHOTS = [
      这个场景专门造一份不一致的数据，让新增 UI 每次都被真实渲染到。 */
   { name: 'summary-diff', path: 'pages/summary/summary', scrollY: 760,
     diffBase: { setting: 9000, frozen: 8000 } },
+  /* 年度视图是条件渲染的，常态截图看不到，必须进页面点切换后再截 */
+  { name: 'summary-year', path: 'pages/summary/summary', viaText: '年度' },
   { name: 'settings', path: 'pages/settings/settings' },
   { name: 'sheet', path: 'pages/calendar/calendar', tapDay: '19' },
   /* 放假安排 / 课程表 / 口令都不在 tabBar 上，只能从设置页那一行点进去 */

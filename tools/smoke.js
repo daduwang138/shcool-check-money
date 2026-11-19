@@ -138,6 +138,20 @@ const probe = `
     var amt = q('.hero .amt');
     ok('汇总页出金额', !!amt && amt.textContent !== '0.00', amt ? amt.textContent : '');
     ok('汇总页有计算过程', qa('.card').length >= 3, qa('.card').length + ' 卡片');
+    /* 年度视角：默认月度（有「本月应发」），点年度出 12 个月 + 合计，点月份回月度 */
+    ok('汇总默认月度', qa('.hero-label').some(function (e) { return e.textContent.indexOf('本月应发') >= 0; }));
+    /* 预览 runtime 把 data-mode 渲成 data-mp-ds-mode，不是原生 dataset */
+    var mtYear = q('[data-mp-ds-mode="year"]');
+    ok('有年度切换', !!mtYear);
+    if (mtYear) {
+      mtYear.click(); await sleep(450);
+      ok('切到年度显示全年应发', qa('.hero-label').some(function (e) { return e.textContent.indexOf('全年应发') >= 0; }));
+      ok('年度有全年合计卡', qa('.card-title').some(function (e) { return e.textContent.indexOf('全年合计') >= 0; }));
+      /* 同样是 data-mp-ds-* 前缀，不是原生 data-* */
+      var ymGo = q('[data-mp-ds-ym="2026-11"]');
+      ok('年度有逐月明细可点', !!ymGo);
+      if (ymGo) { ymGo.click(); await sleep(350); }
+    }
 
     /* 9. 设置页 */
     q('#mp-tab div[data-path="pages/settings/settings"]').click();

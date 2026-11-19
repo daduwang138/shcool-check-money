@@ -923,7 +923,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('哨兵·core.js 里没有落到测试之外的函数', uncovered, []);
   eq('哨兵·白名单里的函数确实都导出了',
     MP_ONLY.filter(n => typeof core[n] !== 'function').length, 0);
-  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 61);
+  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 62);
   /* 内部函数（table / customOf / inSpan / toHalf / dateNum 等）没进 module.exports，
      但确实在 core.js 里、也被 CORE bundle 导出了，所以按源码函数清单判，不按导出对象判。 */
   eq('哨兵·转发层没有指向不存在的函数',
@@ -1069,6 +1069,45 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('教学周·HTML 转发层 W1 一致', ctx.weekOf('2026-09-03'), core.weekOf(d, '2026-09-03'));
   eq('教学周·HTML 转发层下一周一致', ctx.weekOf('2026-09-07'), core.weekOf(d, '2026-09-07'));
   eq('教学周·HTML 转发层上一周一致', ctx.weekOf('2026-08-30'), core.weekOf(d, '2026-08-30'));
+}
+
+/* ---------- 年度汇总：逐月同口径累加，总额按注册表给 ---------- */
+{
+  /* 完全独立的账本：mkNight() 等前面被别的断言共享修改过，别拿来当年度基线 */
+  const db = core.normalize(core.blankDB());
+  db.settings.baseSalary = 6000;
+  db.settings.rate = 100;
+  db.days['2026-10-08'] = { am: 'work', pm: 'work', lessons: 4, note: '', night: 1, upd: 1 };
+  db.days['2026-11-03'] = { am: 'work', pm: 'inv', lessons: 2, note: '', night: 0, upd: 2 };
+  const yc = core.computeYear(db, 2026);
+  const oct = core.computeMonth(db, '2026-10');
+  const nov = core.computeMonth(db, '2026-11');
+  eq('年度·12 个月都算到', yc.months.length, 12);
+  eq('年度·有记录的月份数=2', yc.paidMonths, 2);
+  /* 空月份按「默认全勤」也会算出勤和工资（项目既有口径），所以期望必须是 12 个月全加 */
+  const sumOf = function (key) {
+    return core.round2(yc.months.reduce(function (s, m) { return s + (m[key] || 0); }, 0));
+  };
+  eq('年度·课时=12 月之和', yc.lessons, yc.months.reduce(function (s, m) { return s + m.lessons; }, 0));
+  eq('年度·晚修=12 月之和', yc.nightCount, yc.months.reduce(function (s, m) { return s + m.nightCount; }, 0));
+  eq('年度·①=12 月之和', yc.basePart, sumOf('basePart'));
+  eq('年度·③=12 月之和', yc.lessonFee, sumOf('lessonFee'));
+  eq('年度·④=12 月之和', yc.nightFee, sumOf('nightFee'));
+  eq('年度·总额=12 月之和', yc.total, sumOf('total'));
+  eq('年度·总额=四段之和', yc.total,
+    core.round2(yc.basePart + yc.extraPart + yc.lessonFee + yc.nightFee));
+  eq('年度·出勤=12 月之和', yc.actual, sumOf('actual'));
+  eq('年度·换年只算该年月份', core.computeYear(db, 2025).months[0].ym, '2025-01');
+  eq('年度·换年不带入本年课时', core.computeYear(db, 2025).lessons, 0);
+  eq('年度·非法年份返回 null', core.computeYear(db, 'xxxx'), null);
+  /* 两版吃同一份数据；先重置 DB 再算，避免前面断言残留的 db 影响 */
+  const hdb = JSON.parse(JSON.stringify(db));
+  ctx.DB = hdb;
+  const hy = ctx.computeYear(2026);
+  eq('年度·HTML 版总计一致', hy.total, yc.total);
+  eq('年度·HTML 版课时一致', hy.lessons, yc.lessons);
+  eq('年度·HTML 版晚修一致', hy.nightCount, yc.nightCount);
+  eq('年度·HTML 版月份数一致', hy.months.length, yc.months.length);
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项；逐日核对 ' + dayChecked + ' 天');

@@ -1,14 +1,26 @@
 <view class="page">
-  <view class="topbar">
+  <view class="mode-tabs">
+    <view class="mt {{mode === 'month' ? 'on' : ''}}" data-mode="month" bindtap="setMode">月度</view>
+    <view class="mt {{mode === 'year' ? 'on' : ''}}" data-mode="year" bindtap="setMode">年度</view>
+  </view>
+
+  <view class="topbar" wx:if="{{mode === 'month'}}">
     <view class="nav" bindtap="prevMonth" hover-class="nav-hover">‹</view>
     <picker mode="date" fields="month" value="{{ym}}" bindchange="pickMonth">
       <view class="mon">{{monLabel}}<text class="caret">▾</text></view>
     </picker>
     <view class="nav" bindtap="nextMonth" hover-class="nav-hover">›</view>
   </view>
+  <view class="topbar" wx:else>
+    <view class="nav" bindtap="prevYear" hover-class="nav-hover">‹</view>
+    <picker mode="date" fields="year" value="{{yearLabel}}" bindchange="pickYear">
+      <view class="mon">{{yearLabel}}<text class="caret">▾</text></view>
+    </picker>
+    <view class="nav" bindtap="nextYear" hover-class="nav-hover">›</view>
+  </view>
 
   <view class="hero">
-    <text class="hero-label">本月应发</text>
+    <text class="hero-label">{{mode === 'year' ? '全年应发' : '本月应发'}}</text>
     <view class="hero-num"><text class="cur">¥</text><text class="amt">{{total}}</text></view>
     <view class="hero-sub">
       <text class="hs" wx:for="{{heroSubs}}" wx:key="k">{{item.k}} {{item.v}}</text>
@@ -24,7 +36,7 @@
   </view>
 
   <view class="card">
-    <text class="card-title">计算过程</text>
+    <text class="card-title">{{mode === 'year' ? '全年计算过程' : '计算过程'}}</text>
     <view class="row" wx:for="{{rows}}" wx:key="k">
       <text class="row-label">{{item.k}}</text>
       <text class="row-value">{{item.v}}</text>
@@ -56,7 +68,36 @@
     </view>
   </view>
 
-  <view class="card">
+  <view class="card" wx:if="{{mode === 'year'}}">
+    <text class="card-title">全年合计</text>
+    <view class="row">
+      <text class="row-label">有记录的月份</text>
+      <text class="row-value">{{paidMonths}} 个月</text>
+    </view>
+    <view class="row">
+      <text class="row-label">全年课时</text>
+      <text class="row-value">{{yearLessons}} 节</text>
+    </view>
+    <view class="row">
+      <text class="row-label">晚修监考</text>
+      <text class="row-value">{{nightCount}} 次</text>
+    </view>
+    <view class="row">
+      <text class="row-label">待确认天数</text>
+      <text class="row-value">{{ghostDays}} 天</text>
+    </view>
+    <text class="param-hint">全年数据按月累加；每月工资和单价按当月冻结值计算，改设置不会重算已记账的月份。</text>
+  </view>
+
+  <view class="card" wx:if="{{mode === 'year'}}">
+    <text class="card-title">逐月应发</text>
+    <view class="row" wx:for="{{yearRows}}" wx:key="ym" data-ym="{{item.ym}}" bindtap="openYearMonth">
+      <text class="row-label">{{item.label}}</text>
+      <text class="row-value">¥{{item.total}}<text class="caret"> ›</text></text>
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{mode === 'month'}}">
     <text class="card-title">本月参数</text>
     <view class="row">
       <text class="row-label">应上班天数</text>
@@ -87,7 +128,7 @@
     <view class="note-action" wx:if="{{!baseDiff}}" bindtap="resetParams">{{resetLabel}}</view>
   </view>
 
-  <view class="card">
+  <view class="card" wx:if="{{mode === 'month'}}">
     <view class="row">
       <view>
         <text class="row-label">标记为已核对</text>
@@ -100,9 +141,19 @@
       <text class="row-value">{{dayCount}} 天</text>
     </view>
   </view>
+  <view class="card" wx:else>
+    <view class="row">
+      <text class="row-label">全年有记录的天数</text>
+      <text class="row-value">{{dayCount}} 天</text>
+    </view>
+    <view class="row">
+      <text class="row-label">已核对月份</text>
+      <text class="row-value">{{checkedMonths}} 个月</text>
+    </view>
+  </view>
 
   <view class="export">
-    <view class="btn primary" bindtap="copySum">复制工资核对单</view>
+    <view class="btn primary" bindtap="copySum" wx:if="{{mode === 'month'}}">复制工资核对单</view>
     <view class="btn" bindtap="exportPick">导出统计表</view>
   </view>
 

@@ -4,6 +4,10 @@ var lock = require('../../utils/lock.js');
 
 Page({
   data: {
+    /* 默认月度：老用户进来看到的还是当月，年度要手动切 */
+    mode: 'month',
+    year: 0,
+    yearLabel: '',
     ym: '',
     monLabel: '',
     total: '0.00',
@@ -37,6 +41,7 @@ Page({
   },
 
   render: function () {
+    if (this.data.mode === 'year') { this.renderYear(); return; }
     var db = this.db, ym = this.data.ym;
     var c = core.computeMonth(db, ym);
     /* 设置页的「基本工资」是以后月份的默认值，这里的「本月基本工资」是当月实际采用的
@@ -125,6 +130,84 @@ Page({
     });
   },
 
+  /* 年度视图：逐月同口径累加，展示和月度一样的指标 + 全年合计。
+     工资/单价参数卡只对单月有意义，年度模式下不显示，避免「年度基本工资」这种没意义的数。 */
+  renderYear: function () {
+    var db = this.db, year = this.data.year;
+    var c = core.computeYear(db, year);
+    var rows = [
+      { k: '全年法定工作日', v: c.workdays + ' 天' },
+      { k: '全年实际出勤', v: core.fmtShort(c.actual) + ' 天' },
+      { k: '基本工资部分', v: '¥' + core.fmt(c.basePart) },
+      { k: '超出天数部分', v: '¥' + core.fmt(c.extraPart) },
+      { k: '课时费', v: '¥' + core.fmt(c.lessonFee) + (c.lessons ? '（' + c.lessons + ' 节）' : '') }
+    ];
+    if (c.nightCount > 0) {
+      rows.push({ k: '晚修监考费', v: '¥' + core.fmt(c.nightFee) + '（' + c.nightCount + ' 次）' });
+    }
+    if (c.byRateList && c.byRateList.length > 1) {
+      rows.push({
+        k: '全年课时明细',
+        v: c.byRateList.map(function (r) { return r.name + ' ' + r.lessons + ' 节 ¥' + core.fmt(r.fee); }).join(' + ')
+      });
+    }
+    var halfRows = [
+      { k: '上班', v: core.fmtShort(c.counted.work / 2), cls: 's-work' },
+      { k: '监考', v: core.fmtShort(c.counted.inv / 2), cls: 's-inv' },
+      { k: '加班', v: core.fmtShort(c.counted.ot / 2), cls: 's-ot' },
+      { k: '请假', v: core.fmtShort(c.counted.leave / 2), cls: 's-leave' }
+    ].filter(function (x, i) { return i === 0 || parseFloat(x.v) > 0; });
+    this.setData({
+      yearLabel: year + ' 年',
+      paidMonths: c.paidMonths,
+      checkedMonths: c.checkedMonths,
+      yearLessons: c.lessons,
+      nightCount: c.nightCount,
+      /* 逐月应发：点一行回到那个月的月度视图，和电脑版年度表一致 */
+      yearRows: c.months.map(function (m) {
+        return { ym: m.ym, label: parseInt(m.ym.slice(5, 7), 10) + ' 月', total: core.fmt(m.total) };
+      }),
+      total: core.fmt(c.total),
+      rows: rows,
+      heroSubs: rows.slice(0, 3),
+      halfRows: halfRows,
+      noteRows: [],
+      ghostDays: core.fmtShort(c.ghostDays),
+      checked: false,
+      dayCount: c.filledDays,
+      hasRecord: c.filledDays > 0,
+      /* 年度只读：下面这些只属于单月，置空让 wxml 的 wx:if 自动收起 */
+      otherRates: '', nightEach: '', baseDiff: false,
+      p: { workdays: '', base: '', rate: '' }
+    });
+  },
+
+  setMode: function (e) {
+    var mode = e.currentTarget.dataset.mode;
+    if (mode !== 'month' && mode !== 'year') { return; }
+    if (mode === this.data.mode) { return; }
+    if (mode === 'year' && !this.data.year) {
+      this.setData({ mode: mode, year: parseInt(this.data.ym.slice(0, 4), 10) });
+    } else {
+      this.setData({ mode: mode });
+    }
+    this.render();
+  },
+  openYearMonth: function (e) {
+    var ym = e.currentTarget.dataset.ym;
+    if (!core.isYm(ym)) { return; }
+    this.setData({ mode: 'month', ym: ym });
+    this.render();
+  },
+  prevYear: function () { this.setData({ year: this.data.year - 1 }); this.render(); },
+  nextYear: function () { this.setData({ year: this.data.year + 1 }); this.render(); },
+  pickYear: function (e) {
+    var v = parseInt(e.detail.value, 10);
+    if (!v || v < 1) { return; }
+    this.setData({ year: v });
+    this.render();
+  },
+
   prevMonth: function () { this.setData({ ym: core.addMonths(this.data.ym, -1) }); this.render(); },
   nextMonth: function () { this.setData({ ym: core.addMonths(this.data.ym, 1) }); this.render(); },
   pickMonth: function (e) {
@@ -198,6 +281,10 @@ Page({
 
   /* 复制核对单：和电脑版拼的是同一个函数（core.sumText），两边复制出来一字不差 */
   copySum: function () {
+    if (this.data.mode === 'year') {
+      wx.showToast({ title: '核对单按月复制，请切回月度', icon: 'none' });
+      return;
+    }
     var c = core.computeMonth(this.db, this.data.ym);
     if (!c.filledDays) {
       wx.showToast({ title: '这个月还没有记录', icon: 'none' });

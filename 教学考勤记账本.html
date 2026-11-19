@@ -1660,6 +1660,62 @@ function computeMonth(db, ym) {
   return out;
 }
 
+/* 年度汇总：逐月走 computeMonth 再累加，年度和月度用同一套算法，
+   不会出现「年度和月度算法不一致」这种最难查的错。
+   可加项（天数、次数、金额）直接累加；「率 / 单价 / 当月参数」不可加，
+   年度口径下换成加权值或留空，由页面按 out.rateMode 决定显示方式。 */
+function computeYear(db, year) {
+  var yr = parseInt(year, 10);
+  if (isNaN(yr) || yr < 1) { return null; }
+  var out = {
+    year: yr, months: [], paidMonths: 0,
+    workdays: 0, actual: 0, lessons: 0, filledDays: 0, ghostDays: 0,
+    basePart: 0, extraPart: 0, lessonFee: 0, nightFee: 0,
+    nightCount: 0, nightHours: 0,
+    counted: { work: 0, inv: 0, ot: 0, leave: 0 },
+    byRate: {}, checkedMonths: 0
+  };
+  for (var mon = 1; mon <= 12; mon++) {
+    var ym = dk(yr, mon, 1).slice(0, 7);
+    var cur = computeMonth(db, ym);
+    out.months.push(cur);
+    if (cur.filledDays > 0) { out.paidMonths++; }
+    if (cur.checked) { out.checkedMonths++; }
+    out.workdays += cur.workdays;
+    out.actual += cur.actual;
+    out.lessons += cur.lessons;
+    out.filledDays += cur.filledDays;
+    out.ghostDays += cur.ghostDays;
+    out.basePart += cur.basePart;
+    out.extraPart += cur.extraPart;
+    out.lessonFee += cur.lessonFee;
+    out.nightFee += cur.nightFee;
+    out.nightCount += cur.nightCount;
+    out.nightHours += cur.nightHours;
+    Object.keys(out.counted).forEach(function (key) { out.counted[key] += cur.counted[key] || 0; });
+    /* 各档课时全年累计：同档不同月的冻结价可能不同，fee 累加、price 留空
+       （页面只显示该档总节数与总金额，不显示一个不存在的「全年单价」） */
+    (cur.byRate || []).forEach(function (rate) {
+      var slot = out.byRate[rate.id];
+      if (!slot) { slot = out.byRate[rate.id] = { id: rate.id, name: rate.name, lessons: 0, fee: 0 }; }
+      slot.lessons += rate.lessons;
+      slot.fee += rate.fee;
+    });
+  }
+  /* 金额统一 round2：和 computeMonth 一样保留到分，避免Annual累计出现浮点尾数 */
+  ['actual', 'ghostDays', 'basePart', 'extraPart', 'lessonFee', 'nightFee', 'nightHours']
+    .forEach(function (key) { out[key] = round2(out[key]); });
+  out.byRateList = Object.keys(out.byRate).map(function (id) {
+    var rateRow = out.byRate[id];
+    rateRow.fee = round2(rateRow.fee);
+    return rateRow;
+  });
+  out.total = round2(PAY_ITEMS.reduce(function (sum, it) {
+    return sum + (out[it.key] || 0);
+  }, 0));
+  return out;
+}
+
 /* 核对单文本：电脑版复制到剪贴板、小程序复制到微信，两版必须逐字一致 */
 function sumText(c){
   var p=ymd(c.ym+"-01");
@@ -1900,6 +1956,7 @@ return {
   priceOf: priceOf,
   nightOf: nightOf,
   computeMonth: computeMonth,
+  computeYear: computeYear,
   sumText: sumText,
   noteTags: noteTags,
   monthNotes: monthNotes,
@@ -2032,6 +2089,7 @@ function priceOf(db,ym,rid){return Core.priceOf(db, ym, rid);}
 function nightOf(db,ym){return Core.nightOf(db, ym);}
 /* 四段式：①日薪×min(实际,应上) + ②日薪×超出天数 + ③课时×单价 + ④晚修监考次数×每次 */
 function computeMonth(ym){return Core.computeMonth(DB, ym);}
+function computeYear(year){return Core.computeYear(DB, year);}
 
 /* 核对单文本：电脑版复制到剪贴板、小程序复制到微信，两版必须逐字一致 */
 function sumText(c){return Core.sumText(c);}
@@ -3284,7 +3342,60 @@ function stepDay(delta){
 /* ---------- 汇总 ---------- */
 /* 明细表「只看有课或有备注」：这是个看表的姿势，不属于数据，不落库 */
 var SUM_ONLY=false;
+/* 汇总视角：默认月度，年度是用户主动切过去的第二个视角。
+   年度只读、不改任何参数——工资和单价仍按各月冻结值算。 */
+var SUM_MODE="month";
+var SUM_YEAR=0;
+/* 年度视图：逐月 computeMonth 再累加，和月度同一套口径。
+   列出 12 个月的可点明细 + 全年合计行；参数卡不显示（工资/单价只对单月有意义）。 */
+function renderSumYear(){
+  var yr=SUM_YEAR||ymd(CUR+"-01")[0];
+  var c=computeYear(yr);
+  var v=$("view-sum");
+  var html='<div class="bar"><div class="monnav">'
+    +'<button class="btn icon" id="sumPrevY">‹</button>'
+    +'<strong>'+yr+' 年 · 全年汇总</strong>'
+    +'<button class="btn icon" id="sumNextY">›</button></div>'
+    +'<div class="chips"><span class="chip b">月度</span><span class="chip active b">年度</span></div></div>';
+  html+='<div class="card"><h2>全年应发 ¥'+fmt(c.total)+'</h2>';
+  html+='<div class="chips" style="margin:8px 0 4px">'
+    +'<span class="chip">法定工作日 <b>'+c.workdays+'</b> 天</span>'
+    +'<span class="chip">实际出勤 <b>'+fmtShort(c.actual)+'</b> 天</span>'
+    +'<span class="chip">课时 <b>'+c.lessons+'</b> 节</span>'
+    +'<span class="chip">晚修 <b>'+c.nightCount+'</b> 次</span>'
+    +'<span class="chip">有记录 <b>'+c.paidMonths+'</b> 个月</span></div>';
+  html+='<p class="muted" style="margin:6px 0 0">按当前年份汇总全年数据；各月工资与单价取当月冻结值，改设置不会重算已记账的月份。</p></div>';
+  /* 逐月明细：点月份直接去那个月的月度视图，保持和年历一致的跳转体验 */
+  html+='<div class="card"><h2>逐月明细</h2><table><thead><tr><th>月份</th>'
+    +'<th class="num">工作日</th><th class="num">出勤</th><th class="num">课时</th>'
+    +'<th class="num">晚修</th><th class="num">① 基本</th><th class="num">② 超出</th>'
+    +'<th class="num">③ 课时费</th><th class="num">④ 晚修费</th><th class="num">应发</th></tr></thead><tbody>';
+  c.months.forEach(function(m){
+    var mm=parseInt(m.ym.slice(5,7),10);
+    html+='<tr><td><button class="ym-go" data-ym="'+m.ym+'">'+mm+' 月</button></td>'
+      +'<td class="num">'+m.workdays+'</td><td class="num">'+fmtShort(m.actual)+'</td>'
+      +'<td class="num">'+m.lessons+'</td><td class="num">'+m.nightCount+'</td>'
+      +'<td class="num">'+fmtShort(m.basePart)+'</td><td class="num">'+fmtShort(m.extraPart)+'</td>'
+      +'<td class="num">'+fmtShort(m.lessonFee)+'</td><td class="num">'+fmtShort(m.nightFee)+'</td>'
+      +'<td class="num">'+fmtShort(m.total)+'</td></tr>';
+  });
+  html+='<tr class="total"><td>全年合计</td>'
+    +'<td class="num">'+c.workdays+'</td><td class="num">'+fmtShort(c.actual)+'</td>'
+    +'<td class="num">'+c.lessons+'</td><td class="num">'+c.nightCount+'</td>'
+    +'<td class="num">'+fmtShort(c.basePart)+'</td><td class="num">'+fmtShort(c.extraPart)+'</td>'
+    +'<td class="num">'+fmtShort(c.lessonFee)+'</td><td class="num">'+fmtShort(c.nightFee)+'</td>'
+    +'<td class="num">'+fmtShort(c.total)+'</td></tr></tbody></table>';
+  html+='<p class="muted" style="margin:10px 0 0">全年应发 = ① + ② + ③ + ④ 之和；空月份按默认全勤口径照常计算，和月度看到的结果一致。</p></div>';
+  v.innerHTML=html;
+  $("sumPrevY").addEventListener("click",function(){SUM_YEAR=yr-1;renderSumYear();});
+  $("sumNextY").addEventListener("click",function(){SUM_YEAR=yr+1;renderSumYear();});
+  Array.prototype.forEach.call(v.querySelectorAll(".ym-go"),function(b){
+    b.addEventListener("click",function(){CUR=b.dataset.ym;SUM_MODE="month";renderSum();});
+  });
+}
+
 function renderSum(){
+  if(SUM_MODE==="year"){renderSumYear();return;}
   var c=computeMonth(CUR);
   var v=$("view-sum");
   var rows="";
@@ -3304,7 +3415,9 @@ function renderSum(){
   }
   if(!rows)rows="<tr><td colspan='7' class='faint'>"+(SUM_ONLY?"本月没有有课、晚修或有备注的日子":"本月还没有记录")+"</td></tr>";
 
-  var html="";
+  var html='<div class="bar"><span></span><div class="chips">'
+    +'<span class="chip active b">月度</span><button class="chip b" id="sumToYear" style="cursor:pointer">年度</button>'
+    +'</div></div>';
   html+='<div class="card">';
   html+='<h2>'+y+' 年 '+m+' 月 · 工资核对</h2>';
   html+='<div class="grid2"><div>';
@@ -3387,6 +3500,9 @@ function renderSum(){
   html+='<table class="detail"><thead><tr><th>日期</th><th>上午</th><th>下午</th><th class="num">课时</th><th>档位</th><th class="num">晚修</th><th>备注</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   v.innerHTML=html;
 
+  $("sumToYear").addEventListener("click",function(){
+    SUM_MODE="year"; SUM_YEAR=y; renderSum();
+  });
   $("sumWorkdays").addEventListener("change",function(){
     var val=parseFloat(this.value); if(isNaN(val)||val<0)val=0;
     var p=monthP(CUR); p.workdays=val; freezeMonth(CUR); persist().then(function(){renderSum();renderCal();});

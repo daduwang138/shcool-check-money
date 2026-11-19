@@ -765,6 +765,62 @@ function computeMonth(db, ym) {
   return out;
 }
 
+/* 年度汇总：逐月走 computeMonth 再累加，年度和月度用同一套算法，
+   不会出现「年度和月度算法不一致」这种最难查的错。
+   可加项（天数、次数、金额）直接累加；「率 / 单价 / 当月参数」不可加，
+   年度口径下换成加权值或留空，由页面按 out.rateMode 决定显示方式。 */
+function computeYear(db, year) {
+  var yr = parseInt(year, 10);
+  if (isNaN(yr) || yr < 1) { return null; }
+  var out = {
+    year: yr, months: [], paidMonths: 0,
+    workdays: 0, actual: 0, lessons: 0, filledDays: 0, ghostDays: 0,
+    basePart: 0, extraPart: 0, lessonFee: 0, nightFee: 0,
+    nightCount: 0, nightHours: 0,
+    counted: { work: 0, inv: 0, ot: 0, leave: 0 },
+    byRate: {}, checkedMonths: 0
+  };
+  for (var mon = 1; mon <= 12; mon++) {
+    var ym = dk(yr, mon, 1).slice(0, 7);
+    var cur = computeMonth(db, ym);
+    out.months.push(cur);
+    if (cur.filledDays > 0) { out.paidMonths++; }
+    if (cur.checked) { out.checkedMonths++; }
+    out.workdays += cur.workdays;
+    out.actual += cur.actual;
+    out.lessons += cur.lessons;
+    out.filledDays += cur.filledDays;
+    out.ghostDays += cur.ghostDays;
+    out.basePart += cur.basePart;
+    out.extraPart += cur.extraPart;
+    out.lessonFee += cur.lessonFee;
+    out.nightFee += cur.nightFee;
+    out.nightCount += cur.nightCount;
+    out.nightHours += cur.nightHours;
+    Object.keys(out.counted).forEach(function (key) { out.counted[key] += cur.counted[key] || 0; });
+    /* 各档课时全年累计：同档不同月的冻结价可能不同，fee 累加、price 留空
+       （页面只显示该档总节数与总金额，不显示一个不存在的「全年单价」） */
+    (cur.byRate || []).forEach(function (rate) {
+      var slot = out.byRate[rate.id];
+      if (!slot) { slot = out.byRate[rate.id] = { id: rate.id, name: rate.name, lessons: 0, fee: 0 }; }
+      slot.lessons += rate.lessons;
+      slot.fee += rate.fee;
+    });
+  }
+  /* 金额统一 round2：和 computeMonth 一样保留到分，避免Annual累计出现浮点尾数 */
+  ['actual', 'ghostDays', 'basePart', 'extraPart', 'lessonFee', 'nightFee', 'nightHours']
+    .forEach(function (key) { out[key] = round2(out[key]); });
+  out.byRateList = Object.keys(out.byRate).map(function (id) {
+    var rateRow = out.byRate[id];
+    rateRow.fee = round2(rateRow.fee);
+    return rateRow;
+  });
+  out.total = round2(PAY_ITEMS.reduce(function (sum, it) {
+    return sum + (out[it.key] || 0);
+  }, 0));
+  return out;
+}
+
 /* 核对单文本：电脑版复制到剪贴板、小程序复制到微信，两版必须逐字一致 */
 function sumText(c){
   var p=ymd(c.ym+"-01");
@@ -959,6 +1015,7 @@ module.exports = {
   blankDB: blankDB, normalize: normalize, peek: peek, hasContent: hasContent, dayCount: dayCount,
   defaultHalf: defaultHalf, effHalf: effHalf, isGhostHalf: isGhostHalf, isGhost: isGhost,
   setRecord: setRecord, monthP: monthP, freezeMonth: freezeMonth, computeMonth: computeMonth,
+  computeYear: computeYear,
   sumText: sumText, noteTags: noteTags, monthNotes: monthNotes,
   ratesOf: ratesOf, rateName: rateName, priceOf: priceOf, nightOf: nightOf,
   monthTouched: monthTouched, monthBase: monthBase, monthRate: monthRate,

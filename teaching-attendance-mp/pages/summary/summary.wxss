@@ -2,6 +2,27 @@
   padding: 16rpx 0 40rpx;
 }
 
+/* 月度 / 年度切换：默认停在月度，年度是用户主动选的第二个视角 */
+.mode-tabs {
+  display: flex;
+  gap: 12rpx;
+  padding: 0 24rpx 14rpx;
+}
+.mt {
+  padding: 10rpx 30rpx;
+  border: 1rpx solid #E7E5DD;
+  border-radius: 999rpx;
+  background: #FFFFFF;
+  color: #656A72;
+  font-size: 24rpx;
+}
+.mt.on {
+  border-color: #1B5E9B;
+  background: #EDF4FA;
+  color: #1B5E9B;
+  font-weight: 600;
+}
+
 .topbar {
   display: flex;
   align-items: center;
