@@ -13,12 +13,26 @@ function checkWxml(name, src) {
   const re = /<(\/?)([a-zA-Z-]+)([^>]*?)(\/?)>/g;
   let m;
   while ((m = re.exec(src))) {
-    const [, close, tag, , self] = m;
+    const [, close, tag, attrs, self] = m;
+    /* 微信编译陷阱：wx:if 和 wx:for 写在同一标签时 for 优先级更高，if 会失效，
+       紧跟的 wx:else 报「wx:if not found」。预览编译器不校验这条，只有微信开发者工具报。
+       只拦这一种确定的坏写法：同标签 wx:if+wx:for，且下一个开标签是 wx:else。
+       合法写法是把 wx:if 提到 <block> 上、wx:for 留在内层 text。 */
+    if (/\bwx:if\b/.test(attrs) && /\bwx:for\b/.test(attrs)) {
+      const after = src.slice(m.index + m[0].length);
+      /* 跳过可能的文本内容和闭合标签，找下一个开标签（wx:else 常规写法就紧跟其后） */
+      const next = after.match(/^(?:[^<]*<\/[a-zA-Z-]+>)*[^<]*<([a-zA-Z-]+)([^>]*)>/);
+      if (next && /\bwx:else\b|\bwx:elif\b/.test(next[2])) {
+        bad.push(name + ' 的 wx:if 与 wx:for 同标签且紧跟 wx:else，微信会编译失败：<' + tag + '>');
+      }
+    }
     if (self || ['input', 'image', 'icon'].includes(tag)) continue;
     if (close) {
       const top = stack.pop();
       if (top !== tag) bad.push(name + ' 标签不匹配：</' + tag + '> 对上 <' + top + '>');
-    } else stack.push(tag);
+    } else {
+      stack.push(tag);
+    }
   }
   if (stack.length) bad.push(name + ' 未闭合标签：' + stack.join(','));
 }

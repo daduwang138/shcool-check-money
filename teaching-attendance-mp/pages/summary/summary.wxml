@@ -32,7 +32,9 @@
       <text class="amt">{{mode === 'year' ? yearHead.value : total}}</text>
     </view>
     <view class="hero-sub">
-      <text class="hs" wx:if="{{mode === 'month'}}" wx:for="{{heroSubs}}" wx:key="k">{{item.k}} {{item.v}}</text>
+      <block wx:if="{{mode === 'month'}}">
+        <text class="hs" wx:for="{{heroSubs}}" wx:key="k">{{item.k}} {{item.v}}</text>
+      </block>
       <text class="hs" wx:else>{{yearHead.sub}}</text>
     </view>
   </view>
