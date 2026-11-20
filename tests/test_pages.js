@@ -241,7 +241,10 @@ const nkey = '2026-11-06';
 ncal.openSheet(nkey);
 ok(ncal.data.sheet.nightOn === true, '有单价时面板显示晚修监考');
 ok(ncal.data.sheet.night === 0, '没记过的日子是 0 次');
-ok(ncal.data.nightHint === '每次 2 小时 · 10 元（一晚最多 2 次）', '提示写清每次时长和钱、一晚上限', ncal.data.nightHint);
+/* 面板里那块窄，提示拆成两行；三条事实（时长 / 单价 / 一晚上限）一个都不能少 */
+const nightTxt = (ncal.data.nightHints || []).join(' ');
+ok(/2 小时/.test(nightTxt) && /10 元/.test(nightTxt) && /最多 2 次/.test(nightTxt),
+  '提示写清每次时长和钱、一晚上限', nightTxt);
 ncal.stepNight({ currentTarget: { dataset: { d: 1 } } });
 ok(ncal.data.sheet.night === 2, '点一下记 2 次');
 ncal.stepNight({ currentTarget: { dataset: { d: 1 } } });

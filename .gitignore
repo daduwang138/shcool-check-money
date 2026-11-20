@@ -19,3 +19,6 @@ tests/out/
 
 # 预览与调试的临时产物
 .tmp/
+
+# 本地功能梳理文档（不入库）
+teaching-attendance-mp/小程序功能梳理.md

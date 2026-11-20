@@ -35,6 +35,7 @@ Page({
     rates: [],
     nightHint: '',
     sheet: null,
+    compact: false,
     bulk: null,
     bulkWd: [],
     bulkSts: BULK_ST,
@@ -653,10 +654,26 @@ Page({
     var ni = r ? (parseInt(r.night, 10) || 0) : 0;
     var nf = parseFloat(db.settings.nightFee) || 0;
     var nh = parseFloat(db.settings.nightHours) || 0;
+    /* 面板要求「一屏放完、不滚动」。正常机型用大号按钮，小屏（SE / 4 寸安卓）
+       换 ds-compact 压一档尺寸——只改 CSS，内容一项不少。
+       不用 @media：那会让 WXSS 编译器和旧版开发者工具互相别扭。 */
+    var compact = false;
+    try {
+      var win = (typeof wx.getWindowInfo === 'function') ? wx.getWindowInfo() : wx.getSystemInfoSync();
+      /* 阈值按真机窗口高度取：iPhone 8 约 554、SE 约 455、主流安卓 520 上下，
+         540 以下才压一档，别把 6.1 寸以下的常见机型也压小 */
+      compact = (win.windowWidth || 375) <= 330 || (win.windowHeight || 700) <= 540;
+    } catch (e) { compact = false; }
     this.setData({
+      compact: compact,
       /* 档位随设置页变动，每次点开重算一遍，别缓存到页面 data 里 */
       rates: core.ratesOf(db).map(function (r) { return { id: r.id, name: r.name, price: r.price }; }),
-      nightHint: '每次 ' + core.fmtShort(nh) + ' 小时 · ' + core.fmtShort(nf) + ' 元（一晚最多 2 次）',
+      /* 面板里这块只有 230rpx 宽，一行塞不下「时长 + 单价 + 上限」，
+         拆成两行短句：上面写单价、下面写一晚的上限，都不折行 */
+      nightHints: [
+        core.fmtShort(nh) + ' 小时 · ' + core.fmtShort(nf) + ' 元/次',
+        '一晚最多 2 次'
+      ],
       sheet: {
         key: k,
         title: parseInt(k.slice(5, 7), 10) + ' 月 ' + parseInt(k.slice(8), 10) + ' 日',
