@@ -888,8 +888,9 @@ function sumText(c){
    这两个函数只做整理，不改数据：备注一直是 days[k].note，没加新字段、没动备份格式。
    常用标签不另存一份「配置」——账本里写过的备注本来就是最好的候选，
    换设备导入 JSON 后照样认得。 */
+var NOTE_PRESETS = ['四六级', '竞赛', '期中', '期末', '月考', '模考'];
 function noteTags(db, limit) {
-  var presets = ['四六级', '竞赛', '期中', '期末', '月考', '模考'];
+  var presets = NOTE_PRESETS;
   var seen = {}, out = [];
   presets.forEach(function (t) { seen[t] = 1; out.push(t); });
   var cap = limit === undefined ? 4 : Math.max(0, limit);
@@ -906,6 +907,13 @@ function noteTags(db, limit) {
   /* 最近改过的排前面；老备份没有 upd 就按日期倒序 */
   used.sort(function (a, b) { return (b.upd - a.upd) || (a.k < b.k ? 1 : -1); });
   return out.concat(used.slice(0, cap).map(function (x) { return x.v; }));
+}
+
+/* 界面分组：预设（短词）和自写（可能是长句）分开显示，避免长短混排参差。
+   数据仍来自同一个 noteTags，两版同一套，不在界面另存一份。 */
+function noteTagGroups(db) {
+  var all = noteTags(db);
+  return { presets: NOTE_PRESETS.slice(), recent: all.slice(NOTE_PRESETS.length) };
 }
 
 function monthNotes(db, ym) {
@@ -1047,7 +1055,8 @@ module.exports = {
   defaultHalf: defaultHalf, effHalf: effHalf, isGhostHalf: isGhostHalf, isGhost: isGhost,
   setRecord: setRecord, monthP: monthP, freezeMonth: freezeMonth, computeMonth: computeMonth,
   computeYear: computeYear,
-  sumText: sumText, noteTags: noteTags, monthNotes: monthNotes,
+  sumText: sumText, noteTags: noteTags, noteTagGroups: noteTagGroups,
+  NOTE_PRESETS: NOTE_PRESETS, monthNotes: monthNotes,
   ratesOf: ratesOf, rateName: rateName, priceOf: priceOf, nightOf: nightOf,
   monthTouched: monthTouched, monthBase: monthBase, monthRate: monthRate,
   syncBaseForward: syncBaseForward,

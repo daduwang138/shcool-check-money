@@ -1380,7 +1380,9 @@ reset();
   ok(c16 && !c16.hasNote, '日历·没写备注的不点亮');
 
   nCal.openSheet('2026-11-15');
-  ok(nCal.data.sheet.tags.length === 9, '面板·点开就给出快捷标签', String(nCal.data.sheet.tags.length));
+  ok(nCal.data.sheet.tags.length === 6 && nCal.data.sheet.recentTags.length === 3,
+    '面板·标签分两组（6预设+3自写）',
+    nCal.data.sheet.tags.length + '+' + nCal.data.sheet.recentTags.length);
   nCal.tapTag({ currentTarget: { dataset: { v: '四六级' } } });
   ok(nCal.data.sheet.note === '四六级' && nCal._note === '四六级',
     '面板·点标签同时改输入框和暂存值', nCal.data.sheet.note + ' / ' + nCal._note);

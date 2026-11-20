@@ -629,16 +629,23 @@
   font-size: 26rpx;
 }
 
-/* 备注快捷标签：高频考试一点就填，账本里自己写过的考试名也跟在后面。
-   不另存「常用标签」配置，换设备导入备份后照样认得 */
+/* 备注快捷标签：预设短词一行、自写长句一行，两组分开不再长短混排。
+   自写的可能是一整句话，单行截断显示，点一下仍填完整内容。 */
+.tag-group { margin-top: 14rpx; }
+.tag-label {
+  display: block;
+  color: #8A8377;
+  font-size: 20rpx;
+  margin-bottom: 8rpx;
+}
 .tag-row {
   display: flex;
   flex-wrap: wrap;
-  margin-top: 12rpx;
+  gap: 10rpx;
 }
 
 .tag {
-  margin: 0 10rpx 10rpx 0;
+  max-width: 100%;
   padding: 8rpx 16rpx;
   border: 1rpx solid #E4E1D8;
   border-radius: 999rpx;
@@ -646,7 +653,13 @@
   color: #4C5057;
   font-size: 22rpx;
   line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+/* 自写的一句话标签：整行显示 widest，单行省略，不再撑成两行 */
+.tag.recent { max-width: 100%; }
 
 .tag.on {
   border-color: #A7C3DC;
@@ -656,15 +669,15 @@
 
 .tag-hint {
   display: block;
-  margin-top: 2rpx;
-  color: #656A72;
+  margin-top: 12rpx;
+  color: #8A8377;
   font-size: 20rpx;
   line-height: 1.6;
 }
 
 .sheet-nav {
   display: flex;
-  margin-top: 24rpx;
+  margin-top: 16rpx;
 }
 .sheet-nav .btn {
   flex: 1;

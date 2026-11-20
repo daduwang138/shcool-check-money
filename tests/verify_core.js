@@ -49,7 +49,7 @@ const EXTRA_FNS = [
   'function hasContent(r){', 'function dayCount(db){', 'function localKeys(){',
   'function mergeMissingDays(src){',
   /* 备注/事项也是两版共用的纯函数，别落到覆盖之外 */
-  'function noteTags(limit){', 'function monthNotes(ym){'
+  'function noteTags(limit){', 'function noteTagGroups(){', 'function monthNotes(ym){'
 ];
 vm.runInContext(EXTRA_FNS.map(m => extractFn(html, m)).join('\n'), ctx);
 
@@ -153,6 +153,7 @@ for (const [label, raw] of cases) {
 
   eq(label + '·normalize', JSON.stringify(hdb), JSON.stringify(cdb));
   eq(label + '·noteTags', ctx.noteTags(), core.noteTags(cdb));
+  eq(label + '·noteTagGroups', ctx.noteTagGroups(), core.noteTagGroups(cdb));
   for (const ym of ['2026-09', '2026-10', '2026-11', '2027-01']) {
     eq(label + '·monthNotes ' + ym, ctx.monthNotes(ym), core.monthNotes(cdb, ym));
   }
@@ -857,6 +858,20 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
       .map(function (it) { return it.key; }), []);
 }
 
+/* ---------- 备注标签分组：预设短词与自写长句分开 ---------- */
+{
+  const db = core.normalize(core.blankDB());
+  ['考试一', '考试二', '考试三', '考试四', '考试五'].forEach(function (note, i) {
+    db.days['2026-11-0' + (i + 1)] = { note: note, upd: 1000 + i };
+  });
+  const groups = core.noteTagGroups(db);
+  eq('标签分组·预设6个', groups.presets.length, 6);
+  eq('标签分组·预设内容', groups.presets, core.NOTE_PRESETS);
+  eq('标签分组·自写取最近4个', groups.recent, ['考试五', '考试四', '考试三', '考试二']);
+  eq('标签分组·合并后等于noteTags',
+    groups.presets.concat(groups.recent), core.noteTags(db));
+}
+
 /* ---------- 10.6 schema 迁移框架 ---------- */
 {
   eq('schema·当前版本', core.SCHEMA_VERSION, 2);
@@ -931,7 +946,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('哨兵·core.js 里没有落到测试之外的函数', uncovered, []);
   eq('哨兵·白名单里的函数确实都导出了',
     MP_ONLY.filter(n => typeof core[n] !== 'function').length, 0);
-  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 63);
+  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 64);
   /* 内部函数（table / customOf / inSpan / toHalf / dateNum 等）没进 module.exports，
      但确实在 core.js 里、也被 CORE bundle 导出了，所以按源码函数清单判，不按导出对象判。 */
   eq('哨兵·转发层没有指向不存在的函数',

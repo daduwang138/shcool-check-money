@@ -622,6 +622,7 @@ Page({
     var note = r ? (r.note || '') : '';
     var exp = core.lessonsFor(db, k);
     var p = db.months[k.slice(0, 7)] || {};
+    var tagGroups = core.noteTagGroups(db);
 
     var kind;
     if (core.isHoliday(k, this.db)) { kind = '法定节假日'; }
@@ -643,8 +644,9 @@ Page({
         title: parseInt(k.slice(5, 7), 10) + ' 月 ' + parseInt(k.slice(8), 10) + ' 日',
         sub: sub,
         am: am, pm: pm, lessons: les, note: note, exp: exp,
-        /* 高频考试一点就填；账本里自己写过的考试名也跟着冒出来，不另存一份配置 */
-        tags: core.noteTags(db),
+        /* 预设短词与自写长句分开两组，避免长短混排参差 */
+        tags: tagGroups.presets,
+        recentTags: tagGroups.recent,
         rid: (r && r.rid) ? r.rid : 'default',
         /* 学校发了这个钱才显示；以前记过、现在单价调成 0 的也显示，好让人把次数清掉 */
         night: ni, nightOn: (nf > 0 || ni > 0),
