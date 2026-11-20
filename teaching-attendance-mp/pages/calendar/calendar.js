@@ -490,8 +490,10 @@ Page({
   pickBulkTo: function (e) { this._bulkPatch({ to: e.detail.value }); },
   pickBulkSt: function (e) { this._bulkPatch({ st: e.currentTarget.dataset.st }); },
   /* 批量课时步进：null=不改 → + 得 2 / − 得 0，之后 ±2，夹 0~20 */
+  /* 按钮传方向 ±1，这里 ×2 成实际增量（和单日 stepLesson 一致）；
+     内核 bulkLessonStep 的 delta 是实际增量，两版都按这个约定 */
   stepBulkLes: function (e) {
-    var d = parseInt(e.currentTarget.dataset.d, 10);
+    var d = parseInt(e.currentTarget.dataset.d, 10) * 2;
     var next = core.bulkLessonStep(this.data.bulk.les, d, 20);
     this._bulkPatch({ les: next });
   },

@@ -527,6 +527,21 @@ ok(core.bulkLessonStep(null, -2) === 0, '课时步进·不改时−得0');
 ok(core.bulkLessonStep(2, 2) === 4, '课时步进·2再加得4');
 ok(core.bulkLessonStep(20, 2) === 20, '课时步进·封顶20');
 ok(core.bulkLessonStep(0, -2) === 0, '课时步进·0减不越界');
+/* 关键：测按钮事件本身（wxml 传方向 ±1，处理器要 ×2）。
+   只测内核函数抓不到「wxml 传 1、处理器忘了乘 2」这类界面 bug。 */
+const bcalStep = makePage('calendar');
+bcalStep.onLoad();
+bcalStep.openBulk();
+bcalStep.stepBulkLes({ currentTarget: { dataset: { d: 1 } } });
+ok(bcalStep.data.bulk.les === 2, '按钮·点一次+是2节不是1节', String(bcalStep.data.bulk.les));
+bcalStep.stepBulkLes({ currentTarget: { dataset: { d: 1 } } });
+ok(bcalStep.data.bulk.les === 4, '按钮·再点一次是4节', String(bcalStep.data.bulk.les));
+bcalStep.stepBulkLes({ currentTarget: { dataset: { d: -1 } } });
+ok(bcalStep.data.bulk.les === 2, '按钮·点一次−减2节', String(bcalStep.data.bulk.les));
+bcalStep.resetBulkLes();
+ok(bcalStep.data.bulk.les === null, '按钮·还原回不改', String(bcalStep.data.bulk.les));
+bcalStep.stepBulkLes({ currentTarget: { dataset: { d: -1 } } });
+ok(bcalStep.data.bulk.les === 0, '按钮·不改时点−是0节清零', String(bcalStep.data.bulk.les));
 /* 批量设正数：这些天课时都变成 4，且算手填锁定 */
 const bcalL = makePage('calendar');
 bcalL.onLoad();
