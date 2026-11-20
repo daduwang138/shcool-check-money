@@ -379,8 +379,8 @@ function blankDB() {
   return {
     v: SCHEMA_VERSION, savedAt: 0,
     settings: {
-      owner: '', baseSalary: 0, rate: 0,
-      rates: [{ id: 'default', name: '正课', price: 0 }],
+      owner: '', baseSalary: 0, rate: 30,
+      rates: [{ id: 'default', name: '正课', price: 30 }],
       /* 晚修监考：按次计，不算课时也不占出勤半天 */
       nightHours: 2, nightFee: 10,
       enableBase: true, enableLesson: true, enableInv: true, enableOt: true, autoWork: true,
@@ -646,6 +646,22 @@ function monthBase(db, ym) {
 function monthRate(db, ym) {
   var p = db.months[ym];
   return (p && p.rate != null) ? p.rate : db.settings.rate;
+}
+
+/* 改基本工资时，把「当前自然月及以后」已冻结的 base 同步成新值。
+   历史月份保持原冻结值不动（改价不追溯的边界）；没冻结的月份本来就跟设置走，不用动。
+   返回改了几个月，给页面提示用。今天可传入便于测试，默认取系统当天。 */
+function syncBaseForward(db, value, today) {
+  var cur = String(today || todayKey()).slice(0, 7);
+  var changed = 0;
+  Object.keys((db && db.months) || {}).forEach(function (ym) {
+    if (ym < cur) { return; }
+    var params = db.months[ym];
+    if (!params || params.base == null || params.base === value) { return; }
+    params.base = value;
+    changed++;
+  });
+  return changed;
 }
 
 /* 课时档位：默认档（正课）的价格仍由 settings.rate 管，其余档放 settings.rates。
@@ -1019,6 +1035,7 @@ module.exports = {
   sumText: sumText, noteTags: noteTags, monthNotes: monthNotes,
   ratesOf: ratesOf, rateName: rateName, priceOf: priceOf, nightOf: nightOf,
   monthTouched: monthTouched, monthBase: monthBase, monthRate: monthRate,
+  syncBaseForward: syncBaseForward,
   fillLessonsFromCourses: fillLessonsFromCourses, autoFillLessons: autoFillLessons,
   ymOf: ymOf, isYm: isYm, addMonths: addMonths, monthsBetween: monthsBetween,
   monthKeysOf: monthKeysOf, daysInMonth: daysInMonth, firstWeekdayOf: firstWeekdayOf,

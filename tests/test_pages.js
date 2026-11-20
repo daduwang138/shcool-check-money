@@ -748,8 +748,22 @@ set.cycleWeek({ currentTarget: { dataset: { i: 1 } } });
 ok(current().settings.weekPattern[1] === 0.5, '点一下变半天', current().settings.weekPattern[1]);
 set.cycleWeek({ currentTarget: { dataset: { i: 1 } } });
 ok(current().settings.weekPattern[1] === 0, '再点变休息');
+/* 聚焦时纯 0 清空，避免接着输入变 08500；0.5 等合法值不动 */
+set.clearZero({ detail: { value: '0' } });
+ok(set.data.baseSalary === '', '工资框聚焦清空前置0', JSON.stringify(set.data.baseSalary));
+set.setData({ baseSalary: '0.5' });
+set.clearZero({ detail: { value: '0.5' } });
+ok(set.data.baseSalary === '0.5', '工资框不清合法小数', String(set.data.baseSalary));
 set.setSalary({ detail: { value: '9000' } });
 ok(current().settings.baseSalary === 9000, '基本工资可改');
+/* 改工资同步当月及以后：历史冻结不动 */
+const nowYm = core.todayKey().slice(0, 7);
+const histYm = core.addMonths(nowYm, -1);
+set.db.months[histYm] = { base: 8000 };
+set.db.months[nowYm] = { base: 8000 };
+set.setSalary({ detail: { value: '10000' } });
+ok(set.db.months[histYm].base === 8000, '改工资不动历史月份', String(set.db.months[histYm].base));
+ok(set.db.months[nowYm].base === 10000, '改工资同步当月冻结值', String(set.db.months[nowYm].base));
 set.toggle({ currentTarget: { dataset: { key: 'autoWork' } }, detail: { value: false } });
 ok(current().settings.autoWork === false, '默认出勤开关可关');
 set.pickStart({ detail: { value: '2026-10-08' } });

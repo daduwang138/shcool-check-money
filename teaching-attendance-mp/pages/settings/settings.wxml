@@ -10,14 +10,14 @@
     <view class="row">
       <view class="col">
         <text class="row-label">基本工资默认值（元/月）</text>
-        <text class="sub">按法定工作日折算成日薪；这里改的是默认值，已记账的月份不跟着变；当月实际用的值在汇总页「本月参数」</text>
+        <text class="sub">按法定工作日折算成日薪；改这里会同步当月（自然月）及以后已记账的月份，更早的月份保持原值；当月实际用的值在汇总页「本月参数」</text>
       </view>
       <switch checked="{{enableBase}}" data-key="enableBase" bindchange="toggle" color="#1B5E9B" />
     </view>
     <view class="row">
       <text class="row-label">金额（元）</text>
-      <input class="num-in {{enableBase ? '' : 'dim'}}" type="digit" value="{{baseSalary}}" bindblur="setSalary"
-        disabled="{{!enableBase}}" />
+      <input class="num-in {{enableBase ? '' : 'dim'}}" type="digit" value="{{baseSalary}}" bindfocus="clearZero"
+        bindblur="setSalary" disabled="{{!enableBase}}" />
     </view>
 
     <view class="row">

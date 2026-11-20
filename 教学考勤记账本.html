@@ -1297,8 +1297,8 @@ function blankDB() {
   return {
     v: SCHEMA_VERSION, savedAt: 0,
     settings: {
-      owner: '', baseSalary: 0, rate: 0,
-      rates: [{ id: 'default', name: '正课', price: 0 }],
+      owner: '', baseSalary: 0, rate: 30,
+      rates: [{ id: 'default', name: '正课', price: 30 }],
       /* 晚修监考：按次计，不算课时也不占出勤半天 */
       nightHours: 2, nightFee: 10,
       enableBase: true, enableLesson: true, enableInv: true, enableOt: true, autoWork: true,
@@ -1564,6 +1564,22 @@ function monthBase(db, ym) {
 function monthRate(db, ym) {
   var p = db.months[ym];
   return (p && p.rate != null) ? p.rate : db.settings.rate;
+}
+
+/* 改基本工资时，把「当前自然月及以后」已冻结的 base 同步成新值。
+   历史月份保持原冻结值不动（改价不追溯的边界）；没冻结的月份本来就跟设置走，不用动。
+   返回改了几个月，给页面提示用。今天可传入便于测试，默认取系统当天。 */
+function syncBaseForward(db, value, today) {
+  var cur = String(today || todayKey()).slice(0, 7);
+  var changed = 0;
+  Object.keys((db && db.months) || {}).forEach(function (ym) {
+    if (ym < cur) { return; }
+    var params = db.months[ym];
+    if (!params || params.base == null || params.base === value) { return; }
+    params.base = value;
+    changed++;
+  });
+  return changed;
 }
 
 /* 课时档位：默认档（正课）的价格仍由 settings.rate 管，其余档放 settings.rates。
@@ -1974,6 +1990,7 @@ return {
   refreshWorkdays: refreshWorkdays,
   monthBase: monthBase,
   monthRate: monthRate,
+  syncBaseForward: syncBaseForward,
   ratesOf: ratesOf,
   rateName: rateName,
   priceOf: priceOf,
@@ -2101,6 +2118,7 @@ function refreshWorkdays(y){return Core.refreshWorkdays(DB, y);}
 /* 本月实际生效的基数与单价：有冻结值用冻结值，没有就跟当前设置 */
 function monthBase(ym){return Core.monthBase(DB, ym);}
 function monthRate(ym){return Core.monthRate(DB, ym);}
+function syncBaseForward(value,today){return Core.syncBaseForward(DB, value, today);}
 
 /* 课时档位：默认档（正课）的价格仍由 settings.rate 管，其余档放 settings.rates。
    两版都从这一个函数取，避免「界面显示 120、算出来 100」这类对不上。 */
@@ -3982,7 +4000,7 @@ function renderSet(){
   var h="";
   h+='<div class="card"><h2>计薪参数</h2>';
   h+='<div class="fields">';
-  h+='<div class="field"><div><label>基本工资默认值（元/月）</label><div class="desc">用于按出勤天数折算；这里改的是默认值，已记账的月份不跟着变，要改旧月份去汇总页「本月参数」；那里显示的才是当月实际采用的值</div></div><input type="number" id="setBase" min="0" step="0.01" value="'+(s.baseSalary||0)+'"'+(s.enableBase?'':' disabled')+'></div>';
+  h+='<div class="field"><div><label>基本工资默认值（元/月）</label><div class="desc">用于按出勤天数折算；改这里会同步当月（自然月）及以后已记账的月份，更早的月份保持原值；要单独改某个月去汇总页「本月参数」</div></div><input type="number" id="setBase" min="0" step="0.01" value="'+(s.baseSalary||0)+'"'+(s.enableBase?'':' disabled')+'></div>';
   h+='<div class="field"><div><label>课时单价（元/节）</label><div class="desc">正课这类默认单价；晚自习、代课等另加档位；已记账的月份按当时冻的价</div></div><input type="number" id="setRate" min="0" step="0.01" value="'+(s.rate||0)+'"'+(s.enableLesson?'':' disabled')+'></div>';
   h+='</div>';
   /* ---------- 多档课时单价 ---------- */
@@ -4098,9 +4116,12 @@ function renderSet(){
 
   $("view-set").innerHTML=h;
 
+  /* 值为 0 时聚焦就清空，否则接着输入会变成「08500」这种前置 0；只清纯 0 */
+  $("setBase").addEventListener("focus",function(){ if(this.value==="0") this.value=""; });
   $("setBase").addEventListener("change",function(){
     var v=parseFloat(this.value);DB.settings.baseSalary=isNaN(v)?0:v;
-    persist().then(function(){toast("已保存");});
+    var changed=syncBaseForward(DB, DB.settings.baseSalary);
+    persist().then(function(){toast(changed?"已保存，当月及以后共 "+changed+" 个月同步":"已保存");renderSet();});
   });
   $("setRate").addEventListener("change",function(){
     var v=parseFloat(this.value);DB.settings.rate=isNaN(v)?0:v;

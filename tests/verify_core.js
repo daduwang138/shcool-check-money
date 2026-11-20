@@ -530,6 +530,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   const hc = ctx.computeMonth('2026-10');
   const cc = core.computeMonth(c, '2026-10');
 
+  eq('新库默认课时单价 30 元', [core.blankDB().settings.rate, core.blankDB().settings.rates[0].price], [30, 30]);
   eq('晚修·新库默认 2 小时 10 元', [core.blankDB().settings.nightHours, core.blankDB().settings.nightFee], [2, 10]);
   eq('晚修·老备份补上默认价', [plain.settings.nightHours, plain.settings.nightFee], [2, 10]);
   eq('晚修·两版逐字段一致', hc, cc);
@@ -923,7 +924,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('哨兵·core.js 里没有落到测试之外的函数', uncovered, []);
   eq('哨兵·白名单里的函数确实都导出了',
     MP_ONLY.filter(n => typeof core[n] !== 'function').length, 0);
-  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 62);
+  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 63);
   /* 内部函数（table / customOf / inSpan / toHalf / dateNum 等）没进 module.exports，
      但确实在 core.js 里、也被 CORE bundle 导出了，所以按源码函数清单判，不按导出对象判。 */
   eq('哨兵·转发层没有指向不存在的函数',
@@ -1108,6 +1109,30 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('年度·HTML 版课时一致', hy.lessons, yc.lessons);
   eq('年度·HTML 版晚修一致', hy.nightCount, yc.nightCount);
   eq('年度·HTML 版月份数一致', hy.months.length, yc.months.length);
+}
+
+/* ---------- 改工资同步当月及以后：历史冻结不动 ---------- */
+{
+  const db = core.normalize(core.blankDB());
+  /* 10 月（历史）、11 月（当月）、12 月（以后）都冻了旧值 8000；
+     次年 1 月没冻结（base 为 null）不该被写入；另造一条历史未冻结的 9 月 */
+  db.months['2026-10'] = { base: 8000 };
+  db.months['2026-11'] = { base: 8000 };
+  db.months['2026-12'] = { base: 8000 };
+  db.months['2027-01'] = {};
+  const n = core.syncBaseForward(db, 9000, '2026-11-20');
+  eq('工资同步·改动月份数=2（当月+以后）', n, 2);
+  eq('工资同步·历史10月不动', db.months['2026-10'].base, 8000);
+  eq('工资同步·当月11月改新值', db.months['2026-11'].base, 9000);
+  eq('工资同步·以后12月改新值', db.months['2026-12'].base, 9000);
+  eq('工资同步·未冻结的次月不写入', db.months['2027-01'].base, undefined);
+  eq('工资同步·重跑不再计数', core.syncBaseForward(db, 9000, '2026-11-20'), 0);
+  /* 两版转发层一致 */
+  ctx.DB = JSON.parse(JSON.stringify(db));
+  ctx.DB.months['2026-11'].base = 8000;
+  ctx.DB.months['2026-12'].base = 8000;
+  eq('工资同步·HTML版当月改新值', ctx.syncBaseForward(9000, '2026-11-20'), 2);
+  eq('工资同步·HTML版历史不动', ctx.DB.months['2026-10'].base, 8000);
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项；逐日核对 ' + dayChecked + ' 天');

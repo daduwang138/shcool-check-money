@@ -100,12 +100,21 @@ Page({
     store.commit();
   },
 
+  /* 值为 0 时聚焦就清空，否则接着输入会变成「08500」这种前置 0。
+     只清纯 0，不动 0.5 这类合法小数。 */
+  clearZero: function (e) {
+    if (String(e.detail.value) === '0') { this.setData({ baseSalary: '' }); }
+  },
+
   setSalary: function (e) {
     var v = parseFloat(e.detail.value);
     if (isNaN(v) || v < 0) { this.render(); return; }
     this.db.settings.baseSalary = v;
+    /* 当月（自然月）及以后已冻结的工资跟着改，历史月份不动 */
+    var changed = core.syncBaseForward(this.db, v);
     store.commit();
     this.render();
+    wx.showToast({ title: changed ? ('当月及以后 ' + changed + ' 个月已同步') : '已保存', icon: 'none' });
   },
 
   setRate: function (e) {
