@@ -170,101 +170,95 @@
   <view class="safe"></view>
 </view>
 
-<view class="mask" wx:if="{{sheet}}" bindtap="closeSheet" catchtouchmove="noop"></view>
-
-<!-- 单日面板：整屏一版放下，不滚动。
-     结构 = 紧凑表头（日期 + 翻天箭头）→ 五行「标签 + 控件」→ 备注 → 底部按钮，
-     标签占固定窄列，控件共用一条右边界，比原来「标题一行、控件一行」省掉近一屏。 -->
-<view class="sheet ds-sheet {{compact ? 'ds-compact' : ''}}" wx:if="{{sheet}}">
-  <view class="ds-head">
-    <view class="ds-head-main">
-      <text class="ds-date">{{sheet.title}}</text>
-      <text class="ds-meta">{{sheet.sub}}</text>
+<!-- 单日编辑：整屏一页，不是半个弹层。
+     顶部「取消 · 日期 · 完成」承担导航与提交，下面三张分组卡：出勤 / 课时与晚修 / 备注。
+     打开时把 tabBar 收起来（见 openSheet），关掉再放回来，这样才是完整的一页。 -->
+<view class="dp {{compact ? 'dp-compact' : ''}}" wx:if="{{sheet}}">
+  <view class="dp-head">
+    <text class="dp-cancel" bindtap="closeSheet">取消</text>
+    <view class="dp-head-main">
+      <view class="dp-title-row">
+        <view class="dp-arrow" hover-class="dp-arrow-hover" data-d="-1" bindtap="stepDay">‹</view>
+        <text class="dp-date">{{sheet.title}}</text>
+        <view class="dp-arrow" hover-class="dp-arrow-hover" data-d="1" bindtap="stepDay">›</view>
+      </view>
+      <text class="dp-meta">{{sheet.sub}}</text>
     </view>
-    <view class="ds-ops">
-      <view class="ds-op" hover-class="ds-op-hover" data-d="-1" bindtap="stepDay">‹</view>
-      <view class="ds-op" hover-class="ds-op-hover" data-d="1" bindtap="stepDay">›</view>
-      <view class="ds-x" bindtap="closeSheet">✕</view>
-    </view>
+    <text class="dp-save" bindtap="saveSheet">完成</text>
   </view>
 
-  <view class="ds-row">
-    <text class="ds-label">上午</text>
-    <view class="ds-segs">
-      <view wx:for="{{opts}}" wx:key="k" class="seg {{item.cls}} {{sheet.am === item.k ? 'on' : ''}}"
-            data-which="am" data-v="{{item.k}}" bindtap="pickHalf">{{item.label}}</view>
-    </view>
-  </view>
-
-  <view class="ds-row">
-    <text class="ds-label">下午</text>
-    <view class="ds-segs">
-      <view wx:for="{{opts}}" wx:key="k" class="seg {{item.cls}} {{sheet.pm === item.k ? 'on' : ''}}"
-            data-which="pm" data-v="{{item.k}}" bindtap="pickHalf">{{item.label}}</view>
-    </view>
-  </view>
-
-  <!-- 课时 / 晚修 / 计价 放在一块浅色底上：和上面的「出勤」分开，
-       眼睛一眼能看出这是两件事，不用再加一行小标题占高度 -->
-  <view class="ds-group">
-    <view class="ds-row">
-      <text class="ds-label">课时</text>
-      <view class="ds-step">
-        <view class="ds-btn" hover-class="ds-btn-hover" data-d="-1" bindtap="stepLesson">−</view>
-        <text class="ds-val">{{sheet.lessons}}</text>
-        <view class="ds-btn" hover-class="ds-btn-hover" data-d="1" bindtap="stepLesson">＋</view>
-      </view>
-      <view class="ds-quicks">
-        <text class="ds-quick" wx:if="{{sheet.exp > 0}}" bindtap="useSchedule">课表 {{sheet.exp}} 节</text>
-        <text class="ds-quick" bindtap="useCommon4">常用 4 节</text>
-      </view>
-    </view>
-
-    <view class="ds-row" wx:if="{{sheet.nightOn}}">
-      <text class="ds-label">晚修</text>
-      <view class="ds-step">
-        <view class="ds-btn" hover-class="ds-btn-hover" data-d="-1" bindtap="stepNight">−</view>
-        <text class="ds-val">{{sheet.night}}</text>
-        <view class="ds-btn" hover-class="ds-btn-hover" data-d="1" bindtap="stepNight">＋</view>
-      </view>
-      <view class="ds-hint">
-        <text class="ds-hint-l" wx:for="{{nightHints}}" wx:key="*this">{{item}}</text>
-      </view>
-    </view>
-
-    <view class="ds-row" wx:if="{{sheet.lessons > 0 && rates.length > 1}}">
-      <text class="ds-label">计价</text>
-      <view class="ds-rates">
-        <view wx:for="{{rates}}" wx:key="id" class="seg rate-seg {{sheet.rid === item.id ? 'on' : ''}}"
-          data-id="{{item.id}}" bindtap="pickRate">
-          <text class="rate-seg-name">{{item.name}}</text>
-          <text class="rate-seg-price">{{item.price}} 元</text>
+  <view class="dp-body">
+    <view class="dp-form">
+      <view class="dp-card">
+        <view class="dp-row">
+          <text class="dp-label">上午</text>
+          <view class="dp-segs">
+            <view wx:for="{{opts}}" wx:key="k" class="seg {{item.cls}} {{sheet.am === item.k ? 'on' : ''}}"
+                  data-which="am" data-v="{{item.k}}" bindtap="pickHalf">{{item.label}}</view>
+          </view>
+        </view>
+        <view class="dp-row">
+          <text class="dp-label">下午</text>
+          <view class="dp-segs">
+            <view wx:for="{{opts}}" wx:key="k" class="seg {{item.cls}} {{sheet.pm === item.k ? 'on' : ''}}"
+                  data-which="pm" data-v="{{item.k}}" bindtap="pickHalf">{{item.label}}</view>
+          </view>
         </view>
       </view>
-    </view>
-  </view>
 
-  <input class="ds-note" value="{{sheet.note}}" placeholder="备注：记一笔，方便日后查找" maxlength="60" bindinput="onNote" />
+      <view class="dp-card">
+        <view class="dp-row">
+          <text class="dp-label">课时</text>
+          <view class="dp-step">
+            <view class="dp-btn" hover-class="dp-btn-hover" data-d="-1" bindtap="stepLesson">−</view>
+            <text class="dp-val">{{sheet.lessons}}</text>
+            <view class="dp-btn" hover-class="dp-btn-hover" data-d="1" bindtap="stepLesson">＋</view>
+          </view>
+          <view class="dp-quicks">
+            <text class="dp-quick" wx:if="{{sheet.exp > 0}}" bindtap="useSchedule">课表 {{sheet.exp}} 节</text>
+            <text class="dp-quick" bindtap="useCommon4">常用 4 节</text>
+          </view>
+        </view>
 
-  <view class="ds-tags">
-    <text class="ds-tag-label">常用</text>
-    <view class="ds-tag-wrap">
-      <text class="tag {{sheet.note === item ? 'on' : ''}}" wx:for="{{sheet.tags}}" wx:key="*this"
-            data-v="{{item}}" bindtap="tapTag">{{item}}</text>
-    </view>
-  </view>
-  <!-- 「最近写过」用虚线框区分，和常用标签排在一起，不再单独占一个标题行 -->
-  <view class="ds-tags" wx:if="{{sheet.recentTags.length}}">
-    <text class="ds-tag-label">最近</text>
-    <view class="ds-tag-wrap">
-      <text class="tag rc {{sheet.note === item ? 'on' : ''}}" wx:for="{{sheet.recentTags}}" wx:key="*this"
-            data-v="{{item}}" bindtap="tapTag">{{item}}</text>
-    </view>
-  </view>
+        <view class="dp-row" wx:if="{{sheet.nightOn}}">
+          <text class="dp-label">晚修</text>
+          <view class="dp-step">
+            <view class="dp-btn" hover-class="dp-btn-hover" data-d="-1" bindtap="stepNight">−</view>
+            <text class="dp-val">{{sheet.night}}</text>
+            <view class="dp-btn" hover-class="dp-btn-hover" data-d="1" bindtap="stepNight">＋</view>
+          </view>
+          <view class="dp-hint">
+            <text class="dp-hint-l" wx:for="{{nightHints}}" wx:key="*this">{{item}}</text>
+          </view>
+        </view>
 
-  <view class="ds-actions">
-    <view class="btn ghost ds-clear" bindtap="clearSheet">清空这天</view>
-    <view class="btn primary ds-ok" bindtap="saveSheet">完成</view>
+        <view class="dp-row" wx:if="{{sheet.lessons > 0 && rates.length > 1}}">
+          <text class="dp-label">计价</text>
+          <view class="dp-rates">
+            <view wx:for="{{rates}}" wx:key="id" class="seg rate-seg {{sheet.rid === item.id ? 'on' : ''}}"
+              data-id="{{item.id}}" bindtap="pickRate">
+              <text class="rate-seg-name">{{item.name}}</text>
+              <text class="rate-seg-price">{{item.price}} 元</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view class="dp-card">
+        <input class="dp-note" value="{{sheet.note}}" placeholder="备注：记一笔，方便日后查找"
+               maxlength="60" bindinput="onNote" />
+        <!-- 常用与最近写过的标签合并成一片，靠虚线框区分，不再各占一行标题 -->
+        <view class="dp-tags">
+          <text class="tag {{sheet.note === item ? 'on' : ''}}" wx:for="{{sheet.tags}}" wx:key="*this"
+                data-v="{{item}}" bindtap="tapTag">{{item}}</text>
+          <text class="tag rc {{sheet.note === item ? 'on' : ''}}" wx:for="{{sheet.recentTags}}" wx:key="*this"
+                data-v="{{item}}" bindtap="tapTag">{{item}}</text>
+        </view>
+      </view>
+
+    </view>
+
+    <view class="dp-clear" bindtap="clearSheet">清空这天的记录</view>
   </view>
 </view>
 

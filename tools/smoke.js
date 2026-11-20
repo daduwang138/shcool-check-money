@@ -61,44 +61,44 @@ const probe = `
   try {
     await sleep(700);
 
-    /* 1. 点日期 → 打开编辑面板 */
+    /* 1. 点日期 → 打开整屏编辑页 */
     ok('日历渲染', !!q('[data-mp-ds-key="2026-11-10"]'));
     await tapCell('2026-11-10');
-    ok('点日期开面板', !!q('.sheet'), q('.ds-date') ? q('.ds-date').textContent : '');
+    ok('点日期开编辑页', !!q('.dp'), q('.dp-date') ? q('.dp-date').textContent : '');
 
-    /* 1.1 面板里直接翻天：连续补记不用关掉重开（箭头已收进表头，和关闭并排） */
-    var navNext = q('.sheet .ds-op[data-mp-ds-d="1"]');
-    ok('面板里有「后一天」', !!navNext);
+    /* 1.1 编辑页里直接翻天：连续补记不用退出去重进（箭头在日期两侧） */
+    var navNext = q('.dp .dp-arrow[data-mp-ds-d="1"]');
+    ok('编辑页里有「后一天」', !!navNext);
     if (navNext) {
       navNext.click();
       await sleep(280);
-      ok('翻天后面板不关', !!q('.sheet'));
-      ok('翻到 11 月 11 日', !!q('.ds-date') && q('.ds-date').textContent.indexOf('11 日') > -1,
-        q('.ds-date') ? q('.ds-date').textContent : 'NONE');
-      var navPrev = q('.sheet .ds-op[data-mp-ds-d="-1"]');
+      ok('翻天后编辑页不关', !!q('.dp'));
+      ok('翻到 11 月 11 日', !!q('.dp-date') && q('.dp-date').textContent.indexOf('11 日') > -1,
+        q('.dp-date') ? q('.dp-date').textContent : 'NONE');
+      var navPrev = q('.dp .dp-arrow[data-mp-ds-d="-1"]');
       if (navPrev) { navPrev.click(); await sleep(280); }
-      ok('再翻回来仍是 11 月 10 日', !!q('.ds-date') && q('.ds-date').textContent.indexOf('10 日') > -1,
-        q('.ds-date') ? q('.ds-date').textContent : 'NONE');
+      ok('再翻回来仍是 11 月 10 日', !!q('.dp-date') && q('.dp-date').textContent.indexOf('10 日') > -1,
+        q('.dp-date') ? q('.dp-date').textContent : 'NONE');
     }
 
     /* 2. 设为上班 + 加两节课时（步进一次 +2） */
-    q('.sheet .seg[data-mp-ds-v="work"]').click();
+    q('.dp .seg[data-mp-ds-v="work"]').click();
     await sleep(120);
-    q('.sheet .ds-btn[data-mp-ds-d="1"]').click();
+    q('.dp .dp-btn[data-mp-ds-d="1"]').click();
     await sleep(120);
-    ok('课时步进到 2', q('.sheet .ds-val').textContent.trim() === '2', q('.sheet .ds-val').textContent);
+    ok('课时步进到 2', q('.dp .dp-val').textContent.trim() === '2', q('.dp .dp-val').textContent);
     /* 常用 4 节：点一下填 4，课程表范围外也能快速记课时 */
-    var common4 = qa('.sheet .ds-quick').filter(function (e) { return e.textContent.indexOf('常用 4 节') >= 0; })[0];
+    var common4 = qa('.dp .dp-quick').filter(function (e) { return e.textContent.indexOf('常用 4 节') >= 0; })[0];
     ok('有常用4节按钮', !!common4);
     if (common4) {
       common4.click(); await sleep(120);
-      ok('点常用4节填4', q('.sheet .ds-val').textContent.trim() === '4', q('.sheet .ds-val').textContent);
-      q('.sheet .ds-btn[data-mp-ds-d="-1"]').click(); await sleep(100);
-      ok('课时减2回到2', q('.sheet .ds-val').textContent.trim() === '2', q('.sheet .ds-val').textContent);
+      ok('点常用4节填4', q('.dp .dp-val').textContent.trim() === '4', q('.dp .dp-val').textContent);
+      q('.dp .dp-btn[data-mp-ds-d="-1"]').click(); await sleep(100);
+      ok('课时减2回到2', q('.dp .dp-val').textContent.trim() === '2', q('.dp .dp-val').textContent);
     }
-    q('.sheet .ds-actions .btn.primary').click();
+    q('.dp .dp-save').click();
     await sleep(280);
-    ok('完成后关闭面板', !q('.sheet'));
+    ok('完成后关闭编辑页', !q('.dp'));
     var les = q('[data-mp-ds-key="2026-11-10"] .les');
     ok('格子上出现课时角标', !!les && les.textContent.indexOf('2') > -1, les ? les.textContent : 'NONE');
     ok('出现撤销条', !!q('.undo'));

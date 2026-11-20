@@ -519,16 +519,20 @@
   font-size: 23rpx;
 }
 
+/* 状态块：未选中只有浅底、没有描边；选中才整块上色。
+   五块一样重会互相抢，弱化未选中之后，选了哪个一眼就看得出来。 */
 .seg {
-  height: 68rpx;
+  height: 92rpx;
   flex: 1;
-  margin-right: 8rpx;
-  border: 1rpx solid #E4E1D8;
-  border-radius: 12rpx;
-  background: #FCFBF8;
-  color: #656A72;
-  font-size: 24rpx;
-  line-height: 66rpx;
+  margin-right: 10rpx;
+  /* 日历格子那套 .s-inv / .s-ot / .s-leave 会给块加上彩色描边，
+     这里必须显式清零，否则未选中的状态块也带着绿/橙/红边 */
+  border: 0;
+  border-radius: 14rpx;
+  background: #F5F4EF;
+  color: #4C5057;
+  font-size: 26rpx;
+  line-height: 92rpx;
   text-align: center;
 }
 
@@ -538,37 +542,34 @@
 }
 
 .seg.on.s-empty {
-  border: 1rpx solid #B4B2A9;
-  background: #F1EFE8;
-  color: #4C5057;
+  background: #E8E6DE;
+  color: #3A3F45;
+  font-weight: 500;
 }
 
 .seg.on.s-work {
-  border-color: #174C7C;
-  background: #2265A3;
+  background: #1B5E9B;
   color: #FFFFFF;
+  font-weight: 500;
 }
 
 .seg.on.s-inv {
-  border-color: #0F6E56;
-  background-color: #C4E4D6;
-  background-image: repeating-linear-gradient(45deg, rgba(15, 110, 86, .55) 0, rgba(15, 110, 86, .55) 1.5rpx, rgba(15, 110, 86, 0) 1.5rpx, rgba(15, 110, 86, 0) 5rpx);
-  color: #0A4A39;
+  background: #0F6E56;
+  color: #FFFFFF;
+  font-weight: 500;
 }
 
-/* 面板里选中后的底色与日历格子里的状态色对齐：选成什么，格子上就是什么 */
+/* 选中色与日历格子里的状态色对齐：选成什么，格子上就是什么 */
 .seg.on.s-ot {
-  border-color: #A05A00;
-  background-color: #F7D3A2;
-  background-image: radial-gradient(rgba(160, 90, 0, .55) 1rpx, rgba(160, 90, 0, 0) 1.3rpx);
-  background-size: 5rpx 5rpx;
-  color: #66390A;
+  background: #A05A00;
+  color: #FFFFFF;
+  font-weight: 500;
 }
 
 .seg.on.s-leave {
-  border-color: #9B4A3C;
-  background: #EFD5CE;
-  color: #5E2A20;
+  background: #9B4A3C;
+  color: #FFFFFF;
+  font-weight: 500;
 }
 
 /* 批量面板里的步进按钮（单日面板用 .ds-btn，尺寸更小） */
@@ -935,165 +936,172 @@
   opacity: 0.9;
 }
 
-/* ---------- 单日面板（一屏放完，不滚动） ----------
-   版式：表头（日期 + 翻天 + 关闭）／出勤两行／课时组（浅底）／备注与标签／底部按钮。
-   实测高度：正常机型约 890rpx（出现「计价」行约 990rpx），iPhone 8 一屏可放 1108rpx；
-   窗口不足 330×540（SE、4.x 寸安卓）时由页面加 .ds-compact，整体缩到约 760rpx。
-   两套都不写 @media：媒体查询会让旧版开发者工具的 WXSS 编译器报内部错误。 */
+/* ---------- 单日编辑页（整屏一页，内容一屏放完，不滚动） ----------
+   形态：整屏覆盖（打开时收起 tabBar），顶部「取消 · 日期 · 完成」，不再是半截弹层。
+   结构：三张分组卡（出勤 / 课时与晚修 / 备注），组内行贴紧、组间留白 20rpx。
+   字号只留 4 级：40 标题 / 30 数值与按钮 / 26 正文 / 22 辅助。
+   高度实测约 990rpx（含「计价」行），iPhone 8 一屏可放 1108rpx；
+   窗口不足 330×540（SE、4.x 寸安卓）时由页面加 .dp-compact 再缩一档。
+   两处都不写 @media：媒体查询会让旧版开发者工具的 WXSS 编译器报内部错误。 */
 
-.ds-sheet {
+.dp {
+  position: fixed;
+  z-index: 60;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
-  max-height: 96vh;
-  padding: 32rpx 36rpx 28rpx;
-  overflow: hidden;
-  border-radius: 26rpx 26rpx 0 0;
-  box-shadow: 0 -10rpx 40rpx rgba(25, 28, 32, .12);
+  background: #F5F4F0;
 }
 
-/* ---- 表头 ---- */
-.ds-head {
+/* ---- 顶部：取消 / 日期（可翻天）/ 完成 ---- */
+.dp-head {
   display: flex;
   flex: none;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding-bottom: 20rpx;
-  border-bottom: 1rpx solid #F1EFE8;
+  align-items: center;
+  padding: 24rpx 28rpx 18rpx;
 }
 
-.ds-head-main {
+.dp-cancel {
+  flex: 0 0 96rpx;
+  color: #656A72;
+  font-size: 26rpx;
+}
+
+.dp-save {
+  flex: 0 0 96rpx;
+  color: #1B5E9B;
+  font-size: 30rpx;
+  font-weight: 600;
+  text-align: right;
+}
+
+.dp-head-main {
   flex: 1;
   min-width: 0;
+  text-align: center;
 }
 
-.ds-date {
-  display: block;
+.dp-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dp-date {
   color: #191C20;
-  font-size: 52rpx;
+  font-size: 40rpx;
   font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: 1rpx;
+  line-height: 1.3;
 }
 
-.ds-meta {
+/* 翻天放在日期两侧：手指够得到，也不必再各占一个按钮位 */
+.dp-arrow {
+  padding: 0 16rpx;
+  color: #3A3F45;
+  font-size: 36rpx;
+  line-height: 1.3;
+}
+
+.dp-arrow-hover {
+  color: #1B5E9B;
+}
+
+.dp-meta {
   display: block;
-  margin-top: 4rpx;
+  margin-top: 2rpx;
   overflow: hidden;
-  color: #656A72;
-  font-size: 25rpx;
+  color: #8A8377;
+  font-size: 22rpx;
   line-height: 1.4;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.ds-ops {
+/* ---- 分组卡 ---- */
+.dp-body {
   display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 24rpx 20rpx;
+  /* 全屏页会盖到屏幕最底部（tabBar 已收起），留出 iPhone 底部横条的位置 */
+  padding-bottom: calc(20rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+}
+
+/* 表单贴顶：卡片紧跟在标题下面，视觉上和「这一天的记录」是一体；
+   内容少时剩下的空间留在底部，当页脚留白即可，不要上下各空一块 */
+.dp-form {
   flex: none;
-  align-items: center;
-  margin-top: 6rpx;
-  margin-left: 16rpx;
 }
 
-/* 翻天两个方按钮 + 关闭，按手指尺寸给（78rpx ≈ 39pt） */
-.ds-op {
-  width: 84rpx;
-  height: 84rpx;
-  margin-left: 12rpx;
-  border-radius: 16rpx;
-  background: #F3F2ED;
-  color: #3A3F45;
-  font-size: 42rpx;
-  line-height: 82rpx;
-  text-align: center;
+.dp-card {
+  margin-bottom: 20rpx;
+  padding: 4rpx 24rpx;
+  border: 1rpx solid #EDEAE2;
+  border-radius: 20rpx;
+  background: #FFFFFF;
 }
 
-.ds-op-hover {
-  background: #E4E1D8;
-}
-
-.ds-x {
-  width: 84rpx;
-  height: 84rpx;
-  margin-left: 12rpx;
-  color: #B4B2A9;
-  font-size: 32rpx;
-  line-height: 84rpx;
-  text-align: center;
-}
-
-/* ---- 行：窄标签 + 控件 ---- */
-.ds-row {
+.dp-row {
   display: flex;
-  flex: none;
   align-items: center;
-  min-height: 116rpx;
+  min-height: 96rpx;
 }
 
-.ds-label {
+/* 组内分隔线只画在行与行之间，卡片外框已经够了 */
+.dp-row + .dp-row {
+  border-top: 1rpx solid #F4F2EC;
+}
+
+.dp-label {
   flex: 0 0 80rpx;
   color: #5F6470;
   font-size: 26rpx;
 }
 
-.ds-segs {
+.dp-segs {
   display: flex;
   flex: 1;
   min-width: 0;
 }
 
-.ds-segs .seg {
-  height: 100rpx;
-  margin-right: 10rpx;
-  border-radius: 16rpx;
-  font-size: 30rpx;
-  line-height: 98rpx;
-}
-
-/* ---- 课时 / 晚修 / 计价：浅底一块，和上面的出勤分开 ---- */
-.ds-group {
-  flex: none;
-  margin-top: 8rpx;
-  padding: 6rpx 16rpx;
-  border-radius: 22rpx;
-  background: #F8F7F2;
-}
-
-.ds-group .ds-row {
-  min-height: 112rpx;
-}
-
-.ds-step {
+/* ---- 步进 ---- */
+.dp-step {
   display: flex;
   flex: none;
   align-items: center;
 }
 
-.ds-btn {
-  width: 104rpx;
-  height: 92rpx;
-  border: 1rpx solid #E4E1D8;
-  border-radius: 16rpx;
-  background: #FFFFFF;
+.dp-btn {
+  width: 88rpx;
+  height: 72rpx;
+  border-radius: 14rpx;
+  background: #F3F2ED;
   color: #2F3338;
-  font-size: 44rpx;
-  line-height: 90rpx;
+  font-size: 34rpx;
+  line-height: 72rpx;
   text-align: center;
 }
 
-.ds-btn-hover {
-  background: #EFEDE6;
+.dp-btn-hover {
+  background: #E7E5DD;
 }
 
-.ds-val {
-  min-width: 112rpx;
+.dp-val {
+  min-width: 96rpx;
   color: #191C20;
-  font-size: 50rpx;
+  font-size: 34rpx;
   font-weight: 600;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
-.ds-quicks {
+.dp-quicks {
   display: flex;
   flex: 1;
   align-items: center;
@@ -1101,31 +1109,30 @@
   gap: 10rpx;
 }
 
-.ds-quick {
-  padding: 8rpx 14rpx;
-  border: 1rpx dashed #CFE2F2;
+.dp-quick {
+  padding: 8rpx 16rpx;
   border-radius: 999rpx;
-  background: #F7FBFF;
+  background: #F1F6FB;
   color: #1B5E9B;
   font-size: 22rpx;
-  line-height: 1.3;
+  line-height: 1.4;
   white-space: nowrap;
 }
 
-.ds-hint {
+.dp-hint {
   flex: 1;
-  margin-left: 12rpx;
+  margin-left: 14rpx;
 }
 
-.ds-hint-l {
+.dp-hint-l {
   display: block;
   color: #8A8377;
-  font-size: 21rpx;
+  font-size: 22rpx;
   line-height: 1.45;
 }
 
-/* 档位多时允许换行：挤成小缝比换行更难认 */
-.ds-rates {
+/* 档位：一行「名称 + 单价」，多档时允许换行 */
+.dp-rates {
   display: flex;
   flex: 1;
   flex-wrap: wrap;
@@ -1133,207 +1140,144 @@
   min-width: 0;
 }
 
-.ds-rates .seg {
+.dp-rates .seg {
   flex: 1 1 150rpx;
-  height: 96rpx;
-  margin-right: 0;
-  border-radius: 14rpx;
 }
 
-/* 档位块排成一行「名称 + 单价」，比上下两行矮一截 */
-.ds-rates .rate-seg {
+.dp-rates .rate-seg {
   flex-direction: row;
   align-items: baseline;
+  justify-content: center;
   gap: 8rpx;
-  padding: 0 12rpx;
-  font-size: 26rpx;
-  line-height: 94rpx;
+  min-height: 92rpx;
+  font-size: 24rpx;
+  line-height: 92rpx;
 }
 
-.ds-rates .rate-seg-name {
-  font-size: 26rpx;
+.dp-rates .rate-seg-name {
+  font-size: 24rpx;
 }
 
-.ds-rates .rate-seg-price {
+.dp-rates .rate-seg-price {
   margin-top: 0;
-  font-size: 21rpx;
+  font-size: 20rpx;
 }
 
-.ds-rates .seg.on.rate-seg {
-  min-height: 0;
-  height: 96rpx;
-}
-
-/* ---- 备注与标签 ---- */
-.ds-note {
-  width: 100%;
-  height: 100rpx;
-  margin-top: 18rpx;
-  padding: 0 24rpx;
-  border: 1rpx solid #E4E1D8;
-  border-radius: 16rpx;
-  background: #FCFBF8;
-  color: #191C20;
-  font-size: 30rpx;
-}
-
-.ds-tags {
-  display: flex;
-  align-items: flex-start;
-  margin-top: 14rpx;
-}
-
-.ds-tag-label {
-  flex: 0 0 76rpx;
-  color: #8A8377;
-  font-size: 22rpx;
-  line-height: 52rpx;
-}
-
-.ds-tag-wrap {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  gap: 10rpx;
-}
-
-.ds-tag-wrap .tag {
-  padding: 8rpx 16rpx;
-  font-size: 23rpx;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
-/* 最近写过的标签用虚线框，和常用标签排在同一块区域 */
-.ds-tag-wrap .tag.rc {
-  border-style: dashed;
-  color: #8A8377;
-}
-
-.ds-tag-wrap .tag.on {
-  border-style: solid;
-}
-
-/* ---- 底部按钮 ---- */
-.ds-actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  margin-top: auto;
-  padding-top: 24rpx;
-}
-
-.ds-actions .btn {
-  height: 104rpx;
-  border-radius: 16rpx;
-  font-size: 33rpx;
-}
-
-.ds-clear {
-  flex: 0 0 230rpx;
-  margin-right: 20rpx;
-}
-
-.ds-ok {
-  flex: 1;
-}
-
-/* ---- 小屏（窗口 ≤340×570）压一档：只缩尺寸，不减内容 ---- */
-.ds-compact {
-  padding: 22rpx 26rpx 20rpx;
-}
-
-.ds-compact .ds-head {
-  padding-bottom: 14rpx;
-}
-
-.ds-compact .ds-date {
-  font-size: 38rpx;
-}
-
-.ds-compact .ds-meta {
-  margin-top: 2rpx;
-  font-size: 22rpx;
-}
-
-.ds-compact .ds-op,
-.ds-compact .ds-x {
-  width: 66rpx;
-  height: 66rpx;
-  margin-left: 10rpx;
-  font-size: 34rpx;
-  line-height: 64rpx;
-}
-
-.ds-compact .ds-row {
+.dp-rates .seg.on.rate-seg {
+  height: 92rpx;
   min-height: 92rpx;
 }
 
-.ds-compact .ds-group .ds-row {
-  min-height: 88rpx;
-}
-
-.ds-compact .ds-label {
-  flex: 0 0 68rpx;
-  font-size: 23rpx;
-}
-
-.ds-compact .ds-segs .seg {
-  height: 76rpx;
-  border-radius: 12rpx;
-  font-size: 25rpx;
-  line-height: 74rpx;
-}
-
-.ds-compact .ds-btn {
-  width: 82rpx;
-  height: 70rpx;
-  border-radius: 12rpx;
-  font-size: 34rpx;
-  line-height: 68rpx;
-}
-
-.ds-compact .ds-val {
-  min-width: 88rpx;
-  font-size: 38rpx;
-}
-
-.ds-compact .ds-rates .seg,
-.ds-compact .ds-rates .seg.on.rate-seg {
-  height: 72rpx;
-}
-
-.ds-compact .ds-rates .rate-seg {
-  font-size: 23rpx;
-  line-height: 70rpx;
-}
-
-.ds-compact .ds-note {
-  height: 82rpx;
-  margin-top: 12rpx;
+/* ---- 备注与标签 ---- */
+.dp-note {
+  width: 100%;
+  height: 84rpx;
+  margin: 16rpx 0 4rpx;
+  padding: 0 20rpx;
+  border-radius: 14rpx;
+  background: #F7F6F1;
+  color: #191C20;
   font-size: 26rpx;
 }
 
-.ds-compact .ds-tags {
-  margin-top: 10rpx;
+.dp-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  padding: 12rpx 0 18rpx;
 }
 
-.ds-compact .ds-tag-label {
-  flex: 0 0 68rpx;
-  font-size: 20rpx;
-  line-height: 46rpx;
-}
-
-.ds-compact .ds-tag-wrap .tag {
-  padding: 7rpx 16rpx;
+.dp-tags .tag {
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  background: #F7F6F1;
+  color: #4C5057;
   font-size: 22rpx;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 
-.ds-compact .ds-actions {
-  padding-top: 16rpx;
+/* 最近写过的标签：透明底 + 虚线框，和常用标签排在同一片里 */
+.dp-tags .tag.rc {
+  border: 1rpx dashed #DCDAD1;
+  background: transparent;
+  color: #8A8377;
 }
 
-.ds-compact .ds-actions .btn {
-  height: 84rpx;
+.dp-tags .tag.on {
+  border: 0;
+  background: #E4EEF7;
+  color: #174C7C;
+  font-weight: 500;
+}
+
+
+
+.dp-clear {
+  flex: none;
+  /* 吃掉剩余高度：表单贴顶、清空贴底，中间空白读起来就是「这一页写完了」 */
+  margin-top: auto;
+  padding: 18rpx;
+  color: #A33A28;
+  font-size: 24rpx;
+  text-align: center;
+}
+
+/* ---- 小屏（窗口 ≤330×540）再缩一档：只改尺寸，内容一项不少 ---- */
+.dp-compact .dp-head {
+  padding: 18rpx 22rpx 14rpx;
+}
+
+.dp-compact .dp-date {
+  font-size: 36rpx;
+}
+
+.dp-compact .dp-save {
   font-size: 28rpx;
+}
+
+.dp-compact .dp-body {
+  padding: 0 20rpx 16rpx;
+}
+
+.dp-compact .dp-card {
+  margin-bottom: 16rpx;
+  padding: 2rpx 20rpx;
+}
+
+.dp-compact .dp-row {
+  min-height: 86rpx;
+}
+
+.dp-compact .seg {
+  height: 82rpx;
+  line-height: 82rpx;
+  font-size: 24rpx;
+}
+
+.dp-compact .dp-btn {
+  width: 78rpx;
+  height: 64rpx;
+  font-size: 30rpx;
+  line-height: 64rpx;
+}
+
+.dp-compact .dp-val {
+  min-width: 84rpx;
+  font-size: 30rpx;
+}
+
+.dp-compact .dp-note {
+  height: 76rpx;
+}
+
+.dp-compact .dp-rates .seg,
+.dp-compact .dp-rates .seg.on.rate-seg {
+  height: 82rpx;
+  min-height: 82rpx;
+}
+
+.dp-compact .dp-rates .rate-seg {
+  font-size: 22rpx;
+  line-height: 80rpx;
 }

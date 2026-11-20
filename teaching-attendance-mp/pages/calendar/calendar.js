@@ -67,6 +67,8 @@ Page({
       app.globalData.yearJump = '';
       this.setData({ ym: jump });
     }
+    /* 编辑页开着时别动 tabBar，关掉或者没开才确保它在 */
+    if (!this.data.sheet) { this._showTab(); }
     if (!this.db) { this.db = store.load(); this.render(); return; }
     /* 设置页、课程表页可能改过数据，回来时重新读一次 */
     this.db = store.load();
@@ -106,6 +108,17 @@ Page({
   onUnload: function () {
     if (this._undoTimer) { clearTimeout(this._undoTimer); }
     if (this._touch && this._touch.lp) { clearTimeout(this._touch.lp); }
+    this._showTab();
+  },
+
+  /* 单日编辑是整屏一页，得把 tabBar 临时收起来，否则底下三个 tab 会露在编辑页下面。
+     开发工具的预览里没有 tabBar，所以两处都吞掉异常。 */
+  _hideTab: function () {
+    try { wx.hideTabBar({ animation: false }); } catch (e) { /* 没有 tabBar */ }
+  },
+
+  _showTab: function () {
+    try { wx.showTabBar({ animation: false }); } catch (e) { /* 没有 tabBar */ }
   },
 
   render: function () {
@@ -632,6 +645,7 @@ Page({
   openSheet: function (k) {
     /* 同一次面板会话里的翻天补记算一批，撤销一次就能全回去 */
     this._sheetBatch = 'sheet-' + k + '-' + Date.now();
+    this._hideTab();
     var db = this.db, r = core.peek(db, k);
     var am = r ? (r.am || '') : core.effHalf(db, k, 'am');
     var pm = r ? (r.pm || '') : core.effHalf(db, k, 'pm');
@@ -692,6 +706,7 @@ Page({
   closeSheet: function () {
     this.setData({ sheet: null });
     this._note = undefined;
+    this._showTab();
   },
 
   /* 面板里备注是边打边存进 _note 的（不每次 setData，免得光标乱跳）。
@@ -836,6 +851,7 @@ Page({
     this._commitSheet();
     this.setData({ sheet: null });
     this._note = undefined;
+    this._showTab();
     this.render();
     this.showUndo('已记下 ' + s.title);
   },
