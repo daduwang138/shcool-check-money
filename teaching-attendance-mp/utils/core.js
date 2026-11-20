@@ -12,8 +12,23 @@ var DAY_FIELDS = spec.DAY_FIELDS;
 /* 迁移表放 core.js 而不是 spec.js：它是函数（行为），spec.js 要被 JSON.stringify
    序列化成电脑版全局常量，函数会被变成 null，两版迁移行为就会静默分叉。
    core.js 由 gen_core_adapter.js 整体打包进电脑版的 IIFE，函数天然带得过去。
-   MIGRATIONS[i] 负责把 v=i+1 升到 v=i+2；当前 v1 是初始版本，表为空。 */
-var MIGRATIONS = [];
+   MIGRATIONS[i] 负责把 v=i+1 升到 v=i+2。 */
+var MIGRATIONS = [
+  /* v1 → v2：课时单价默认值从 0 改为 30。只改「等于 0」的（没设置过的），
+     老库里手填过的合法单价一律保留；默认档 prices 同步，其他档不动。
+     已冻结月份的 rate 快照不在这里碰——历史账保持当时价格。 */
+  function (db) {
+    var settings = db.settings || {};
+    if (settings.rate === 0 || settings.rate === '0') { settings.rate = 30; }
+    var rateList = settings.rates || [];
+    for (var idx = 0; idx < rateList.length; idx++) {
+      var oneRate = rateList[idx];
+      if (oneRate && oneRate.id === 'default' && (oneRate.price === 0 || oneRate.price === '0')) {
+        oneRate.price = 30;
+      }
+    }
+  }
+];
 
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 function dk(y, m, d) { return y + '-' + pad(m) + '-' + pad(d); }

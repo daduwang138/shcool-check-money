@@ -859,7 +859,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
 
 /* ---------- 10.6 schema 迁移框架 ---------- */
 {
-  eq('schema·当前版本', core.SCHEMA_VERSION, 1);
+  eq('schema·当前版本', core.SCHEMA_VERSION, 2);
   eq('schema·日记录字段清单', core.DAY_FIELDS.map(function (f) { return f.key; }),
     ['am', 'pm', 'lessons', 'note', 'rid', 'night', 'off']);
   eq('schema·迁移表长度与版本匹配', core.MIGRATIONS.length, core.SCHEMA_VERSION - 1);
@@ -868,7 +868,14 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     days: { '2026-11-02': { am: 'inv', pm: 'ot', lessons: 1 } }
   };
   eq('schema·v1 数据原样保留', core.migrate(legacy).days['2026-11-02'].lessons, 1);
-  eq('schema·v1 版本号不变', core.migrate(legacy).v, 1);
+  eq('schema·v1 升到 v2', core.migrate(legacy).v, 2);
+  /* v1→v2：单价 0 升 30，手填过的价保留 */
+  const oldRate = core.migrate({ v: 1, settings: { rate: 0, rates: [{ id: 'default', price: 0 }] } });
+  eq('迁移·单价0升30', [oldRate.settings.rate, oldRate.settings.rates[0].price], [30, 30]);
+  const keptRate = core.migrate({ v: 1, settings: { rate: 120, rates: [{ id: 'default', price: 120 }] } });
+  eq('迁移·手填单价不动', [keptRate.settings.rate, keptRate.settings.rates[0].price], [120, 120]);
+  const frozenRate = core.migrate({ v: 1, settings: { rate: 0 }, months: { '2026-10': { rate: 0 } } });
+  eq('迁移·已冻结月份单价不动', frozenRate.months['2026-10'].rate, 0);
   const future = {
     v: 99, settings: {}, months: {}, term: {}, courses: [],
     days: { '2026-11-02': { am: 'work', pm: 'work', lessons: 2 } }

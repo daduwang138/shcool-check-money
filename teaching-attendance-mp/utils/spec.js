@@ -69,7 +69,7 @@ var PAY_ITEMS = [
    全局常量，函数 / undefined 会被悄悄变成 null 或丢键，两版行为就此分叉而护栏发现不了。
    迁移函数 MIGRATIONS 是行为，放在 core.js（由生成器整体打包进电脑版 IIFE）。
    check_structure.js 有「spec.js 必须可无损序列化」的护栏。 */
-var SCHEMA_VERSION = 1;
+var SCHEMA_VERSION = 2;
 var DAY_FIELDS = [
   { key: 'am', kind: 'str' },
   { key: 'pm', kind: 'str' },
