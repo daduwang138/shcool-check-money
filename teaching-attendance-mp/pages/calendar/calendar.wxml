@@ -151,10 +151,14 @@
   </view>
 
   <view class="field">
-    <view class="bulk-chk" bindtap="toggleBulkClear">
-      <view class="bulk-box {{bulk.clearLes ? 'on' : ''}}">{{bulk.clearLes ? '✓' : ''}}</view>
-      <text>同时把课时清零</text>
+    <text class="field-label">设为课时（不选就不改）</text>
+    <view class="bulk-les">
+      <view class="step" data-d="-1" bindtap="stepBulkLes">−</view>
+      <text class="bulk-les-val {{bulk.les === null ? 'unset' : ''}}">{{bulk.les === null ? '不改' : bulk.les + ' 节'}}</text>
+      <view class="step" data-d="1" bindtap="stepBulkLes">＋</view>
+      <text class="bulk-les-reset" wx:if="{{bulk.les !== null}}" bindtap="resetBulkLes">还原</text>
     </view>
+    <text class="bulk-les-hint">每次 ±2；减到 0 即清零，设了值就不再被课程表自动覆盖</text>
   </view>
 
   <text class="bulk-pv">将影响 <text class="bulk-num">{{bulk.count}}</text> 天{{bulk.first ? '（' + bulk.first + ' 起）' : ''}}</text>

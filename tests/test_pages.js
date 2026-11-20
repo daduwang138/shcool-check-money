@@ -494,7 +494,7 @@ ok(bcal3.data.bulkWd.filter(x => x.on).map(x => x.v).join(',') === '1,2,3,4,5',
 
 bcal3.setData({
   bulk: Object.assign({}, bcal3.data.bulk, {
-    from: '2026-09-01', to: '2026-10-31', wd: [3], st: 'ot', clearLes: true
+    from: '2026-09-01', to: '2026-10-31', wd: [3], st: 'ot', les: 0
   })
 });
 bcal3._bulkRefresh(bcal3.data.bulk);
@@ -510,6 +510,9 @@ bcal3.applyBulk();
 const bdb = core.normalize(current());
 ok(bdb.days['2026-09-23'] && bdb.days['2026-09-23'].am === 'ot' && bdb.days['2026-09-23'].pm === 'ot',
   '批量·跨月写进周三');
+ok(bdb.days['2026-09-23'] && bdb.days['2026-09-23'].lessons === 0 &&
+  bdb.days['2026-09-23'].lset === true, '批量·课时设0即清零并锁定',
+  JSON.stringify(bdb.days['2026-09-23']));
 ok(!bdb.days['2026-09-22'], '批量·非周三不动');
 ok(!bdb.days['2026-09-02'], '批量·起算日之前不写');
 ok(bcal3.data.bulk === null, '批量·应用后关掉面板');
@@ -517,6 +520,43 @@ ok(bcal3.data.bulk === null, '批量·应用后关掉面板');
 bcal3.doUndo();
 const budb = core.normalize(current());
 ok(!budb.days['2026-09-23'], '批量·跨月改动也能撤销');
+
+/* 批量课时步进：null=不改，+ 得 2 / − 得 0，之后 ±2 */
+ok(core.bulkLessonStep(null, 2) === 2, '课时步进·不改时+得2');
+ok(core.bulkLessonStep(null, -2) === 0, '课时步进·不改时−得0');
+ok(core.bulkLessonStep(2, 2) === 4, '课时步进·2再加得4');
+ok(core.bulkLessonStep(20, 2) === 20, '课时步进·封顶20');
+ok(core.bulkLessonStep(0, -2) === 0, '课时步进·0减不越界');
+/* 批量设正数：这些天课时都变成 4，且算手填锁定 */
+const bcalL = makePage('calendar');
+bcalL.onLoad();
+bcalL.setData({
+  bulk: Object.assign({}, bcalL.data.bulk, {
+    from: '2026-11-02', to: '2026-11-06', wd: [1, 2, 3, 4, 5], st: 'inv', les: 4
+  })
+});
+bcalL._bulkRefresh(bcalL.data.bulk);
+bcalL.applyBulk();
+const ldb = core.normalize(current());
+['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06'].forEach(function (k) {
+  ok(ldb.days[k] && ldb.days[k].lessons === 4 && ldb.days[k].lset === true,
+    '批量·课时设为4 ' + k, JSON.stringify(ldb.days[k]));
+});
+/* null=不改：原有课时保留 */
+const bcalN = makePage('calendar');
+bcalN.onLoad();
+seedDb({ days: { '2026-11-10': { am: 'work', pm: 'work', lessons: 3, lset: true, rid: 'x' } } });
+bcalN.onLoad();
+bcalN.setData({
+  bulk: Object.assign({}, bcalN.data.bulk, {
+    from: '2026-11-10', to: '2026-11-10', wd: [2], st: 'ot', les: null
+  })
+});
+bcalN._bulkRefresh(bcalN.data.bulk);
+bcalN.applyBulk();
+const ndb = core.normalize(current());
+ok(ndb.days['2026-11-10'].lessons === 3 && ndb.days['2026-11-10'].rid === 'x',
+  '批量·不改课时保留原值与档位', JSON.stringify(ndb.days['2026-11-10']));
 
 /* 面板按「后一天」跨到别的月份：已核对的确认不能失效，撤销也得真撤掉那天 */
 reset();

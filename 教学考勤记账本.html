@@ -416,6 +416,8 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
 .stepper button:hover{background:#FCFBF8;border-color:#D3D0C6}
 .stepper .val{font-size:20px;font-weight:600;min-width:46px;text-align:center;
   font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.stepper .val.unset{color:var(--faint);font-weight:400;font-size:15px}
+.stepper button.btn.sm{width:auto;padding:0 10px;font-size:11px}
 .sheet .row{display:flex;gap:8px;margin-top:18px}
 .sheet .row .btn{flex:1;height:36px;font-size:13px}
 .sheet .note{width:100%;text-align:left;margin-top:8px}
@@ -659,7 +661,14 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
       <div class="opts" id="bkState"></div>
     </div>
     <div class="sect">
-      <label class="chk"><input type="checkbox" id="bkClearLes"> 同时把课时清零</label>
+      <div class="lb">设为课时（不选就不改）</div>
+      <div class="stepper">
+        <button id="bkLesMinus">−</button>
+        <div class="val unset" id="bkLesVal">不改</div>
+        <button id="bkLesPlus">＋</button>
+        <button class="btn sm" id="bkLesReset" style="display:none;margin-left:8px">还原</button>
+      </div>
+      <p class="hint" style="margin:6px 0 0">每次 ±2；减到 0 即清零，设了值就不再被课程表自动覆盖</p>
     </div>
     <div class="sug" id="bkPreview" style="margin-top:0"></div>
     <div class="row">
@@ -1592,6 +1601,17 @@ function monthRate(db, ym) {
   return (p && p.rate != null) ? p.rate : db.settings.rate;
 }
 
+/* 批量课时的步进：null 表示「不改」，点 + 从 null 起 2、点 − 从 null 起 0；
+   已有值就按 ±2 累加，夹在 0~cap。这样「不改」和「清零」是两个不同状态。 */
+function bulkLessonStep(current, delta, cap) {
+  var max = cap === undefined ? 20 : cap;
+  var base = (current == null) ? (delta > 0 ? 0 : 2) : (parseInt(current, 10) || 0);
+  var next = base + delta;
+  if (next < 0) { next = 0; }
+  if (next > max) { next = max; }
+  return next;
+}
+
 /* 改基本工资时，把「当前自然月及以后」已冻结的 base 同步成新值。
    历史月份保持原冻结值不动（改价不追溯的边界）；没冻结的月份本来就跟设置走，不用动。
    返回改了几个月，给页面提示用。今天可传入便于测试，默认取系统当天。 */
@@ -2024,6 +2044,7 @@ return {
   refreshWorkdays: refreshWorkdays,
   monthBase: monthBase,
   monthRate: monthRate,
+  bulkLessonStep: bulkLessonStep,
   syncBaseForward: syncBaseForward,
   ratesOf: ratesOf,
   rateName: rateName,
@@ -2154,6 +2175,7 @@ function refreshWorkdays(y){return Core.refreshWorkdays(DB, y);}
 function monthBase(ym){return Core.monthBase(DB, ym);}
 function monthRate(ym){return Core.monthRate(DB, ym);}
 function syncBaseForward(value,today){return Core.syncBaseForward(DB, value, today);}
+function bulkLessonStep(current,delta,cap){return Core.bulkLessonStep(current, delta, cap);}
 
 /* 课时档位：默认档（正课）的价格仍由 settings.rate 管，其余档放 settings.rates。
    两版都从这一个函数取，避免「界面显示 120、算出来 100」这类对不上。 */
@@ -3159,8 +3181,9 @@ function undoApply(){
     toast(autoUndo?"已撤销 "+n+" 天，本月不再自动填课时":"已撤销 "+n+" 天");
   });
 }
-/* 把一组日期整体设为某个状态；clearLes 为真时连课时一起清零 */
-function applyKeys(keys,am,pm,clearLes,quiet){
+/* 把一组日期整体设为某个状态；les: null=不改课时，0=清零，正数=设为该节数 */
+function applyKeys(keys,am,pm,les,quiet){
+  var lessonTouched=(les!=null),clearLes=(les===0);
   keys=keys.filter(function(k){return !preStart(k);});
   if(!keys.length)return false;
   var checked={};
@@ -3172,9 +3195,11 @@ function applyKeys(keys,am,pm,clearLes,quiet){
   keys.forEach(function(k){
     var r=DB.days[k];
     snap[k]=r?JSON.parse(JSON.stringify(r)):null;
-    var les=clearLes?0:(r?(parseInt(r.lessons,10)||0):0);
+    var finalLes=(les==null)?(r?(parseInt(r.lessons,10)||0):0):les;
     var note=r?(r.note||""):"";
-    setRecord(k,am,pm,les,note,clearLes?true:(r?!!r.lset:false),clearLes?"":(r?r.rid:""));
+    /* 没碰课时沿用原档位/锁定；设了值算手填，清零时清档位 */
+    setRecord(k,am,pm,finalLes,note,lessonTouched?true:(r?!!r.lset:false),
+      clearLes?"":(r?r.rid:""));
   });
   showUndo("已修改 "+keys.length+" 天",snap,msnap);
   persist().then(function(){
@@ -3190,9 +3215,9 @@ var SETMAP={
 function applySelection(kind){
   var m=SETMAP[kind];
   if(!m)return;
-  var clear=$("selClearLes").checked;
+  var les=$("selClearLes").checked?0:null;
   var keys=SELKEYS.slice();
-  if(applyKeys(keys,m[0],m[1],clear)){
+  if(applyKeys(keys,m[0],m[1],les)){
     clearSel();
     $("selClearLes").checked=false;
   }
@@ -3244,7 +3269,13 @@ function impCoursesApply(mode){
 }
 
 /* ---------- 批量设置（日期范围 + 星期） ---------- */
-var BK={wd:{1:true,2:true,3:true,4:true,5:true},state:"work"};
+var BK={wd:{1:true,2:true,3:true,4:true,5:true},state:"work",les:null};
+function syncBkLes(){
+  var v=$("bkLesVal");
+  v.textContent=(BK.les==null)?"不改":(BK.les+" 节");
+  v.classList.toggle("unset",BK.les==null);
+  $("bkLesReset").style.display=(BK.les==null)?"none":"";
+}
 function openBulk(){
   var q=ymd(CUR+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate();
   $("bkFrom").value=dk(y,m,1);
@@ -3253,7 +3284,8 @@ function openBulk(){
      以前默认七天全勾 + 上班，点开就「应用」等于把整月周末也记成上班。 */
   BK.wd={1:true,2:true,3:true,4:true,5:true};
   BK.state="work";
-  $("bkClearLes").checked=false;
+  BK.les=null;
+  syncBkLes();
   renderBkOpts();
   $("bulkModal").classList.add("show");
 }
@@ -4828,8 +4860,12 @@ function bindEvents(){
     e.stopPropagation();
     BK.state=b.dataset.st;
     Array.prototype.forEach.call($("bkState").children,function(c){c.classList.toggle("active",c===b);});
-    $("bkClearLes").checked=(BK.state==="leave"||BK.state==="empty");
   });
+  /* 批量课时步进：null→+得2/−得0，之后±2，夹0~20；与出勤状态完全独立 */
+  function stepBkLes(delta){BK.les=bulkLessonStep(BK.les,delta,20);syncBkLes();}
+  $("bkLesPlus").addEventListener("click",function(){stepBkLes(2);});
+  $("bkLesMinus").addEventListener("click",function(){stepBkLes(-2);});
+  $("bkLesReset").addEventListener("click",function(){BK.les=null;syncBkLes();});
   $("bkWd").addEventListener("click",function(e){
     var b=e.target.closest("[data-wd]");if(!b)return;
     e.stopPropagation();
@@ -4853,7 +4889,7 @@ function bindEvents(){
     var keys=bulkKeys();
     if(!keys.length){alert("这个范围内没有符合条件的日子，检查一下日期和星期。");return;}
     var m=SETMAP[BK.state]||SETMAP.work;
-    if(applyKeys(keys,m[0],m[1],$("bkClearLes").checked)){
+    if(applyKeys(keys,m[0],m[1],BK.les)){
       $("bulkModal").classList.remove("show");
     }
   });

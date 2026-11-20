@@ -958,6 +958,20 @@
   background: #1B5E9B;
 }
 
+/* 批量课时步进：null 显示「不改」，设了值蓝色高亮 */
+.bulk-les { display: flex; align-items: center; gap: 20rpx; }
+.bulk-les-val {
+  min-width: 120rpx;
+  text-align: center;
+  color: #174C7C;
+  font-size: 28rpx;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.bulk-les-val.unset { color: #8A8377; font-weight: 400; }
+.bulk-les-reset { color: #1B5E9B; font-size: 22rpx; margin-left: 4rpx; }
+.bulk-les-hint { display: block; margin-top: 10rpx; color: #8A8377; font-size: 20rpx; line-height: 1.6; }
+
 .bulk-pv {
   display: block;
   margin-top: 16rpx;

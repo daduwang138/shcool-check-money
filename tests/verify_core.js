@@ -946,7 +946,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('哨兵·core.js 里没有落到测试之外的函数', uncovered, []);
   eq('哨兵·白名单里的函数确实都导出了',
     MP_ONLY.filter(n => typeof core[n] !== 'function').length, 0);
-  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 64);
+  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 65);
   /* 内部函数（table / customOf / inSpan / toHalf / dateNum 等）没进 module.exports，
      但确实在 core.js 里、也被 CORE bundle 导出了，所以按源码函数清单判，不按导出对象判。 */
   eq('哨兵·转发层没有指向不存在的函数',

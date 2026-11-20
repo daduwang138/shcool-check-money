@@ -475,7 +475,8 @@ Page({
          以前默认七天全勾 + 上班，点开就「应用」等于把整月周末也记成上班。 */
       wd: [1, 2, 3, 4, 5],
       st: 'work',
-      clearLes: false,
+      /* null=不改课时；0=清零；正数=设为该节数 */
+      les: null,
       count: 0,
       first: ''
     };
@@ -488,7 +489,13 @@ Page({
   pickBulkFrom: function (e) { this._bulkPatch({ from: e.detail.value }); },
   pickBulkTo: function (e) { this._bulkPatch({ to: e.detail.value }); },
   pickBulkSt: function (e) { this._bulkPatch({ st: e.currentTarget.dataset.st }); },
-  toggleBulkClear: function () { this._bulkPatch({ clearLes: !this.data.bulk.clearLes }); },
+  /* 批量课时步进：null=不改 → + 得 2 / − 得 0，之后 ±2，夹 0~20 */
+  stepBulkLes: function (e) {
+    var d = parseInt(e.currentTarget.dataset.d, 10);
+    var next = core.bulkLessonStep(this.data.bulk.les, d, 20);
+    this._bulkPatch({ les: next });
+  },
+  resetBulkLes: function () { this._bulkPatch({ les: null }); },
 
   toggleBulkWd: function (e) {
     var w = parseInt(e.currentTarget.dataset.wd, 10);
@@ -547,7 +554,7 @@ Page({
     var scope = b.st === 'am' ? 'am' : (b.st === 'pm' ? 'pm' : 'both');
     var that = this;
     /* 面板等真正写入成功再关：已核对月份点了「取消」不该白填一遍 */
-    this.applyToKeys(keys, b.st, scope, b.clearLes, function () { that.setData({ bulk: null }); });
+    this.applyToKeys(keys, b.st, scope, b.les, function () { that.setData({ bulk: null }); });
   },
 
   applySel: function (e) {
@@ -557,11 +564,13 @@ Page({
       wx.showToast({ title: '先点几天再套用', icon: 'none' });
       return;
     }
-    this.applyToKeys(keys, st, this.data.scope, this.data.clearLes);
+    /* 连选条的「课时清零」等价于批量设 0；没勾就是 null（不改） */
+    this.applyToKeys(keys, st, this.data.scope, this.data.clearLes ? 0 : null);
   },
 
-  /* 把一组日期整体设为某状态：scope 只在「只上午/只下午」时有意义 */
-  applyToKeys: function (keys, st, scope, clearLes, onDone) {
+  /* 把一组日期整体设为某状态：scope 只在「只上午/只下午」时有意义。
+     les: null=不改课时，0=清零，正数=设为该节数。 */
+  applyToKeys: function (keys, st, scope, les, onDone) {
     var db = this.db, that = this;
     keys = keys.filter(function (k) { return !core.preStart(db, k); });
     if (!keys.length) {
@@ -582,7 +591,10 @@ Page({
       keys.forEach(function (k) {
         var r = db.days[k];
         snap[k] = r ? JSON.parse(JSON.stringify(r)) : null;
-        var les = clearLes ? 0 : (r ? (parseInt(r.lessons, 10) || 0) : 0);
+        /* null=保留原课时；0=清零；正数=覆盖。设了值就算手填，不再被自动落账覆盖。
+           注意别用同名 var les 遮蔽参数，否则参数被 undefined 覆盖永远走原值分支 */
+        var finalLes = (les == null) ? (r ? (parseInt(r.lessons, 10) || 0) : 0) : les;
+        var lessonTouched = (les != null);
         var note = r ? (r.note || '') : '';
         var am, pm;
         if (st === 'am') { am = 'work'; pm = ''; }
@@ -591,9 +603,11 @@ Page({
         else if (scope === 'am') { am = st; pm = ''; }
         else if (scope === 'pm') { am = ''; pm = st; }
         else { am = st; pm = st; }
-        /* 批量只改状态时，原来记的课还是那个档位；勾了清空课时，档位一起清掉 */
-        core.setRecord(db, k, am, pm, les, note, clearLes ? true : (r ? !!r.lset : false),
-          clearLes ? '' : (r ? r.rid : ''));
+        /* 没碰课时就沿用原档位和锁定状态；设了课时（含清零）就算手填，
+           清零时连档位一起清掉，设正数时保留原档位。 */
+        core.setRecord(db, k, am, pm, finalLes, note,
+          lessonTouched ? true : (r ? !!r.lset : false),
+          les === 0 ? '' : (r ? r.rid : ''));
       });
       that._undo = { msg: that.data.ym, snap: snap, msnap: msnap };
       store.commit();

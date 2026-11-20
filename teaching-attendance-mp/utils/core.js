@@ -663,6 +663,17 @@ function monthRate(db, ym) {
   return (p && p.rate != null) ? p.rate : db.settings.rate;
 }
 
+/* 批量课时的步进：null 表示「不改」，点 + 从 null 起 2、点 − 从 null 起 0；
+   已有值就按 ±2 累加，夹在 0~cap。这样「不改」和「清零」是两个不同状态。 */
+function bulkLessonStep(current, delta, cap) {
+  var max = cap === undefined ? 20 : cap;
+  var base = (current == null) ? (delta > 0 ? 0 : 2) : (parseInt(current, 10) || 0);
+  var next = base + delta;
+  if (next < 0) { next = 0; }
+  if (next > max) { next = max; }
+  return next;
+}
+
 /* 改基本工资时，把「当前自然月及以后」已冻结的 base 同步成新值。
    历史月份保持原冻结值不动（改价不追溯的边界）；没冻结的月份本来就跟设置走，不用动。
    返回改了几个月，给页面提示用。今天可传入便于测试，默认取系统当天。 */
@@ -1059,7 +1070,7 @@ module.exports = {
   NOTE_PRESETS: NOTE_PRESETS, monthNotes: monthNotes,
   ratesOf: ratesOf, rateName: rateName, priceOf: priceOf, nightOf: nightOf,
   monthTouched: monthTouched, monthBase: monthBase, monthRate: monthRate,
-  syncBaseForward: syncBaseForward,
+  syncBaseForward: syncBaseForward, bulkLessonStep: bulkLessonStep,
   fillLessonsFromCourses: fillLessonsFromCourses, autoFillLessons: autoFillLessons,
   ymOf: ymOf, isYm: isYm, addMonths: addMonths, monthsBetween: monthsBetween,
   monthKeysOf: monthKeysOf, daysInMonth: daysInMonth, firstWeekdayOf: firstWeekdayOf,
