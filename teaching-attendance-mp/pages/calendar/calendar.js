@@ -34,7 +34,6 @@ Page({
     opts: OPTIONS,
     rates: [],
     nightHint: '',
-    noteOpen: false,
     sheet: null,
     bulk: null,
     bulkWd: [],
@@ -629,10 +628,7 @@ Page({
     return true;
   },
 
-  /* 备注默认折叠；翻天连续补记时保留展开状态，省得每天点一次 */
-  toggleNote: function () { this.setData({ noteOpen: !this.data.noteOpen }); },
-
-  openSheet: function (k, keepNoteOpen) {
+  openSheet: function (k) {
     /* 同一次面板会话里的翻天补记算一批，撤销一次就能全回去 */
     this._sheetBatch = 'sheet-' + k + '-' + Date.now();
     var db = this.db, r = core.peek(db, k);
@@ -642,7 +638,8 @@ Page({
     var note = r ? (r.note || '') : '';
     var exp = core.lessonsFor(db, k);
     var p = db.months[k.slice(0, 7)] || {};
-    var tagGroups = core.noteTagGroups(db);
+    /* 预设 6 个 + 最近写过 2 个，接在一起排成一行；自写最长的那两个会截断显示 */
+    var tags = core.noteTags(db, 2);
 
     var kind;
     if (core.isHoliday(k, this.db)) { kind = '法定节假日'; }
@@ -659,15 +656,13 @@ Page({
       /* 档位随设置页变动，每次点开重算一遍，别缓存到页面 data 里 */
       rates: core.ratesOf(db).map(function (r) { return { id: r.id, name: r.name, price: r.price }; }),
       nightHint: '每次 ' + core.fmtShort(nh) + ' 小时 · ' + core.fmtShort(nf) + ' 元（一晚最多 2 次）',
-      noteOpen: keepNoteOpen ? this.data.noteOpen : false,
       sheet: {
         key: k,
         title: parseInt(k.slice(5, 7), 10) + ' 月 ' + parseInt(k.slice(8), 10) + ' 日',
         sub: sub,
         am: am, pm: pm, lessons: les, note: note, exp: exp,
-        /* 预设短词与自写长句分开两组，避免长短混排参差 */
-        tags: tagGroups.presets,
-        recentTags: tagGroups.recent,
+        /* 一行放不下的自写标签由样式截断，点一下仍填完整内容 */
+        tags: tags,
         rid: (r && r.rid) ? r.rid : 'default',
         /* 学校发了这个钱才显示；以前记过、现在单价调成 0 的也显示，好让人把次数清掉 */
         night: ni, nightOn: (nf > 0 || ni > 0),
@@ -846,7 +841,7 @@ Page({
          不然「已核对」的确认问的是看不见的那个月，撤销也会拍错月份 */
       var kym = k.slice(0, 7);
       if (kym !== that.data.ym) { that.setData({ ym: kym }); }
-      that.openSheet(k, true);
+      that.openSheet(k);
       that.render();
     });
   },

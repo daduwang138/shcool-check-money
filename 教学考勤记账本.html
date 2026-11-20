@@ -426,19 +426,13 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
 .note-mark{width:5px;height:5px;flex:none;border-radius:999px;background:#1B5E9B}
 .m-nav{display:flex;gap:8px;margin:8px 0 4px}
 .m-nav .btn{flex:1}
-.note-toggle{display:flex;align-items:center;cursor:pointer}
-.note-preview{flex:1;min-width:0;margin-left:12px;font-size:12px;color:var(--ink);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.note-arrow{font-size:12px;color:var(--faint);padding-left:8px}
-.tag-group{margin-top:10px}
-.tag-label{display:block;font-size:10.5px;color:var(--faint);margin-bottom:5px}
-.tag-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:0}
-.tag{padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:#FCFBF8;
-  color:var(--ink);font-size:11px;line-height:1.5;cursor:pointer;
-  max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tag.recent{max-width:100%}
+/* 备注标签：预设6+最近2排成一行，短词按内容、长句压缩省略号 */
+.tag-row{display:flex;flex-wrap:nowrap;gap:6px;margin-top:8px}
+.tag{flex:0 0 auto;padding:4px 10px;border:1px solid var(--line);
+  border-radius:999px;background:#FCFBF8;color:var(--ink);font-size:11px;line-height:1.5;
+  cursor:pointer;white-space:nowrap}
+.tag.recent{flex:0 1 auto;min-width:0;max-width:110px;overflow:hidden;text-overflow:ellipsis}
 .tag.on{border-color:#A7C3DC;background:#E4EEF7;color:#174C7C}
-.tag-hint{margin-top:9px;font-size:10.5px;color:var(--faint);line-height:1.6}
 
 /* ---------- 导出统计 ---------- */
 .frow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -630,18 +624,10 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
       </div>
     </div>
     <div class="sect">
-      <div class="note-toggle" id="mNoteToggle">
-        <span class="lb" style="margin:0;flex:none">备注</span>
-        <span class="note-preview" id="mNotePreview">添加备注</span>
-        <span class="note-arrow" id="mNoteArrow">▸</span>
-      </div>
-      <div id="mNoteBody" style="display:none">
-        <input type="text" id="mNote" class="note" placeholder="写点什么，方便日后查找">
-        <div class="tag-group"><span class="tag-label">常用</span><div id="mTags" class="tag-row"></div></div>
-        <div class="tag-group" id="mRecentGroup" style="display:none">
-          <span class="tag-label">最近写过</span><div id="mRecentTags" class="tag-row"></div>
-        </div>
-      </div>
+      <div class="lb">备注</div>
+      <input type="text" id="mNote" class="note" placeholder="写点什么，方便日后查找">
+      <!-- 预设 6 个 + 最近写过 2 个同一行，长句截断 -->
+      <div id="mTags" class="tag-row"></div>
     </div>
     <div class="row">
       <button class="btn" id="mCancel">取消</button>
@@ -1867,13 +1853,6 @@ function noteTags(db, limit) {
   return out.concat(used.slice(0, cap).map(function (x) { return x.v; }));
 }
 
-/* 界面分组：预设（短词）和自写（可能是长句）分开显示，避免长短混排参差。
-   数据仍来自同一个 noteTags，两版同一套，不在界面另存一份。 */
-function noteTagGroups(db) {
-  var all = noteTags(db);
-  return { presets: NOTE_PRESETS.slice(), recent: all.slice(NOTE_PRESETS.length) };
-}
-
 function monthNotes(db, ym) {
   var q = ymd(ym + '-01'), y = q[0], m = q[1];
   var n = daysInMonth(ym), out = [];
@@ -2063,7 +2042,6 @@ return {
   computeYear: computeYear,
   sumText: sumText,
   noteTags: noteTags,
-  noteTagGroups: noteTagGroups,
   monthNotes: monthNotes,
   ymOf: ymOf,
   isYm: isYm,
@@ -2263,7 +2241,6 @@ function isYm(v){return Core.isYm(v);}
 /* ---------- 备注 / 事项（与小程序 utils/core.js 逐字段对齐） ---------- */
 /* 备注一直是 DB.days[k].note，这里只做整理，不新增字段、不改备份格式 */
 function noteTags(limit){return Core.noteTags(DB, limit);}
-function noteTagGroups(){return Core.noteTagGroups(DB);}
 function monthNotes(ym){return Core.monthNotes(DB, ym);}
 function hasContent(r){return Core.hasContent(r);}
 function monthKeysOf(db){return Core.monthKeysOf(db);}
@@ -3333,29 +3310,21 @@ function bulkKeys(){
    标签每次打开面板重建，不用另存一份「常用标签」配置 */
 function syncNoteTags(){
   var v=($("mNote").value||"").trim();
-  ["mTags","mRecentTags"].forEach(function(id){
-    Array.prototype.forEach.call($(id).children,function(b){
-      if(b.textContent===v)b.classList.add("on");else b.classList.remove("on");
-    });
+  Array.prototype.forEach.call($("mTags").children,function(b){
+    if(b.textContent===v)b.classList.add("on");else b.classList.remove("on");
   });
-  /* 折叠行也要跟着显示当前备注，别藏起来让人以为没记 */
-  var pv=$("mNotePreview");
-  pv.textContent=v||"添加备注";
-  pv.classList.toggle("empty",!v);
 }
 function renderNoteTags(){
-  var groups=noteTagGroups();
-  [["mTags",groups.presets],["mRecentTags",groups.recent]].forEach(function(pair){
-    var box=$(pair[0]);box.innerHTML="";
-    pair[1].forEach(function(t){
-      var b=document.createElement("button");
-      b.type="button";b.className="tag"+(pair[0]==="mRecentTags"?" recent":"");b.textContent=t;
-      b.title=t; /* 长句标签截断后鼠标悬停仍看得到全文 */
-      b.addEventListener("click",function(){$("mNote").value=t;syncNoteTags();});
-      box.appendChild(b);
-    });
+  /* 预设 6 个 + 最近写过 2 个一起排成一行，长句截断、title 悬停看全文 */
+  var box=$("mTags");box.innerHTML="";
+  noteTags(2).forEach(function(t,idx){
+    var b=document.createElement("button");
+    /* 前6个预设短词不压缩，后2个自写长句压缩省略号 */
+    b.type="button";b.className="tag"+(idx>=6?" recent":"");b.textContent=t;
+    b.title=t;
+    b.addEventListener("click",function(){$("mNote").value=t;syncNoteTags();});
+    box.appendChild(b);
   });
-  $("mRecentGroup").style.display=groups.recent.length?"":"none";
   syncNoteTags();
 }
 function openEditor(key){
@@ -3371,10 +3340,6 @@ function openEditor(key){
   $("mLessons").textContent=les;
   $("mNote").value=r0?(r0.note||""):"";
   $("mNote").oninput=syncNoteTags;  /* 用属性赋值，反复打开面板不会重复挂监听 */
-  /* 备注默认折叠；翻天连续补记时保留展开 */
-  var keepOpen=arguments[1]===true;
-  $("mNoteBody").style.display=keepOpen?"":"none";
-  $("mNoteArrow").textContent=keepOpen?"▾":"▸";
   renderNoteTags();
   buildRateOpts(r0&&r0.rid?r0.rid:"default", les);
   /* 晚修监考：学校发了这个钱才显示；以前记过、现在单价调成 0 的也显示，好让人把次数清掉 */
@@ -3468,8 +3433,7 @@ function stepDay(delta){
   /* 保存被取消（已核对月份点了「取消」）就留在这一天，别把刚填的弄丢 */
   if(!saveEditor(false))return;
   EDIT=k;
-  /* 翻天连续补记：保留备注展开状态，别每天都要点开一次 */
-  openEditor(k, $("mNoteBody").style.display!=="none");
+  openEditor(k);
 }
 
 /* ---------- 汇总 ---------- */
@@ -4947,11 +4911,6 @@ function bindEvents(){
   });
   $("mDone").addEventListener("click",function(){saveEditor(true);});
   $("mCancel").addEventListener("click",cancelEditor);
-  $("mNoteToggle").addEventListener("click",function(){
-    var open=$("mNoteBody").style.display!=="none";
-    $("mNoteBody").style.display=open?"none":"";
-    $("mNoteArrow").textContent=open?"▸":"▾";
-  });
   $("mPrev").addEventListener("click",function(){stepDay(-1);});
   $("mNext").addEventListener("click",function(){stepDay(1);});
 

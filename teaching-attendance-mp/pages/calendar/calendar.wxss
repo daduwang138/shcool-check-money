@@ -629,24 +629,19 @@
   font-size: 26rpx;
 }
 
-/* 备注快捷标签：预设短词一行、自写长句一行，两组分开不再长短混排。
-   自写的可能是一整句话，单行截断显示，点一下仍填完整内容。 */
-.tag-group { margin-top: 14rpx; }
-.tag-label {
-  display: block;
-  color: #8A8377;
-  font-size: 20rpx;
-  margin-bottom: 8rpx;
-}
+/* 备注快捷标签：预设 6 个 + 最近写过 2 个，8 个强制排成一行不换行。
+   短词按内容宽度，长句被压缩并省略号；点一下仍填完整内容。
+   wx:key 用内容，8 个标签身份稳定。 */
 .tag-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10rpx;
+  flex-wrap: nowrap;
+  gap: 8rpx;
+  margin-top: 12rpx;
 }
 
 .tag {
-  max-width: 100%;
-  padding: 8rpx 16rpx;
+  flex: 0 0 auto;
+  padding: 8rpx 14rpx;
   border: 1rpx solid #E4E1D8;
   border-radius: 999rpx;
   background: #FCFBF8;
@@ -654,25 +649,20 @@
   font-size: 22rpx;
   line-height: 1.4;
   white-space: nowrap;
+}
+/* 后两个自写长句：让出宽度给预设，自己压缩省略号 */
+.tag.recent {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 180rpx;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-/* 自写的一句话标签：整行显示 widest，单行省略，不再撑成两行 */
-.tag.recent { max-width: 100%; }
 
 .tag.on {
   border-color: #A7C3DC;
   background: #E4EEF7;
   color: #174C7C;
-}
-
-.tag-hint {
-  display: block;
-  margin-top: 12rpx;
-  color: #8A8377;
-  font-size: 20rpx;
-  line-height: 1.6;
 }
 
 .sheet-nav {
@@ -958,21 +948,7 @@
   background: #1B5E9B;
 }
 
-/* 备注折叠：默认一行预览，点开才出输入框和标签，别让面板撑到要滚动 */
 .note-field { margin-top: 18rpx; }
-.note-toggle { display: flex; align-items: center; }
-.note-toggle .field-label { margin-bottom: 0; flex: none; margin-right: 16rpx; }
-.note-preview {
-  flex: 1;
-  min-width: 0;
-  color: #191C20;
-  font-size: 24rpx;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.note-preview.empty { color: #8A8377; }
-.note-arrow { color: #8A8377; font-size: 22rpx; padding-left: 8rpx; }
 
 /* 批量课时步进：null 显示「不改」，设了值蓝色高亮 */
 .bulk-les { display: flex; align-items: center; gap: 20rpx; }

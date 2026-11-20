@@ -920,13 +920,6 @@ function noteTags(db, limit) {
   return out.concat(used.slice(0, cap).map(function (x) { return x.v; }));
 }
 
-/* 界面分组：预设（短词）和自写（可能是长句）分开显示，避免长短混排参差。
-   数据仍来自同一个 noteTags，两版同一套，不在界面另存一份。 */
-function noteTagGroups(db) {
-  var all = noteTags(db);
-  return { presets: NOTE_PRESETS.slice(), recent: all.slice(NOTE_PRESETS.length) };
-}
-
 function monthNotes(db, ym) {
   var q = ymd(ym + '-01'), y = q[0], m = q[1];
   var n = daysInMonth(ym), out = [];
@@ -1066,8 +1059,7 @@ module.exports = {
   defaultHalf: defaultHalf, effHalf: effHalf, isGhostHalf: isGhostHalf, isGhost: isGhost,
   setRecord: setRecord, monthP: monthP, freezeMonth: freezeMonth, computeMonth: computeMonth,
   computeYear: computeYear,
-  sumText: sumText, noteTags: noteTags, noteTagGroups: noteTagGroups,
-  NOTE_PRESETS: NOTE_PRESETS, monthNotes: monthNotes,
+  sumText: sumText, noteTags: noteTags, NOTE_PRESETS: NOTE_PRESETS, monthNotes: monthNotes,
   ratesOf: ratesOf, rateName: rateName, priceOf: priceOf, nightOf: nightOf,
   monthTouched: monthTouched, monthBase: monthBase, monthRate: monthRate,
   syncBaseForward: syncBaseForward, bulkLessonStep: bulkLessonStep,
