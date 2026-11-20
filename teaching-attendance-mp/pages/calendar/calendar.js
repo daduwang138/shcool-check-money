@@ -34,6 +34,7 @@ Page({
     opts: OPTIONS,
     rates: [],
     nightHint: '',
+    noteOpen: false,
     sheet: null,
     bulk: null,
     bulkWd: [],
@@ -628,7 +629,10 @@ Page({
     return true;
   },
 
-  openSheet: function (k) {
+  /* 备注默认折叠；翻天连续补记时保留展开状态，省得每天点一次 */
+  toggleNote: function () { this.setData({ noteOpen: !this.data.noteOpen }); },
+
+  openSheet: function (k, keepNoteOpen) {
     /* 同一次面板会话里的翻天补记算一批，撤销一次就能全回去 */
     this._sheetBatch = 'sheet-' + k + '-' + Date.now();
     var db = this.db, r = core.peek(db, k);
@@ -655,6 +659,7 @@ Page({
       /* 档位随设置页变动，每次点开重算一遍，别缓存到页面 data 里 */
       rates: core.ratesOf(db).map(function (r) { return { id: r.id, name: r.name, price: r.price }; }),
       nightHint: '每次 ' + core.fmtShort(nh) + ' 小时 · ' + core.fmtShort(nf) + ' 元（一晚最多 2 次）',
+      noteOpen: keepNoteOpen ? this.data.noteOpen : false,
       sheet: {
         key: k,
         title: parseInt(k.slice(5, 7), 10) + ' 月 ' + parseInt(k.slice(8), 10) + ' 日',
@@ -841,7 +846,7 @@ Page({
          不然「已核对」的确认问的是看不见的那个月，撤销也会拍错月份 */
       var kym = k.slice(0, 7);
       if (kym !== that.data.ym) { that.setData({ ym: kym }); }
-      that.openSheet(k);
+      that.openSheet(k, true);
       that.render();
     });
   },

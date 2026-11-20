@@ -426,6 +426,10 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
 .note-mark{width:5px;height:5px;flex:none;border-radius:999px;background:#1B5E9B}
 .m-nav{display:flex;gap:8px;margin:8px 0 4px}
 .m-nav .btn{flex:1}
+.note-toggle{display:flex;align-items:center;cursor:pointer}
+.note-preview{flex:1;min-width:0;margin-left:12px;font-size:12px;color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note-arrow{font-size:12px;color:var(--faint);padding-left:8px}
 .tag-group{margin-top:10px}
 .tag-label{display:block;font-size:10.5px;color:var(--faint);margin-bottom:5px}
 .tag-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:0}
@@ -626,13 +630,18 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
       </div>
     </div>
     <div class="sect">
-      <div class="lb">备注（可选）</div>
-      <input type="text" id="mNote" class="note" placeholder="例如：四六级监考、竞赛阅卷；周末加班写了才记得住">
-      <div class="tag-group"><span class="tag-label">常用</span><div id="mTags" class="tag-row"></div></div>
-      <div class="tag-group" id="mRecentGroup" style="display:none">
-        <span class="tag-label">最近写过</span><div id="mRecentTags" class="tag-row"></div>
+      <div class="note-toggle" id="mNoteToggle">
+        <span class="lb" style="margin:0;flex:none">备注</span>
+        <span class="note-preview" id="mNotePreview">添加备注</span>
+        <span class="note-arrow" id="mNoteArrow">▸</span>
       </div>
-      <div class="tag-hint">点标签填入，也可在上面自己写</div>
+      <div id="mNoteBody" style="display:none">
+        <input type="text" id="mNote" class="note" placeholder="写点什么，方便日后查找">
+        <div class="tag-group"><span class="tag-label">常用</span><div id="mTags" class="tag-row"></div></div>
+        <div class="tag-group" id="mRecentGroup" style="display:none">
+          <span class="tag-label">最近写过</span><div id="mRecentTags" class="tag-row"></div>
+        </div>
+      </div>
     </div>
     <div class="row">
       <button class="btn" id="mCancel">取消</button>
@@ -3329,6 +3338,10 @@ function syncNoteTags(){
       if(b.textContent===v)b.classList.add("on");else b.classList.remove("on");
     });
   });
+  /* 折叠行也要跟着显示当前备注，别藏起来让人以为没记 */
+  var pv=$("mNotePreview");
+  pv.textContent=v||"添加备注";
+  pv.classList.toggle("empty",!v);
 }
 function renderNoteTags(){
   var groups=noteTagGroups();
@@ -3358,6 +3371,10 @@ function openEditor(key){
   $("mLessons").textContent=les;
   $("mNote").value=r0?(r0.note||""):"";
   $("mNote").oninput=syncNoteTags;  /* 用属性赋值，反复打开面板不会重复挂监听 */
+  /* 备注默认折叠；翻天连续补记时保留展开 */
+  var keepOpen=arguments[1]===true;
+  $("mNoteBody").style.display=keepOpen?"":"none";
+  $("mNoteArrow").textContent=keepOpen?"▾":"▸";
   renderNoteTags();
   buildRateOpts(r0&&r0.rid?r0.rid:"default", les);
   /* 晚修监考：学校发了这个钱才显示；以前记过、现在单价调成 0 的也显示，好让人把次数清掉 */
@@ -3451,7 +3468,8 @@ function stepDay(delta){
   /* 保存被取消（已核对月份点了「取消」）就留在这一天，别把刚填的弄丢 */
   if(!saveEditor(false))return;
   EDIT=k;
-  openEditor(k);
+  /* 翻天连续补记：保留备注展开状态，别每天都要点开一次 */
+  openEditor(k, $("mNoteBody").style.display!=="none");
 }
 
 /* ---------- 汇总 ---------- */
@@ -4929,6 +4947,11 @@ function bindEvents(){
   });
   $("mDone").addEventListener("click",function(){saveEditor(true);});
   $("mCancel").addEventListener("click",cancelEditor);
+  $("mNoteToggle").addEventListener("click",function(){
+    var open=$("mNoteBody").style.display!=="none";
+    $("mNoteBody").style.display=open?"none":"";
+    $("mNoteArrow").textContent=open?"▸":"▾";
+  });
   $("mPrev").addEventListener("click",function(){stepDay(-1);});
   $("mNext").addEventListener("click",function(){stepDay(1);});
 

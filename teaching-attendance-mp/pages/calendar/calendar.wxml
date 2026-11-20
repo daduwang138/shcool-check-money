@@ -235,24 +235,30 @@
     </view>
   </view>
 
-  <view class="field">
-    <text class="field-label">备注</text>
-    <input class="note-input" value="{{sheet.note}}" placeholder="如「四六级监考」「竞赛阅卷」，周末加班写了才记得住" maxlength="60" bindinput="onNote" />
-    <view class="tag-group">
-      <text class="tag-label">常用</text>
-      <view class="tag-row">
-        <text class="tag {{sheet.note === item ? 'on' : ''}}" wx:for="{{sheet.tags}}" wx:key="*this"
-              data-v="{{item}}" bindtap="tapTag">{{item}}</text>
+  <view class="field note-field">
+    <!-- 备注默认收起，一行显示已有内容；要点开才出输入框和标签，省得撑高面板 -->
+    <view class="note-toggle" bindtap="toggleNote">
+      <text class="field-label">备注</text>
+      <text class="note-preview {{sheet.note ? '' : 'empty'}}">{{sheet.note || '添加备注'}}</text>
+      <text class="note-arrow">{{noteOpen ? '▾' : '▸'}}</text>
+    </view>
+    <view wx:if="{{noteOpen}}">
+      <input class="note-input" value="{{sheet.note}}" placeholder="写点什么，方便日后查找" maxlength="60" bindinput="onNote" />
+      <view class="tag-group">
+        <text class="tag-label">常用</text>
+        <view class="tag-row">
+          <text class="tag {{sheet.note === item ? 'on' : ''}}" wx:for="{{sheet.tags}}" wx:key="*this"
+                data-v="{{item}}" bindtap="tapTag">{{item}}</text>
+        </view>
+      </view>
+      <view class="tag-group" wx:if="{{sheet.recentTags.length}}">
+        <text class="tag-label">最近写过</text>
+        <view class="tag-row">
+          <text class="tag recent {{sheet.note === item ? 'on' : ''}}" wx:for="{{sheet.recentTags}}" wx:key="*this"
+                data-v="{{item}}" bindtap="tapTag">{{item}}</text>
+        </view>
       </view>
     </view>
-    <view class="tag-group" wx:if="{{sheet.recentTags.length}}">
-      <text class="tag-label">最近写过</text>
-      <view class="tag-row">
-        <text class="tag recent {{sheet.note === item ? 'on' : ''}}" wx:for="{{sheet.recentTags}}" wx:key="*this"
-              data-v="{{item}}" bindtap="tapTag">{{item}}</text>
-      </view>
-    </view>
-    <text class="tag-hint">点标签填入，也可在上面自己写</text>
   </view>
 
   <view class="sheet-actions">

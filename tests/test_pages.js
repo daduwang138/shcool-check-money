@@ -1435,9 +1435,22 @@ reset();
   ok(c16 && !c16.hasNote, '日历·没写备注的不点亮');
 
   nCal.openSheet('2026-11-15');
+  ok(nCal.data.noteOpen === false, '面板·备注默认折叠', String(nCal.data.noteOpen));
+  nCal.toggleNote();
+  ok(nCal.data.noteOpen === true, '面板·点一下展开备注', String(nCal.data.noteOpen));
+  nCal.toggleNote();
+  ok(nCal.data.noteOpen === false, '面板·再点收起备注', String(nCal.data.noteOpen));
+  nCal.toggleNote();
   ok(nCal.data.sheet.tags.length === 6 && nCal.data.sheet.recentTags.length === 3,
     '面板·标签分两组（6预设+3自写）',
     nCal.data.sheet.tags.length + '+' + nCal.data.sheet.recentTags.length);
+  /* 翻天连续补记时保留展开，重新点开面板才回到折叠 */
+  nCal.stepDay({ currentTarget: { dataset: { d: 1 } } });
+  ok(nCal.data.noteOpen === true, '面板·翻天保留备注展开', String(nCal.data.noteOpen));
+  nCal.closeSheet();
+  nCal.openSheet('2026-11-15');
+  ok(nCal.data.noteOpen === false, '面板·重新打开回到折叠', String(nCal.data.noteOpen));
+  nCal.toggleNote();
   nCal.tapTag({ currentTarget: { dataset: { v: '四六级' } } });
   ok(nCal.data.sheet.note === '四六级' && nCal._note === '四六级',
     '面板·点标签同时改输入框和暂存值', nCal.data.sheet.note + ' / ' + nCal._note);
