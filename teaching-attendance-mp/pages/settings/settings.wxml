@@ -47,7 +47,7 @@
     <view class="row">
       <view class="col">
         <text class="row-label">晚修监考</text>
-        <text class="sub">一晚就一场，2 小时 10 元，定死的；不算课时也不占出勤半天，不按小时乘钱</text>
+        <text class="sub">每次 2 小时 10 元，一晚最多 2 次；不算课时也不占出勤半天，不按小时乘钱</text>
       </view>
     </view>
     <view class="row">

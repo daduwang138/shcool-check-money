@@ -637,7 +637,7 @@ Page({
     this.setData({
       /* 档位随设置页变动，每次点开重算一遍，别缓存到页面 data 里 */
       rates: core.ratesOf(db).map(function (r) { return { id: r.id, name: r.name, price: r.price }; }),
-      nightHint: '一晚 1 次 · ' + core.fmtShort(nh) + ' 小时 · ' + core.fmtShort(nf) + ' 元',
+      nightHint: '每次 ' + core.fmtShort(nh) + ' 小时 · ' + core.fmtShort(nf) + ' 元（一晚最多 2 次）',
       sheet: {
         key: k,
         title: parseInt(k.slice(5, 7), 10) + ' 月 ' + parseInt(k.slice(8), 10) + ' 日',
@@ -685,18 +685,18 @@ Page({
     this._patchSheet({ 'sheet.lessons': v });
   },
 
-  /* 晚修监考一晚就一场：2 小时 10 元，定死的。上限设 1，误点第二下不会多算一笔钱。
-     内核不设限——从旧备份或粘贴码里读进来的多次记录仍照实算，界面不替人改账。 */
+  /* 晚修监考一次加减 2 次，一晚最多 2 次；金额按次数×每次价，内核照实算。
+     每次的时长与钱数在设置里定，2 小时只是核对单上的说明、不参与乘算。
+     旧备份里单日超过 2 次仍照实显示，界面不偷偷替人改账，点 − 可以减下来。 */
   stepNight: function (e) {
-    var d = parseInt(e.currentTarget.dataset.d, 10);
+    var d = parseInt(e.currentTarget.dataset.d, 10) * 2;
     var cur = (parseInt(this.data.sheet.night, 10) || 0);
     var v = cur + d;
     if (v < 0) { v = 0; }
-    /* 到顶了给个响，不然连点没反应会被当成按钮坏了。
-       旧数据本来就 >1 次时保持原值，界面不偷偷替人改账，点 − 可以自己减下来 */
-    if (v > 1) {
-      v = cur > 1 ? cur : 1;
-      if (d > 0) { wx.showToast({ title: '一晚只记 1 次监考', icon: 'none' }); }
+    /* 到顶给个响，不然连点没反应会被当成按钮坏了 */
+    if (v > 2) {
+      v = cur > 2 ? cur : 2;
+      if (d > 0) { wx.showToast({ title: '一晚最多 2 次监考', icon: 'none' }); }
     }
     this._patchSheet({ 'sheet.night': v });
   },

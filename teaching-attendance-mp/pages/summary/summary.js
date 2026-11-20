@@ -104,7 +104,7 @@ Page({
       otherRates: core.ratesOf(db).filter(function (r) { return r.id !== 'default'; })
         .map(function (r) { return r.name + ' ¥' + core.fmtShort(core.priceOf(db, ym, r.id)) + '/节'; }).join(' · '),
       nightEach: (c.nightFeeEach > 0 || c.nightCount > 0)
-        ? ('一晚 1 次 · ' + core.fmtShort(c.nightHoursEach) + ' 小时 · ¥' + core.fmtShort(c.nightFeeEach) + '/次')
+        ? ('每次 ' + core.fmtShort(c.nightHoursEach) + ' 小时 · ¥' + core.fmtShort(c.nightFeeEach) + '/次')
         : '',
       p: {
         /* 没记过账的月份 p.workdays 还是 undefined，输入框会显示 "undefined" 并卡死；取现算值 */
