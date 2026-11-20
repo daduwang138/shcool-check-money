@@ -239,10 +239,19 @@
     <text class="field-label">备注</text>
     <input class="note-input" value="{{sheet.note}}" placeholder="写点什么，方便日后查找" maxlength="60" bindinput="onNote" />
     <!-- 预设 6 个 + 最近写过 2 个同一行；超出宽度的自写标签截断，点一下仍能填完整内容 -->
-    <view class="tag-row">
-      <!-- 前6个是预设短词（不压缩），后2个是最近写过的长句（截断） -->
-      <text class="tag {{index >= 6 ? 'recent' : ''}} {{sheet.note === item ? 'on' : ''}}"
-            wx:for="{{sheet.tags}}" wx:key="*this" data-v="{{item}}" bindtap="tapTag">{{item}}</text>
+    <view class="tag-group">
+      <text class="tag-label">常用</text>
+      <view class="tag-row">
+        <text class="tag {{sheet.note === item ? 'on' : ''}}" wx:for="{{sheet.tags}}" wx:key="*this"
+              data-v="{{item}}" bindtap="tapTag">{{item}}</text>
+      </view>
+    </view>
+    <view class="tag-group" wx:if="{{sheet.recentTags.length}}">
+      <text class="tag-label">最近写过</text>
+      <view class="tag-row">
+        <text class="tag {{sheet.note === item ? 'on' : ''}}" wx:for="{{sheet.recentTags}}" wx:key="*this"
+              data-v="{{item}}" bindtap="tapTag">{{item}}</text>
+      </view>
     </view>
   </view>
 

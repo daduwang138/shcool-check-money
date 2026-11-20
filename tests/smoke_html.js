@@ -42,7 +42,7 @@ const probe = [
   '    ok("弹窗打开", q("#modal").classList.contains("show"));',
   '    ok("备注区直接展开不折叠", !!q("#mNote") && q("#mNote").offsetParent!==null);',
   '    var nTags=q("#mTags").children;',
-  '    ok("标签一行渲染且预设在前", nTags.length>=6 && nTags[0].textContent==="四六级" && nTags[5].textContent==="模考", String(nTags.length));',
+  '    ok("预设标签6个完整渲染", nTags.length===6 && nTags[0].textContent==="四六级" && nTags[5].textContent==="模考", String(nTags.length));',
   '    ok("晚修区块显示", q("#mNightBox").style.display!=="none", q("#mNightBox").style.display);',
   '    ok("提示带每次时长和新价", /每次 2 小时 · 15 元（一晚最多 2 次）/.test(q("#mNightHint").textContent), q("#mNightHint").textContent);',
   '    q("#mNightPlus").click();',

@@ -426,12 +426,13 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
 .note-mark{width:5px;height:5px;flex:none;border-radius:999px;background:#1B5E9B}
 .m-nav{display:flex;gap:8px;margin:8px 0 4px}
 .m-nav .btn{flex:1}
-/* 备注标签：预设6+最近2排成一行，短词按内容、长句压缩省略号 */
-.tag-row{display:flex;flex-wrap:nowrap;gap:6px;margin-top:8px}
-.tag{flex:0 0 auto;padding:4px 10px;border:1px solid var(--line);
+/* 备注标签：预设一行、最近写过一行，都完整显示 */
+.tag-group{margin-top:10px}
+.tag-label{display:block;font-size:10.5px;color:var(--faint);margin-bottom:5px}
+.tag-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:0}
+.tag{padding:4px 10px;border:1px solid var(--line);
   border-radius:999px;background:#FCFBF8;color:var(--ink);font-size:11px;line-height:1.5;
   cursor:pointer;white-space:nowrap}
-.tag.recent{flex:0 1 auto;min-width:0;max-width:110px;overflow:hidden;text-overflow:ellipsis}
 .tag.on{border-color:#A7C3DC;background:#E4EEF7;color:#174C7C}
 
 /* ---------- 导出统计 ---------- */
@@ -626,8 +627,10 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
     <div class="sect">
       <div class="lb">备注</div>
       <input type="text" id="mNote" class="note" placeholder="写点什么，方便日后查找">
-      <!-- 预设 6 个 + 最近写过 2 个同一行，长句截断 -->
-      <div id="mTags" class="tag-row"></div>
+      <div class="tag-group"><span class="tag-label">常用</span><div id="mTags" class="tag-row"></div></div>
+      <div class="tag-group" id="mRecentGroup" style="display:none">
+        <span class="tag-label">最近写过</span><div id="mRecentTags" class="tag-row"></div>
+      </div>
     </div>
     <div class="row">
       <button class="btn" id="mCancel">取消</button>
@@ -3310,21 +3313,25 @@ function bulkKeys(){
    标签每次打开面板重建，不用另存一份「常用标签」配置 */
 function syncNoteTags(){
   var v=($("mNote").value||"").trim();
-  Array.prototype.forEach.call($("mTags").children,function(b){
-    if(b.textContent===v)b.classList.add("on");else b.classList.remove("on");
+  ["mTags","mRecentTags"].forEach(function(id){
+    Array.prototype.forEach.call($(id).children,function(b){
+      if(b.textContent===v)b.classList.add("on");else b.classList.remove("on");
+    });
   });
 }
 function renderNoteTags(){
-  /* 预设 6 个 + 最近写过 2 个一起排成一行，长句截断、title 悬停看全文 */
-  var box=$("mTags");box.innerHTML="";
-  noteTags(2).forEach(function(t,idx){
-    var b=document.createElement("button");
-    /* 前6个预设短词不压缩，后2个自写长句压缩省略号 */
-    b.type="button";b.className="tag"+(idx>=6?" recent":"");b.textContent=t;
-    b.title=t;
-    b.addEventListener("click",function(){$("mNote").value=t;syncNoteTags();});
-    box.appendChild(b);
+  /* 预设6个一行、最近写过2个另一行，都完整显示不截断 */
+  var all=noteTags(2);
+  [["mTags",all.slice(0,6)],["mRecentTags",all.slice(6)]].forEach(function(pair){
+    var box=$(pair[0]);box.innerHTML="";
+    pair[1].forEach(function(t){
+      var b=document.createElement("button");
+      b.type="button";b.className="tag";b.textContent=t;
+      b.addEventListener("click",function(){$("mNote").value=t;syncNoteTags();});
+      box.appendChild(b);
+    });
   });
+  $("mRecentGroup").style.display=all.length>6?"":"none";
   syncNoteTags();
 }
 function openEditor(key){

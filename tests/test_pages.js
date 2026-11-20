@@ -1435,11 +1435,12 @@ reset();
   ok(c16 && !c16.hasNote, '日历·没写备注的不点亮');
 
   nCal.openSheet('2026-11-15');
-  /* 备注不折叠；预设6+最近2共8个标签排一行，最近只取2个 */
-  ok(nCal.data.sheet.tags.length === 8, '面板·一行8个标签（6预设+2最近）',
-    String(nCal.data.sheet.tags.length));
-  ok(nCal.data.sheet.tags.slice(0, 6).join(',') === '四六级,竞赛,期中,期末,月考,模考',
-    '面板·最近写过接在模考后面', nCal.data.sheet.tags.join(','));
+  /* 备注不折叠；预设6个一行、最近写过2个另一行，都完整显示（不截断） */
+  ok(nCal.data.sheet.tags.length === 6 && nCal.data.sheet.recentTags.length === 2,
+    '面板·标签两组（6预设+2最近）',
+    nCal.data.sheet.tags.length + '+' + nCal.data.sheet.recentTags.length);
+  ok(nCal.data.sheet.tags.join(',') === '四六级,竞赛,期中,期末,月考,模考',
+    '面板·预设6个完整', nCal.data.sheet.tags.join(','));
   nCal.tapTag({ currentTarget: { dataset: { v: '四六级' } } });
   ok(nCal.data.sheet.note === '四六级' && nCal._note === '四六级',
     '面板·点标签同时改输入框和暂存值', nCal.data.sheet.note + ' / ' + nCal._note);
