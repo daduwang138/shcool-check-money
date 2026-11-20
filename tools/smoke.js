@@ -81,14 +81,21 @@ const probe = `
         q('.sheet-title') ? q('.sheet-title').textContent : 'NONE');
     }
 
-    /* 2. 设为上班 + 加两节课时 */
+    /* 2. 设为上班 + 加两节课时（步进一次 +2） */
     q('.sheet .seg[data-mp-ds-v="work"]').click();
     await sleep(120);
     q('.sheet .step[data-mp-ds-d="1"]').click();
-    await sleep(100);
-    q('.sheet .step[data-mp-ds-d="1"]').click();
     await sleep(120);
     ok('课时步进到 2', q('.sheet .step-val').textContent.trim() === '2', q('.sheet .step-val').textContent);
+    /* 常用 4 节：点一下填 4，课程表范围外也能快速记课时 */
+    var common4 = qa('.sheet .sched').filter(function (e) { return e.textContent.indexOf('常用 4 节') >= 0; })[0];
+    ok('有常用4节按钮', !!common4);
+    if (common4) {
+      common4.click(); await sleep(120);
+      ok('点常用4节填4', q('.sheet .step-val').textContent.trim() === '4', q('.sheet .step-val').textContent);
+      q('.sheet .step[data-mp-ds-d="-1"]').click(); await sleep(100);
+      ok('课时减2回到2', q('.sheet .step-val').textContent.trim() === '2', q('.sheet .step-val').textContent);
+    }
     q('.sheet .sheet-actions .btn.primary').click();
     await sleep(280);
     ok('完成后关闭面板', !q('.sheet'));

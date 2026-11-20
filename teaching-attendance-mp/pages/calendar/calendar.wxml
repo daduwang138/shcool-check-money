@@ -200,6 +200,7 @@
       <text class="step-val">{{sheet.lessons}}</text>
       <view class="step" data-d="1" bindtap="stepLesson">＋</view>
       <text class="sched" wx:if="{{sheet.exp > 0}}" bindtap="useSchedule">课程表 {{sheet.exp}} 节，点此采用</text>
+      <text class="sched" bindtap="useCommon4">常用 4 节</text>
     </view>
   </view>
 

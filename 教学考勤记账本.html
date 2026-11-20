@@ -597,6 +597,7 @@ input[type=date]:focus,input[type=month]:focus{outline:0;border-color:#8FB4D6;bo
         <span class="faint" style="margin-left:6px">节</span>
       </div>
       <div class="sug" id="mSug" style="display:none"></div>
+      <div class="sug"><button class="btn sm" id="mCommon4">常用 4 节</button></div>
       <div id="mRateBox" style="display:none">
         <div class="lb" style="margin-top:12px">按哪档计价</div>
         <div class="opts rate-opts" id="mRate"></div>
@@ -4806,11 +4807,16 @@ function bindEvents(){
       opt.classList.add("active");
     }
   });
+  /* 课程表周次范围外仍要上课时，点一下填常用值 4 节；只填面板不写账 */
+  $("mCommon4").addEventListener("click",function(){
+    $("mLessons").textContent=4;syncRateBox();
+  });
+  /* 课时一次加减 2 节：连堂是常态，按 1 节点太慢 */
   $("mPlus").addEventListener("click",function(){
-    var v=parseInt($("mLessons").textContent,10)||0;$("mLessons").textContent=v+1;syncRateBox();
+    var v=parseInt($("mLessons").textContent,10)||0;$("mLessons").textContent=Math.min(20,v+2);syncRateBox();
   });
   $("mMinus").addEventListener("click",function(){
-    var v=parseInt($("mLessons").textContent,10)||0;$("mLessons").textContent=Math.max(0,v-1);syncRateBox();
+    var v=parseInt($("mLessons").textContent,10)||0;$("mLessons").textContent=Math.max(0,v-2);syncRateBox();
   });
   $("mNightPlus").addEventListener("click",function(){
     var v=parseInt($("mNight").textContent,10)||0;

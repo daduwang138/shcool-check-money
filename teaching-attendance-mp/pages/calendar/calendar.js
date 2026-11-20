@@ -676,8 +676,9 @@ Page({
     this._patchSheet(patch);
   },
 
+  /* 课时一次加减 2 节：多数老师一次课就是 2 节连堂，按 1 节点太慢 */
   stepLesson: function (e) {
-    var d = parseInt(e.currentTarget.dataset.d, 10);
+    var d = parseInt(e.currentTarget.dataset.d, 10) * 2;
     var v = (parseInt(this.data.sheet.lessons, 10) || 0) + d;
     if (v < 0) { v = 0; }
     if (v > 20) { v = 20; }
@@ -707,6 +708,13 @@ Page({
       return;
     }
     this._patchSheet({ 'sheet.lessons': exp });
+  },
+
+  /* 课程表周次范围外仍要上课时，点一下填常用值 4 节；
+     只是填进面板，不自动写账，和「看一眼不记」的安全网一致。 */
+  useCommon4: function () {
+    if (!this.data.sheet) { return; }
+    this._patchSheet({ 'sheet.lessons': 4 });
   },
 
   onNote: function (e) {
