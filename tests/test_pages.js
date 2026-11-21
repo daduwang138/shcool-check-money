@@ -822,6 +822,15 @@ set.db.months[nowYm] = { base: 8000 };
 set.setSalary({ detail: { value: '10000' } });
 ok(set.db.months[histYm].base === 8000, '改工资不动历史月份', String(set.db.months[histYm].base));
 ok(set.db.months[nowYm].base === 10000, '改工资同步当月冻结值', String(set.db.months[nowYm].base));
+
+/* 课时单价与基本工资同一规则：改价同步当月及以后已冻结的价，历史月份保持原价。
+   不做这一步的话，当月记了课却还按老价（常常是 0）算，看着像算错了。 */
+set.db.months[histYm].rate = 120;
+set.db.months[nowYm].rate = 120;
+set.setRate({ detail: { value: '150' } });
+ok(current().settings.rate === 150, '课时单价可改', String(current().settings.rate));
+ok(set.db.months[histYm].rate === 120, '改课时单价不动历史月份', String(set.db.months[histYm].rate));
+ok(set.db.months[nowYm].rate === 150, '改课时单价同步当月冻结值', String(set.db.months[nowYm].rate));
 set.toggle({ currentTarget: { dataset: { key: 'autoWork' } }, detail: { value: false } });
 ok(current().settings.autoWork === false, '默认出勤开关可关');
 set.pickStart({ detail: { value: '2026-10-08' } });
@@ -849,6 +858,20 @@ set.addRate();
 const rid1 = current().settings.rates.filter(r => r.id !== 'default')[0].id;
 set.setRateName({ currentTarget: { dataset: { id: rid1 } }, detail: { value: '晚自习' } });
 set.setRatePrice({ currentTarget: { dataset: { id: rid1 } }, detail: { value: '80' } });
+
+/* 附加档位也走同一条同步规则：当月及以后已冻结的快照跟着改，历史月份不动 */
+set.db.months[histYm].rates = {};
+set.db.months[histYm].rates[rid1] = 80;
+set.db.months[nowYm].rates = {};
+set.db.months[nowYm].rates[rid1] = 80;
+set.setRatePrice({ currentTarget: { dataset: { id: rid1 } }, detail: { value: '100' } });
+ok(set.db.months[histYm].rates[rid1] === 80, '改档位价不动历史月份', String(set.db.months[histYm].rates[rid1]));
+ok(set.db.months[nowYm].rates[rid1] === 100, '改档位价同步当月快照', String(set.db.months[nowYm].rates[rid1]));
+
+/* 同步之后钱要对得上：当月 2 节课按新价 150 算 = 300 元 */
+set.db.days[core.todayKey()] = { am: 'work', pm: 'work', lessons: 2, note: '', lset: true, upd: 1 };
+ok(core.computeMonth(set.db, nowYm).lessonFee === 300, '改价后当月课时费按新单价算',
+  String(core.computeMonth(set.db, nowYm).lessonFee));
 
 /* 晚修监考的两个价：改完存进设置，界面跟着变，负数不接受 */
 ok(set.data.nightHours === '2' && set.data.nightFee === '10', '设置页带出默认 2 小时 10 元',

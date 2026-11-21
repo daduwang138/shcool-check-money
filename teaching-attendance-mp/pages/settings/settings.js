@@ -117,12 +117,16 @@ Page({
     wx.showToast({ title: changed ? ('当月及以后 ' + changed + ' 个月已同步') : '已保存', icon: 'none' });
   },
 
+  /* 课时单价与基本工资同一条规则：当月（自然月）及以后已冻结的月份跟着改，
+     更早的月份保持原价——否则「填了单价，当月课时还是按 0 算」会被当成算错 */
   setRate: function (e) {
     var v = parseFloat(e.detail.value);
     if (isNaN(v) || v < 0) { this.render(); return; }
     this.db.settings.rate = v;
+    var changed = core.syncRateForward(this.db, v);
     store.commit();
     this.render();
+    wx.showToast({ title: changed ? ('当月及以后 ' + changed + ' 个月已同步') : '已保存', icon: 'none' });
   },
 
   /* ---------- 晚修监考 ---------- */
@@ -175,8 +179,13 @@ Page({
       return;
     }
     r.price = v;
+    /* 附加档位同理：当月及以后已记过账的月份，这个档位的价一起同步 */
+    var changed = core.syncTierForward(this.db, r.id, v);
     store.commit();
     this.render();
+    if (changed) {
+      wx.showToast({ title: '当月及以后 ' + changed + ' 个月已同步', icon: 'none' });
+    }
   },
 
   addRate: function () {

@@ -23,7 +23,7 @@
     <view class="row">
       <view class="col">
         <text class="row-label">课时费（元/节）</text>
-        <text class="sub">按当月实际课时计</text>
+        <text class="sub">按当月实际课时计；改单价会同步当月及以后已记账的月份</text>
       </view>
       <switch checked="{{enableLesson}}" data-key="enableLesson" bindchange="toggle" color="#1B5E9B" />
     </view>
@@ -40,7 +40,7 @@
       <view class="rate-x" data-id="{{item.id}}" bindtap="delRate">✕</view>
     </view>
     <view class="row">
-      <text class="sub rate-hint">晚自习、代课单价不一样就加一档；记账时选了哪档按哪档算</text>
+      <text class="sub rate-hint">晚自习、代课单价不一样就加一档；记账时选了哪档按哪档算，改价同样同步当月及以后</text>
       <view class="btn sm" bindtap="addRate">＋ 加档</view>
     </view>
 

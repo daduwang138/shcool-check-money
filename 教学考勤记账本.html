@@ -900,7 +900,7 @@ var PAY_ITEMS=[
     "onlyIfNight": true
   }
 ];
-var SCHEMA_VERSION=2;
+var SCHEMA_VERSION=3;
 var DAY_FIELDS=[
   {
     "key": "am",
@@ -963,6 +963,31 @@ var MIGRATIONS = [
         oneRate.price = 30;
       }
     }
+  },
+  /* v2 → v3：把「当月及以后」冻结单价为 0 的月份，按设置里的价补齐。
+     0 从来不是「当时的价格是 0 元」，而是「还没填过价」——老版本默认单价就是 0，
+     记过账的月份于是冻成了 0；之后改设置又只往下同步、不回头，
+     结果当月记了几十节课却一分钱不算，看着像算错了。
+     历史月份仍按原冻结值不动（改价不追溯的边界不变）。 */
+  function (db) {
+    var settings = db.settings || {};
+    var rate = parseFloat(settings.rate) || 0;
+    var tiers = {};
+    (settings.rates || []).forEach(function (one) {
+      if (one && one.id && one.id !== 'default') { tiers[one.id] = parseFloat(one.price) || 0; }
+    });
+    var cur = todayKey().slice(0, 7);
+    Object.keys(db.months || {}).forEach(function (ym) {
+      if (ym < cur) { return; }
+      var params = db.months[ym];
+      if (!params) { return; }
+      if (parseFloat(params.rate) === 0 && rate > 0) { params.rate = rate; }
+      if (params.rates) {
+        Object.keys(params.rates).forEach(function (id) {
+          if (parseFloat(params.rates[id]) === 0 && tiers[id] > 0) { params.rates[id] = tiers[id]; }
+        });
+      }
+    });
   }
 ];
 
@@ -1626,6 +1651,38 @@ function syncBaseForward(db, value, today) {
   return changed;
 }
 
+/* 课时单价（默认档「正课」）与基本工资同一条规则：记过账的月份冻着当时的价，
+   改设置只往下同步，不回头改旧账。
+   少了这一步，「单价改成 30」只对没记过账的月份生效：当月明明记了 80 节课，
+   仍按老价（常常是 0）算，看着就像算错了。 */
+function syncRateForward(db, value, today) {
+  var cur = String(today || todayKey()).slice(0, 7);
+  var changed = 0;
+  Object.keys((db && db.months) || {}).forEach(function (ym) {
+    if (ym < cur) { return; }
+    var params = db.months[ym];
+    if (!params || params.rate == null || params.rate === value) { return; }
+    params.rate = value;
+    changed++;
+  });
+  return changed;
+}
+
+/* 附加档位（晚自习、代课…）的当月快照 rates[id] 同理 */
+function syncTierForward(db, id, value, today) {
+  if (!id || id === 'default') { return syncRateForward(db, value, today); }
+  var cur = String(today || todayKey()).slice(0, 7);
+  var changed = 0;
+  Object.keys((db && db.months) || {}).forEach(function (ym) {
+    if (ym < cur) { return; }
+    var params = db.months[ym];
+    if (!params || !params.rates || params.rates[id] == null || params.rates[id] === value) { return; }
+    params.rates[id] = value;
+    changed++;
+  });
+  return changed;
+}
+
 /* 课时档位：默认档（正课）的价格仍由 settings.rate 管，其余档放 settings.rates。
    两版都从这一个函数取，避免「界面显示 120、算出来 100」这类对不上。 */
 function ratesOf(db) {
@@ -2037,6 +2094,8 @@ return {
   monthRate: monthRate,
   bulkLessonStep: bulkLessonStep,
   syncBaseForward: syncBaseForward,
+  syncRateForward: syncRateForward,
+  syncTierForward: syncTierForward,
   ratesOf: ratesOf,
   rateName: rateName,
   priceOf: priceOf,
@@ -2165,6 +2224,8 @@ function refreshWorkdays(y){return Core.refreshWorkdays(DB, y);}
 function monthBase(ym){return Core.monthBase(DB, ym);}
 function monthRate(ym){return Core.monthRate(DB, ym);}
 function syncBaseForward(value,today){return Core.syncBaseForward(DB, value, today);}
+function syncRateForward(value,today){return Core.syncRateForward(DB, value, today);}
+function syncTierForward(id,value,today){return Core.syncTierForward(DB, id, value, today);}
 function bulkLessonStep(current,delta,cap){return Core.bulkLessonStep(current, delta, cap);}
 
 /* 课时档位：默认档（正课）的价格仍由 settings.rate 管，其余档放 settings.rates。
@@ -4064,7 +4125,7 @@ function renderSet(){
   h+='<div class="card"><h2>计薪参数</h2>';
   h+='<div class="fields">';
   h+='<div class="field"><div><label>基本工资默认值（元/月）</label><div class="desc">用于按出勤天数折算；改这里会同步当月（自然月）及以后已记账的月份，更早的月份保持原值；要单独改某个月去汇总页「本月参数」</div></div><input type="number" id="setBase" min="0" step="0.01" value="'+(s.baseSalary||0)+'"'+(s.enableBase?'':' disabled')+'></div>';
-  h+='<div class="field"><div><label>课时单价（元/节）</label><div class="desc">正课这类默认单价；晚自习、代课等另加档位；已记账的月份按当时冻的价</div></div><input type="number" id="setRate" min="0" step="0.01" value="'+(s.rate||0)+'"'+(s.enableLesson?'':' disabled')+'></div>';
+  h+='<div class="field"><div><label>课时单价（元/节）</label><div class="desc">正课这类默认单价；晚自习、代课等另加档位；已记账的月份按当时冻的价，改价会同步当月及以后</div></div><input type="number" id="setRate" min="0" step="0.01" value="'+(s.rate||0)+'"'+(s.enableLesson?'':' disabled')+'></div>';
   h+='</div>';
   /* ---------- 多档课时单价 ---------- */
   var extraRates=(s.rates||[]).filter(function(r){return r&&r.id&&r.id!=="default";});
@@ -4189,7 +4250,9 @@ function renderSet(){
   $("setRate").addEventListener("change",function(){
     var v=parseFloat(this.value);DB.settings.rate=isNaN(v)?0:v;
     DB.settings.rates[0].price=DB.settings.rate;
-    persist().then(function(){toast("已保存");});
+    /* 和基本工资同一条规则：当月及以后已冻结的单价跟着改，更早的月份保持原价 */
+    var changed=syncRateForward(DB, DB.settings.rate);
+    persist().then(function(){toast(changed?"已保存，当月及以后共 "+changed+" 个月同步":"已保存");});
   });
   /* 多档单价：改名、改价、加档、删档 */
   function rateRowOf(el){var r=el.closest(".rate-row");return r?r.getAttribute("data-rid"):"";}
@@ -4212,7 +4275,9 @@ function renderSet(){
       var r=rateById(rateRowOf(this)), v=parseFloat(this.value);
       if(!r)return;
       r.price=isNaN(v)?0:Math.max(0,v);
-      persist().then(function(){renderSet();toast("已保存");});
+      /* 附加档位同理：当月及以后已记过账的月份，这一档的价一起同步 */
+      var changed=syncTierForward(DB, r.id, r.price);
+      persist().then(function(){renderSet();toast(changed?"已保存，当月及以后共 "+changed+" 个月同步":"已保存");});
     });
   });
   Array.prototype.forEach.call($("view-set").querySelectorAll(".rate-del"),function(btn){

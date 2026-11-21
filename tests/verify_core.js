@@ -872,7 +872,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
 
 /* ---------- 10.6 schema 迁移框架 ---------- */
 {
-  eq('schema·当前版本', core.SCHEMA_VERSION, 2);
+  eq('schema·当前版本', core.SCHEMA_VERSION, 3);
   eq('schema·日记录字段清单', core.DAY_FIELDS.map(function (f) { return f.key; }),
     ['am', 'pm', 'lessons', 'note', 'rid', 'night', 'off']);
   eq('schema·迁移表长度与版本匹配', core.MIGRATIONS.length, core.SCHEMA_VERSION - 1);
@@ -881,7 +881,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
     days: { '2026-11-02': { am: 'inv', pm: 'ot', lessons: 1 } }
   };
   eq('schema·v1 数据原样保留', core.migrate(legacy).days['2026-11-02'].lessons, 1);
-  eq('schema·v1 升到 v2', core.migrate(legacy).v, 2);
+  eq('schema·v1 升到最新版本', core.migrate(legacy).v, 3);
   /* v1→v2：单价 0 升 30，手填过的价保留 */
   const oldRate = core.migrate({ v: 1, settings: { rate: 0, rates: [{ id: 'default', price: 0 }] } });
   eq('迁移·单价0升30', [oldRate.settings.rate, oldRate.settings.rates[0].price], [30, 30]);
@@ -889,6 +889,21 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('迁移·手填单价不动', [keptRate.settings.rate, keptRate.settings.rates[0].price], [120, 120]);
   const frozenRate = core.migrate({ v: 1, settings: { rate: 0 }, months: { '2026-10': { rate: 0 } } });
   eq('迁移·已冻结月份单价不动', frozenRate.months['2026-10'].rate, 0);
+
+  /* v2→v3：当月及以后冻结价为 0 的按设置补齐（0 是「没填过价」不是「0 元」），历史月份仍不动 */
+  const curYm = core.todayKey().slice(0, 7);
+  const pastYm = core.addMonths(curYm, -1);
+  const repair = {
+    v: 2, term: {}, courses: [], days: {},
+    settings: { rate: 30, rates: [{ id: 'default', price: 30 }, { id: 'eve', name: '晚自习', price: 80 }] },
+    months: {}
+  };
+  repair.months[curYm] = { rate: 0, rates: { eve: 0 } };
+  repair.months[pastYm] = { rate: 0, rates: { eve: 0 } };
+  core.migrate(repair);
+  eq('迁移·当月冻结单价0按设置补齐', repair.months[curYm].rate, 30);
+  eq('迁移·当月档位快照0按设置补齐', repair.months[curYm].rates.eve, 80);
+  eq('迁移·历史月份冻结价仍不动', [repair.months[pastYm].rate, repair.months[pastYm].rates.eve], [0, 0]);
   const future = {
     v: 99, settings: {}, months: {}, term: {}, courses: [],
     days: { '2026-11-02': { am: 'work', pm: 'work', lessons: 2 } }
@@ -944,7 +959,7 @@ eq('parseCourses 默认周次', [1, 16, 12, 20],
   eq('哨兵·core.js 里没有落到测试之外的函数', uncovered, []);
   eq('哨兵·白名单里的函数确实都导出了',
     MP_ONLY.filter(n => typeof core[n] !== 'function').length, 0);
-  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 64);
+  eq('哨兵·转发层数量（少一个说明 HTML 被手改过）', forwarded.size, 66);
   /* 内部函数（table / customOf / inSpan / toHalf / dateNum 等）没进 module.exports，
      但确实在 core.js 里、也被 CORE bundle 导出了，所以按源码函数清单判，不按导出对象判。 */
   eq('哨兵·转发层没有指向不存在的函数',

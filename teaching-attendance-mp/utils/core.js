@@ -27,6 +27,31 @@ var MIGRATIONS = [
         oneRate.price = 30;
       }
     }
+  },
+  /* v2 → v3：把「当月及以后」冻结单价为 0 的月份，按设置里的价补齐。
+     0 从来不是「当时的价格是 0 元」，而是「还没填过价」——老版本默认单价就是 0，
+     记过账的月份于是冻成了 0；之后改设置又只往下同步、不回头，
+     结果当月记了几十节课却一分钱不算，看着像算错了。
+     历史月份仍按原冻结值不动（改价不追溯的边界不变）。 */
+  function (db) {
+    var settings = db.settings || {};
+    var rate = parseFloat(settings.rate) || 0;
+    var tiers = {};
+    (settings.rates || []).forEach(function (one) {
+      if (one && one.id && one.id !== 'default') { tiers[one.id] = parseFloat(one.price) || 0; }
+    });
+    var cur = todayKey().slice(0, 7);
+    Object.keys(db.months || {}).forEach(function (ym) {
+      if (ym < cur) { return; }
+      var params = db.months[ym];
+      if (!params) { return; }
+      if (parseFloat(params.rate) === 0 && rate > 0) { params.rate = rate; }
+      if (params.rates) {
+        Object.keys(params.rates).forEach(function (id) {
+          if (parseFloat(params.rates[id]) === 0 && tiers[id] > 0) { params.rates[id] = tiers[id]; }
+        });
+      }
+    });
   }
 ];
 
@@ -690,6 +715,38 @@ function syncBaseForward(db, value, today) {
   return changed;
 }
 
+/* 课时单价（默认档「正课」）与基本工资同一条规则：记过账的月份冻着当时的价，
+   改设置只往下同步，不回头改旧账。
+   少了这一步，「单价改成 30」只对没记过账的月份生效：当月明明记了 80 节课，
+   仍按老价（常常是 0）算，看着就像算错了。 */
+function syncRateForward(db, value, today) {
+  var cur = String(today || todayKey()).slice(0, 7);
+  var changed = 0;
+  Object.keys((db && db.months) || {}).forEach(function (ym) {
+    if (ym < cur) { return; }
+    var params = db.months[ym];
+    if (!params || params.rate == null || params.rate === value) { return; }
+    params.rate = value;
+    changed++;
+  });
+  return changed;
+}
+
+/* 附加档位（晚自习、代课…）的当月快照 rates[id] 同理 */
+function syncTierForward(db, id, value, today) {
+  if (!id || id === 'default') { return syncRateForward(db, value, today); }
+  var cur = String(today || todayKey()).slice(0, 7);
+  var changed = 0;
+  Object.keys((db && db.months) || {}).forEach(function (ym) {
+    if (ym < cur) { return; }
+    var params = db.months[ym];
+    if (!params || !params.rates || params.rates[id] == null || params.rates[id] === value) { return; }
+    params.rates[id] = value;
+    changed++;
+  });
+  return changed;
+}
+
 /* 课时档位：默认档（正课）的价格仍由 settings.rate 管，其余档放 settings.rates。
    两版都从这一个函数取，避免「界面显示 120、算出来 100」这类对不上。 */
 function ratesOf(db) {
@@ -1062,7 +1119,9 @@ module.exports = {
   sumText: sumText, noteTags: noteTags, NOTE_PRESETS: NOTE_PRESETS, monthNotes: monthNotes,
   ratesOf: ratesOf, rateName: rateName, priceOf: priceOf, nightOf: nightOf,
   monthTouched: monthTouched, monthBase: monthBase, monthRate: monthRate,
-  syncBaseForward: syncBaseForward, bulkLessonStep: bulkLessonStep,
+  syncBaseForward: syncBaseForward, syncRateForward: syncRateForward,
+  syncTierForward: syncTierForward,
+  bulkLessonStep: bulkLessonStep,
   fillLessonsFromCourses: fillLessonsFromCourses, autoFillLessons: autoFillLessons,
   ymOf: ymOf, isYm: isYm, addMonths: addMonths, monthsBetween: monthsBetween,
   monthKeysOf: monthKeysOf, daysInMonth: daysInMonth, firstWeekdayOf: firstWeekdayOf,
