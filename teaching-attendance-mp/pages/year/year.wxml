@@ -1,8 +1,8 @@
 <view class="page">
   <view class="topbar">
-    <view class="nav" bindtap="prevYear" hover-class="nav-hover">‹</view>
+    <view class="nav" bindtap="prevYear" hover-class="nav-hover" aria-label="上一年">‹</view>
     <view class="mon">{{year}} 年</view>
-    <view class="nav" bindtap="nextYear" hover-class="nav-hover">›</view>
+    <view class="nav" bindtap="nextYear" hover-class="nav-hover" aria-label="下一年">›</view>
     <view class="go-today" bindtap="goThisYear">今年</view>
   </view>
 

@@ -5,18 +5,18 @@
   </view>
 
   <view class="topbar" wx:if="{{mode === 'month'}}">
-    <view class="nav" bindtap="prevMonth" hover-class="nav-hover">‹</view>
+    <view class="nav" bindtap="prevMonth" hover-class="nav-hover" aria-label="上个月">‹</view>
     <picker mode="date" fields="month" value="{{ym}}" bindchange="pickMonth">
       <view class="mon">{{monLabel}}<text class="caret">▾</text></view>
     </picker>
-    <view class="nav" bindtap="nextMonth" hover-class="nav-hover">›</view>
+    <view class="nav" bindtap="nextMonth" hover-class="nav-hover" aria-label="下个月">›</view>
   </view>
   <view class="topbar" wx:else>
-    <view class="nav" bindtap="prevYear" hover-class="nav-hover">‹</view>
+    <view class="nav" bindtap="prevYear" hover-class="nav-hover" aria-label="上一年">‹</view>
     <picker mode="date" fields="year" value="{{yearLabel}}" bindchange="pickYear">
       <view class="mon">{{yearLabel}}<text class="caret">▾</text></view>
     </picker>
-    <view class="nav" bindtap="nextYear" hover-class="nav-hover">›</view>
+    <view class="nav" bindtap="nextYear" hover-class="nav-hover" aria-label="下一年">›</view>
   </view>
 
   <!-- 年度：四标签切换（应发总览 / 出勤 / 课时 / 晚修） -->
@@ -106,6 +106,20 @@
   </view>
   <view class="card" wx:if="{{mode === 'year' && !yearBars.length}}">
     <text class="empty-tip">{{yearEmpty}}</text>
+  </view>
+
+  <!-- 全年事项：备注不再只能按月翻，四个标签切到哪都能往下看到这一年的记录 -->
+  <view class="card" wx:if="{{mode === 'year' && yearNotes.length}}">
+    <text class="card-title">全年事项 · {{yearNotes.length}} 条</text>
+    <view class="note-row" wx:for="{{yearNotes}}" wx:key="key">
+      <view class="nr-head">
+        <text class="nr-date">{{item.date}}</text>
+        <text class="nr-weekend" wx:if="{{item.weekend}}">周末</text>
+        <text class="nr-meta">{{item.meta}}</text>
+      </view>
+      <text class="nr-text">{{item.note}}</text>
+    </view>
+    <text class="nr-tip">只列写了备注的日子，按日期顺序排；导出 CSV 的「每日明细」里也带这一列</text>
   </view>
 
   <view class="card" wx:if="{{mode === 'month'}}">

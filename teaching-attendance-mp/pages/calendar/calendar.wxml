@@ -2,11 +2,11 @@
 <page-meta page-style="{{sel ? 'overflow: hidden;' : ''}}"></page-meta>
 <view class="page {{sel ? 'pad-sel' : ''}}">
   <view class="topbar">
-    <view class="nav" bindtap="prevMonth" hover-class="nav-hover">‹</view>
+    <view class="nav" bindtap="prevMonth" hover-class="nav-hover" aria-label="上个月">‹</view>
     <picker mode="date" fields="month" value="{{ym}}" bindchange="pickMonth">
       <view class="mon">{{monLabel}}<text class="caret">▾</text></view>
     </picker>
-    <view class="nav" bindtap="nextMonth" hover-class="nav-hover">›</view>
+    <view class="nav" bindtap="nextMonth" hover-class="nav-hover" aria-label="下个月">›</view>
     <view class="go-today" bindtap="goToday">今天</view>
     <view class="sel-toggle {{sel ? 'on' : ''}}" bindtap="toggleSel">{{sel ? '退出' : '选择'}}</view>
   </view>
@@ -184,9 +184,9 @@
     <text class="dp-cancel" bindtap="closeSheet">取消</text>
     <view class="dp-head-main">
       <view class="dp-title-row">
-        <view class="dp-arrow" hover-class="dp-arrow-hover" data-d="-1" bindtap="stepDay">‹</view>
+        <view class="dp-arrow" hover-class="dp-arrow-hover" data-d="-1" bindtap="stepDay" aria-label="前一天">‹</view>
         <text class="dp-date">{{sheet.title}}</text>
-        <view class="dp-arrow" hover-class="dp-arrow-hover" data-d="1" bindtap="stepDay">›</view>
+        <view class="dp-arrow" hover-class="dp-arrow-hover" data-d="1" bindtap="stepDay" aria-label="后一天">›</view>
       </view>
       <text class="dp-meta">{{sheet.sub}}</text>
     </view>

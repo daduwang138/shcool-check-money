@@ -14,6 +14,10 @@ var _cache = null, _cacheRaw = '';
 function load() {
   var raw = null, parsed = null;
   try { raw = wx.getStorageSync(KEY); } catch (e) { raw = null; }
+  /* 绝大多数 onShow 只是「回到页面」，Storage 一个字都没变（commit 写进去的就是
+     _cacheRaw）。这时直接还缓存，省掉整库 JSON.parse + normalize + stringify 三趟遍历：
+     三五年账两千多天，每次切 tab 都得白序列化几百 KB。 */
+  if (_cache && raw && raw === _cacheRaw) { return _cache; }
   if (raw) {
     try { parsed = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { parsed = null; }
   }

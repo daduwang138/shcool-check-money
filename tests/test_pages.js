@@ -1838,6 +1838,26 @@ lock.clear();
   ok(sp.data.rateZero === false, '单价0·填上单价后告警消失');
 }
 
+/* ================= 全年事项 ================= */
+{
+  reset();
+  const nYear = new Date().getFullYear();
+  const ndb = seedDb();
+  ndb.v = core.SCHEMA_VERSION;
+  ndb.days[nYear + '-01-05'] = { am: 'inv', pm: '', lessons: 0, note: '期末监考', lset: false, upd: 1 };
+  ndb.days[nYear + '-11-06'] = { am: '', pm: 'ot', lessons: 0, note: '周末加班', lset: false, upd: 2 };
+  mem['kqzb_db_v1'] = JSON.stringify(ndb);
+  const np = makePage('summary');
+  np.onLoad();
+  np.setData({ mode: 'year', year: nYear });
+  np.render();
+  ok(np.data.yearNotes.length === 2, '全年事项·跨月两条都列出', String(np.data.yearNotes.length));
+  ok(np.data.yearNotes[0].note === '期末监考' && np.data.yearNotes[1].note === '周末加班',
+    '全年事项·按日期顺序', np.data.yearNotes.map(x => x.note).join('/'));
+  ok(np.data.yearNotes[1].weekend === true || np.data.yearNotes[1].meta.indexOf('周') >= 0,
+    '全年事项·带上星期与状态');
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }
 console.log('页面逻辑全部通过');

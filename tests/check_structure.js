@@ -351,6 +351,20 @@ if (orphanBindings(mutWxml, mutJsBad).orphans.indexOf('enableBase') < 0) {
   bad.push('绑定契约自检·漏写的字段没被抓到，这层检查形同虚设');
 }
 
+/* 版本号只有 app.js 一处是真源：发布流程.md 里必须写同一个号，
+   否则上传时照着文档填了旧号，后台会当成「版本没变」而拒收。 */
+{
+  const appJs = fs.readFileSync(path.resolve(__dirname, '..', 'teaching-attendance-mp', 'app.js'), 'utf8');
+  const vm = /version:\s*'([^']+)'/.exec(appJs);
+  const ver = vm ? vm[1] : '';
+  const releaseMd = fs.readFileSync(path.resolve(__dirname, '..', '发布流程.md'), 'utf8');
+  if (!ver) {
+    bad.push('app.js 里读不到 globalData.version');
+  } else if (releaseMd.indexOf(ver) < 0) {
+    bad.push('发布流程.md 没写当前版本号 ' + ver + '；上传前请把版本号同步过去');
+  }
+}
+
 /* 预览产物是入库的交付物：改了小程序源码忘了重建，产物就会落后，
    而「连构哈希一致」只证明两次构建一样，证明不了它跟当前源码一致。 */
 try {

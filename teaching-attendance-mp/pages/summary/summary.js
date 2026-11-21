@@ -28,7 +28,8 @@ Page({
     checked: false,
     dayCount: 0,
     hasRecord: false,
-    noteRows: []
+    noteRows: [],
+    yearNotes: []
   },
 
   onLoad: function () {
@@ -148,6 +149,21 @@ Page({
     var c = core.computeYear(db, year);
     var months = c.months;
 
+    /* 全年事项：备注之前只有「本月事项」，找某场考试得一个月一个月翻。
+       和四个标签无关，常驻在年度页下面，按月顺手列完（只列写了备注的日子）。 */
+    var yearNotes = [];
+    for (var mn = 1; mn <= 12; mn++) {
+      (function (ymOfNote) {
+        core.monthNotes(db, ymOfNote).forEach(function (x) {
+          yearNotes.push({
+            key: x.key, date: x.date, weekend: x.weekend,
+            meta: x.dow + (x.kinds ? ' · ' + x.kinds : '') + (x.night ? ' · 晚修' : ''),
+            note: x.note
+          });
+        });
+      })(year + '-' + core.pad(mn));
+    }
+
     /* 逐月横条：按当前标签的值相对全年最大月缩放，最大值 0 时给 0% 不除零 */
     var makeBars = function (pick, valueText) {
       var vals = months.map(pick);
@@ -229,6 +245,7 @@ Page({
       checkedMonths: c.checkedMonths,
       total: core.fmt(c.total),
       noteRows: [],
+      yearNotes: yearNotes,
       ghostDays: core.fmtShort(c.ghostDays),
       checked: false,
       dayCount: c.filledDays,
