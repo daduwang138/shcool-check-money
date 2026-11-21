@@ -11,8 +11,14 @@
     <view class="sel-toggle {{sel ? 'on' : ''}}" bindtap="toggleSel">{{sel ? '退出' : '选择'}}</view>
   </view>
 
+  <!-- 数据只在本机：太久没导出就在上面挂一条，点进设置页导出，或推迟一周 -->
+  <view class="bktip" wx:if="{{backupTip}}" bindtap="gotoSettings">
+    <text class="bktip-t">{{backupTip}} · 点这里导出备份</text>
+    <text class="bktip-x" catchtap="hideBackupTip">✕</text>
+  </view>
+
   <view class="chips">
-    <view class="chip {{item.num ? 'chip-wide' : ''}}" wx:for="{{chips}}" wx:key="k">
+    <view class="chip {{item.num ? 'chip-wide' : ''}} {{item.warn ? 'chip-warn' : ''}}" wx:for="{{chips}}" wx:key="k">
       <text class="chip-k">{{item.k}}</text>
       <text class="chip-v">{{item.v}}</text>
     </view>

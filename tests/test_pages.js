@@ -1340,8 +1340,14 @@ ok(Object.keys(current().days).filter(k => k.slice(0, 7) === afYm && k > afToday
 af.doUndo();
 ok(core.computeMonth(current(), afYm).lessons === 0, '撤销把自动落账清掉');
 ok(toasts.some(t => /本月不再自动填/.test(t)), '撤销提示本月不再自动填', toasts.join('/'));
+/* render 只读：不管怎么重画都不许往账里写字（以前它顺手补课时，撤销之后会自己长回来） */
+const daysBeforeRender = JSON.stringify(current().days);
 af.render();
+ok(JSON.stringify(current().days) === daysBeforeRender, 'render 只读，不改账');
 ok(core.computeMonth(current(), afYm).lessons === 0, '撤销后本次打开不再自动填回来');
+/* 撤销过的月份，即使再触发一次自动落账也不填（靠 _autoBlocked，不靠「跳过一帧」） */
+af._ensureAutoFill();
+ok(core.computeMonth(current(), afYm).lessons === 0, '撤销过的月份不会再被自动填回来');
 
 /* 关掉开关 / 已核对的月份：都不该动账 */
 reset();
@@ -1759,6 +1765,77 @@ lock.clear();
   yp.openMonth({ currentTarget: { dataset: { ym: '2026-11' } } });
   ok(appStub.globalData.yearJump === '2026-11', '点月份记下要跳的月份');
   ok(navigated.indexOf('/pages/calendar/calendar') >= 0, '点月份跳到记账页');
+}
+
+/* ================= 备份提醒 ================= */
+{
+  const bkstore = require(path.join(ROOT, 'utils/store.js'));
+  reset();
+  ok(bkstore.backupDue(), '备份提醒·从没导出过就该提醒');
+  ok(bkstore.backupDays() === -1, '备份提醒·没导出过天数返回 -1', String(bkstore.backupDays()));
+  mem['kqzb_backup_at'] = String(Date.now() - 2 * 86400000);
+  ok(!bkstore.backupDue(), '备份提醒·两天前导出过不提醒');
+  ok(bkstore.backupDays() === 2, '备份提醒·算得出距上次多少天', String(bkstore.backupDays()));
+  mem['kqzb_backup_at'] = String(Date.now() - 40 * 86400000);
+  ok(bkstore.backupDue(), '备份提醒·超过 30 天重新提醒');
+  bkstore.snoozeBackup(7);
+  ok(!bkstore.backupDue(), '备份提醒·点了「稍后」按下次再说');
+  delete mem['kqzb_backup_snooze'];
+
+  /* 记账页那条提醒：有记录才出现，点 ✕ 推迟一周 */
+  reset();
+  const bkdb = seedDb();
+  bkdb.days['2026-11-03'] = { am: 'work', pm: 'work', lessons: 0, note: '', lset: false, upd: 1 };
+  mem['kqzb_db_v1'] = JSON.stringify(bkdb);
+  const bp = makePage('calendar');
+  bp.onLoad();
+  ok(/还没有导出过备份/.test(bp.data.backupTip), '备份提醒·记账页顶部出现提示', bp.data.backupTip);
+  bp.hideBackupTip();
+  ok(bp.data.backupTip === '' && !!mem['kqzb_backup_snooze'], '备份提醒·点 × 推迟一周');
+
+  /* 没有记录就不打扰新用户 */
+  reset();
+  const emptyDb = seedDb();
+  mem['kqzb_db_v1'] = JSON.stringify(emptyDb);
+  const ep = makePage('calendar');
+  ep.onLoad();
+  ok(ep.data.backupTip === '', '备份提醒·一条记录都没有时不打扰', ep.data.backupTip);
+}
+
+/* ================= 课时单价为 0 的告警 ================= */
+{
+  reset();
+  const ymz = core.todayKey().slice(0, 7);
+  const zdb = seedDb();
+  zdb.v = core.SCHEMA_VERSION;          /* 别再让 v2→v3 迁移把 0 补成 30 */
+  zdb.settings.rate = 0;
+  zdb.settings.autoLessons = false;
+  zdb.months = {};
+  zdb.days[ymz + '-02'] = { am: 'work', pm: 'work', lessons: 4, note: '', lset: true, upd: 1 };
+  mem['kqzb_db_v1'] = JSON.stringify(zdb);
+
+  const zp = makePage('calendar');
+  zp.onLoad();
+  const lessonChip = zp.data.chips.filter(c => c.k === '课时')[0];
+  ok(!!lessonChip && lessonChip.warn === true, '单价0·记账页「课时」格子标红');
+  ok(zp.data.notes.some(t => /课时单价为 0/.test(t)), '单价0·记账页补一句说明');
+
+  const sp = makePage('summary');
+  sp.onLoad();
+  sp.setData({ ym: ymz });
+  sp.render();
+  ok(sp.data.rateZero === true, '单价0·汇总页出现告警');
+
+  /* 单价改回 30 之后告警消失（同一条记录，不该一直红着） */
+  const back = current();
+  back.months = {};
+  back.settings.rate = 30;
+  mem['kqzb_db_v1'] = JSON.stringify(back);
+  sp.db = null;
+  sp.onShow();
+  sp.setData({ ym: ymz });
+  sp.render();
+  ok(sp.data.rateZero === false, '单价0·填上单价后告警消失');
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

@@ -2582,6 +2582,7 @@ function hydrateFromDir(force){
   }).catch(function(){return false;});
 }
 function renderAll(){
+  ensureAutoFill();
   renderCal();
   if(!$("view-year").hidden)renderYear();
   if(!$("view-sum").hidden)renderSum();
@@ -2990,15 +2991,13 @@ function setCur(ym){CUR=ym;}
 function shiftMonth(delta){
   var p=ymd(CUR+"-01");var dt=new Date(p[0],p[1]-1+delta,1);
   CUR=dt.getFullYear()+"-"+pad(dt.getMonth()+1);
+  ensureAutoFill();
   renderCal();
 }
-/* 渲染前把当月已过去的日子按课程表补齐。
-   函数是幂等的（填过的日子有 lset，不会再写），每次 render 跑一遍很便宜；
-   撤销会把这个月记进 AUTO_BLOCKED，不会又自动填回来。 */
-var SKIP_AUTO_ONCE=false;
-function maybeAutoFill(){
-  /* 撤销后紧跟的那次渲染不许把刚回滚的课时又自动填回来 */
-  if(SKIP_AUTO_ONCE){SKIP_AUTO_ONCE=false;return;}
+/* 把当月已过去的日子按课程表补齐。只在「进页面 / 切月」时显式调用，
+   渲染函数本身不写库——以前放在 renderCal 开头，随手重画一次就往账里塞课时。
+   函数是幂等的（填过的日子有 lset，不会再写）；撤销过的月份记在 AUTO_BLOCKED 里。 */
+function ensureAutoFill(){
   if(!DB||!CUR||AUTO_BLOCKED[CUR])return;
   var ym=CUR,snap={},msnap=snapMonths();
   var q=ymd(ym+"-01"),y=q[0],m=q[1],n=new Date(y,m,0).getDate();
@@ -3013,7 +3012,6 @@ function maybeAutoFill(){
   persist();
 }
 function renderCal(){
-  maybeAutoFill();
   var p=ymd(CUR+"-01"), y=p[0], m=p[1];
   $("monLabel").textContent=y+" 年 "+m+" 月";
   var first=new Date(y,m-1,1).getDay();
@@ -3212,7 +3210,6 @@ function showUndo(msg,snap,msnap){
 }
 function undoApply(){
   if(!UNDO)return;
-  SKIP_AUTO_ONCE=true;
   /* 撤销自动落账 = 这个月别再自动填回来；想以后都不填，去设置里关开关 */
   var autoUndo=!!(UNDO.auto&&UNDO.ym);
   if(autoUndo)AUTO_BLOCKED[UNDO.ym]=true;
@@ -4752,6 +4749,7 @@ function showApp(){
   var t=new Date();
   CUR=t.getFullYear()+"-"+pad(t.getMonth()+1);
   YEAR=t.getFullYear();
+  ensureAutoFill();
   renderCal();renderYear();renderSum();
   bindEvents();
   refreshDirBadge();updateDirNotice();
@@ -4825,7 +4823,7 @@ function setView(v){
   $("view-year").hidden=v!=="year";
   $("view-sum").hidden=v!=="sum";
   $("view-set").hidden=v!=="set";
-  if(v==="cal")renderCal();
+  if(v==="cal"){ensureAutoFill();renderCal();}
   if(v==="year")renderYear();
   if(v==="sum")renderSum();
   if(v==="set")renderSet();
@@ -4839,7 +4837,7 @@ function bindEvents(){
   $("prevM").addEventListener("click",function(){shiftMonth(-1);});
   $("nextM").addEventListener("click",function(){shiftMonth(1);});
   $("toNow").addEventListener("click",function(){
-    var t=new Date();CUR=t.getFullYear()+"-"+pad(t.getMonth()+1);renderCal();
+    var t=new Date();CUR=t.getFullYear()+"-"+pad(t.getMonth()+1);ensureAutoFill();renderCal();
   });
   $("prevY").addEventListener("click",function(){shiftYear(-1);});
   $("nextY").addEventListener("click",function(){shiftYear(1);});

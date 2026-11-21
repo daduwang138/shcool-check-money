@@ -107,6 +107,43 @@
   flex: 1.15;
 }
 
+/* 课时单价为 0 时把「课时」那格标红：不然这节课时费静默算成 0，像程序出错 */
+.chip.chip-warn {
+  border-color: #E8C9C4;
+  background: #FDF6F4;
+}
+
+.chip.chip-warn .chip-k,
+.chip.chip-warn .chip-v {
+  color: #A33A28;
+}
+
+/* 备份提醒：一条细带，不抢账目本身的注意力 */
+.bktip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 8rpx 24rpx 0;
+  padding: 14rpx 18rpx;
+  border: 1rpx solid #F0D9B5;
+  border-radius: 12rpx;
+  background: #FDF6E7;
+}
+
+.bktip-t {
+  flex: 1;
+  color: #854F0B;
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+
+.bktip-x {
+  padding: 0 8rpx 0 16rpx;
+  color: #B4A181;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;

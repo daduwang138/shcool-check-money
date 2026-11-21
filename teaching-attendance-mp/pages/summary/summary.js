@@ -55,6 +55,9 @@ Page({
     var mb = core.monthBase(db, ym);
     var sb = parseFloat(db.settings.baseSalary) || 0;
     var baseDiff = !!db.settings.enableBase && Math.abs(mb - sb) > 0.005;
+    /* 有课时、单价却是 0：课时费会静默算成 ¥0，最容易被当成「程序算错了」。
+       开关是关着的时候不算异常（界面另有说明），只有开着且价为 0 才提示。 */
+    var rateZero = !!db.settings.enableLesson && c.lessons > 0 && !(core.monthRate(db, ym) > 0);
     /* 只读渲染：不再借 monthP 顺手把当月参数冻上 */
     var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
 
@@ -114,6 +117,7 @@ Page({
       },
       settingBase: core.fmtShort(sb),
       baseDiff: baseDiff,
+      rateZero: rateZero,
       resetLabel: baseDiff
         ? ('让本月改用设置里的 ¥' + core.fmtShort(sb) + '（只改工资，别的参数不动）')
         : '让本月重新跟随设置（档位价、晚修价保留不动）',
@@ -318,6 +322,11 @@ Page({
   /* 差异提示上的精准操作：只让本月工资跟随设置。
      原来的 resetParams 会一次删掉 workdays / base / rate 三个参数，
      用户只想同步工资时不该把本月单独设过的单价和天数也连带改掉。 */
+  /* 单价为 0 的提示点一下直达设置页；tab 页只能 switchTab */
+  gotoSettings: function () {
+    wx.switchTab({ url: '/pages/settings/settings' });
+  },
+
   useSettingBase: function () {
     var p = core.monthP(this.db, this.data.ym);
     delete p.base;

@@ -132,9 +132,52 @@ function backupName() {
   return '考勤数据备份-' + core.todayKey() + '.json';
 }
 
+/* 上次成功导出备份的时间：单独存一个键，不写进 db——
+   它描述的是「这台设备的动作」，不是账本内容，进备份文件反而会被别的设备带过来。 */
+var BACKUP_KEY = 'kqzb_backup_at';
+var SNOOZE_KEY = 'kqzb_backup_snooze';
+
+function backupAt() {
+  var v = 0;
+  try { v = parseInt(wx.getStorageSync(BACKUP_KEY), 10) || 0; } catch (e) { v = 0; }
+  return v;
+}
+
+function markBackup() {
+  try { wx.setStorageSync(BACKUP_KEY, String(Date.now())); } catch (e) { /* 存储不可用就算了 */ }
+}
+
+/* 点了「稍后再说」：暂时别提醒，过几天再说 */
+function snoozeBackup(days) {
+  try { wx.setStorageSync(SNOOZE_KEY, String(Date.now() + (days || 7) * 86400000)); } catch (e) { /* 同上 */ }
+}
+
+/* 该不该提醒导出备份。没备份过就该提醒；提醒过被关掉的话，等到期再说。
+   days 默认 30 天，now 可传入便于测试。 */
+function backupDue(now, days) {
+  var t = now || Date.now();
+  var snoozeTo = 0;
+  try { snoozeTo = parseInt(wx.getStorageSync(SNOOZE_KEY), 10) || 0; } catch (e) { snoozeTo = 0; }
+  if (snoozeTo > t) { return false; }
+  var at = backupAt();
+  if (!at) { return true; }
+  return (t - at) > (days || 30) * 86400000;
+}
+
+/* 距上次备份多少天；从没备份过返回 -1 */
+function backupDays(now) {
+  var at = backupAt();
+  if (!at) { return -1; }
+  return Math.floor(((now || Date.now()) - at) / 86400000);
+}
+
 function exportBackup(db) {
   var text = JSON.stringify(db, null, 2);
-  return exportText(backupName(), text);
+  return exportText(backupName(), text).then(function (msg) {
+    /* 只有真的交付出去（存盘 / 发到聊天 / 复制到剪贴板）才算备份过 */
+    markBackup();
+    return msg;
+  });
 }
 
 function exportCsv(db, months, withSummary, withDetail) {
@@ -226,6 +269,10 @@ module.exports = {
   platform: platform,
   exportText: exportText,
   exportBackup: exportBackup,
+  backupAt: backupAt,
+  backupDays: backupDays,
+  backupDue: backupDue,
+  snoozeBackup: snoozeBackup,
   exportCsv: exportCsv,
   readFromChat: readFromChat,
   parseBackup: parseBackup,

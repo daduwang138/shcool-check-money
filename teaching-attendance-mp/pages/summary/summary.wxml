@@ -62,6 +62,10 @@
         <text class="row-label">{{item.k}}</text>
         <text class="row-value">{{item.v}}</text>
       </view>
+      <!-- 有课时但单价为 0：这一项会静默算成 ¥0，就摆在「课时费」下面说清楚 -->
+      <view class="rate-warn" wx:if="{{rateZero}}" bindtap="gotoSettings">
+        <text class="rate-warn-t">课时单价是 0：本月课时费没有计入，点这里去设置</text>
+      </view>
     </view>
   </block>
 

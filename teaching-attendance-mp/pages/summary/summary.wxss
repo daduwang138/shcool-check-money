@@ -340,6 +340,21 @@
   line-height: 1.6;
 }
 
+/* 单价为 0 的告警：比普通说明重、比错误轻，点了直接去设置页 */
+.rate-warn {
+  margin-top: 12rpx;
+  padding: 14rpx 16rpx;
+  border-left: 4rpx solid #B3261E;
+  border-radius: 6rpx;
+  background: #FDF3F1;
+}
+
+.rate-warn-t {
+  color: #8A2F24;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
 /* 设置默认值与本月冻结值不同时，把两个数字并排摆出来：
    同一个字段在两个页面显示不同值，一句常驻灰字解释不清，得单独占一块。 */
 .base-diff {

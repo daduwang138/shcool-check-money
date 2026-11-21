@@ -46,6 +46,7 @@ Page({
     clearLes: false,
     allowWk: false,
     tipsOpen: false,
+    backupTip: '',
     ready: false
   },
 
@@ -56,6 +57,8 @@ Page({
     /* 锁着就别先画：onShow 的 guard 会跳锁屏，但那一帧已经把整月的账目画出来了 */
     if (!lock.guard()) { return; }
     this.render();
+    this._ensureAutoFill();
+    this._refreshBackupTip();
   },
 
   onShow: function () {
@@ -69,10 +72,41 @@ Page({
     }
     /* 编辑页开着时别动 tabBar，关掉或者没开才确保它在 */
     if (!this.data.sheet) { this._showTab(); }
-    if (!this.db) { this.db = store.load(); this.render(); return; }
+    if (!this.db) {
+      this.db = store.load();
+      this.render();
+      this._ensureAutoFill();
+      this._refreshBackupTip();
+      return;
+    }
     /* 设置页、课程表页可能改过数据，回来时重新读一次 */
     this.db = store.load();
     this.render();
+    this._ensureAutoFill();
+    this._refreshBackupTip();
+  },
+
+  /* 数据只在本机：长期不导出，换手机或清缓存就全没了。
+     这里只负责算一句话，提醒与跳转都是页面自己的事。 */
+  _refreshBackupTip: function () {
+    var db = this.db;
+    if (!db || core.dayCount(db) === 0 || !store.backupDue()) {
+      if (this.data.backupTip) { this.setData({ backupTip: '' }); }
+      return;
+    }
+    var days = store.backupDays();
+    var txt = days < 0 ? '还没有导出过备份' : ('上次备份在 ' + days + ' 天前');
+    this.setData({ backupTip: txt });
+  },
+
+  /* 提醒条：点一下去设置页导出备份，或「知道了」推迟一周 */
+  gotoSettings: function () {
+    wx.switchTab({ url: '/pages/settings/settings' });
+  },
+
+  hideBackupTip: function () {
+    store.snoozeBackup(7);
+    this.setData({ backupTip: '' });
   },
 
   onReady: function () {
@@ -121,8 +155,9 @@ Page({
     try { wx.showTabBar({ animation: false }); } catch (e) { /* 没有 tabBar */ }
   },
 
+  /* 只读：把账这一层的数据算成视图数据。写库的事一律在动作处理里做，
+     免得「随手渲染一下」就把课时补进账里（以前 render 里调自动落账就是这个毛病）。 */
   render: function () {
-    this._maybeAutoFill();
     var db = this.db, ym = this.data.ym;
     var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
     var lead = (core.firstWeekdayOf(ym) + 6) % 7;
@@ -180,10 +215,13 @@ Page({
     }
 
     var c = core.computeMonth(db, ym);
+    /* 有课时、单价却是 0：这一项会静默算成 ¥0，最容易被当成「算错了」。
+       在 chips 上标红，并在下面补一句说明，别等人自己发现。 */
+    var rateZero = !!db.settings.enableLesson && c.lessons > 0 && !(c.rate > 0);
     var chips = [
       { k: '应上班', v: c.workdays + ' 天' },
       { k: '实际出勤', v: core.fmtShort(c.actual) + ' 天' },
-      { k: '课时', v: c.lessons + ' 节' },
+      { k: '课时', v: c.lessons + ' 节', warn: rateZero },
       { k: '应发', v: '¥' + core.fmt(c.total), num: true }
     ];
 
@@ -201,6 +239,7 @@ Page({
     }
     if (c.checked) { notes.push('本月已标记核对'); }
     if (!db.settings.autoWork) { notes.push('默认出勤已关闭，需逐天填'); }
+    if (rateZero) { notes.push('课时单价为 0：本月课时费没计入，去「设置」填单价'); }
 
     this.setData({
       monLabel: y + ' 年 ' + m + ' 月',
@@ -217,14 +256,20 @@ Page({
     });
   },
 
-  prevMonth: function () { this.setData({ ym: core.addMonths(this.data.ym, -1), sheet: null, sel: false, selKeys: [], allowWk: false }); this.render(); },
-  nextMonth: function () { this.setData({ ym: core.addMonths(this.data.ym, 1), sheet: null, sel: false, selKeys: [], allowWk: false }); this.render(); },
-  goToday: function () { this.setData({ ym: core.todayKey().slice(0, 7), sel: false, selKeys: [], allowWk: false }); this.render(); },
+  /* 切月：先重画，再试着按课程表补课时（只有回到「当月」时才真的会补） */
+  _switchMonth: function (ym) {
+    this.setData({ ym: ym, sheet: null, sel: false, selKeys: [], allowWk: false });
+    this.render();
+    this._ensureAutoFill();
+  },
+
+  prevMonth: function () { this._switchMonth(core.addMonths(this.data.ym, -1)); },
+  nextMonth: function () { this._switchMonth(core.addMonths(this.data.ym, 1)); },
+  goToday: function () { this._switchMonth(core.todayKey().slice(0, 7)); },
   pickMonth: function (e) {
     var v = e.detail.value;
     if (!core.isYm(v)) { return; }
-    this.setData({ ym: v, sel: false, selKeys: [], allowWk: false });
-    this.render();
+    this._switchMonth(v);
   },
 
   /* 点击兜底：桌面端鼠标点击可能只发 tap 不走 touch */
@@ -977,24 +1022,24 @@ Page({
     doClear();
   },
 
-  /* 进入某月时把已过去的日子按课程表补齐。
-     幂等（填过的日子有 lset），撤销后本会话不再自动填回来。 */
-  _maybeAutoFill: function () {
-    /* 撤销后紧跟的那次渲染不许把刚回滚的课时又自动填回来 */
-    if (this._skipAutoOnce) { this._skipAutoOnce = false; return; }
-    /* 面板开着就别顺手落账：面板翻天会触发重绘，这时候自动填进去的课时，
-       既看不见也容易被误当成自己记的。关掉面板后的那次重绘本就会补上。 */
-    if (this.data.sheet || this.data.bulk) { return; }
+  /* 把已过去的日子按课程表补齐。只由「进入页面 / 切月」显式触发，render 不碰库。
+     幂等（填过的日子有 lset），撤销过的月份本会话不再自动填回来。 */
+  _ensureAutoFill: function () {
+    /* 编辑页/批量面板开着就别顺手落账：这时填进去的课时既看不见
+       也容易被误当成自己记的，关掉之后的 onShow 会补上 */
+    if (this.data.sheet || this.data.bulk) { return false; }
     var db = this.db, ym = this.data.ym;
-    if (!db || !ym || (this._autoBlocked && this._autoBlocked[ym])) { return; }
+    if (!db || !ym || (this._autoBlocked && this._autoBlocked[ym])) { return false; }
     var prevUndo = this._undo;
     this._beginUndo();                    /* 必须在写入前拍快照，撤销才有意义 */
     var r = core.autoFillLessons(db, ym, core.todayKey());
-    if (r.filled <= 0) { this._undo = prevUndo; return; }
+    if (r.filled <= 0) { this._undo = prevUndo; return false; }
     store.commit();
     this._undo.auto = true;
     this._undo.ym = ym;
     this.showUndo('已按课程表自动记入 ' + r.filled + ' 天课时');
+    this.render();
+    return true;
   },
 
   /* 拍一个月的逐日快照。已经拍过的那天不覆盖——一批操作里要保留的是「这批之前」的状态 */
@@ -1050,7 +1095,6 @@ Page({
 
   doUndo: function () {
     if (!this._undo) { return; }
-    this._skipAutoOnce = true;
     /* 撤销自动落账：本月别再自动填回来，想永久关掉去设置页 */
     var autoUndo = !!this._undo.auto;
     var autoYm = this._undo.ym;
