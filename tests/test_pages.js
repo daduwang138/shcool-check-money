@@ -1438,9 +1438,9 @@ reset();
   ok(c16 && !c16.hasNote, '日历·没写备注的不点亮');
 
   nCal.openSheet('2026-11-15');
-  /* 备注不折叠；预设6个一行、最近写过2个另一行，都完整显示（不截断） */
-  ok(nCal.data.sheet.tags.length === 6 && nCal.data.sheet.recentTags.length === 2,
-    '面板·标签两组（6预设+2最近）',
+  /* 备注不折叠；预设 6 个固定在前面，最近写过的跟在后面（上限 4 个），都完整显示 */
+  ok(nCal.data.sheet.tags.length === 6 && nCal.data.sheet.recentTags.length === 3,
+    '编辑页·标签两组（6 预设 + 最近写过，上限 4）',
     nCal.data.sheet.tags.length + '+' + nCal.data.sheet.recentTags.length);
   ok(nCal.data.sheet.tags.join(',') === '四六级,竞赛,期中,期末,月考,模考',
     '面板·预设6个完整', nCal.data.sheet.tags.join(','));

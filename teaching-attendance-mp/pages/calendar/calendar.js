@@ -653,9 +653,9 @@ Page({
     var note = r ? (r.note || '') : '';
     var exp = core.lessonsFor(db, k);
     var p = db.months[k.slice(0, 7)] || {};
-    /* 预设 6 个单独一行、最近写过 2 个另一行，都完整显示不截断；
-       上面还有空间，没必要把标签挤成一行牺牲可读性 */
-    var allTags = core.noteTags(db, 2);
+    /* 预设 6 个 + 最近写过 4 个：预设是固定词，真正会被复用的是「最近写过」的那些
+       （校本题名之类），2 个偏少；4 个刚好铺满两行，再多会把标签区撑到第三行。 */
+    var allTags = core.noteTags(db, 4);
 
     var kind;
     if (core.isHoliday(k, this.db)) { kind = '法定节假日'; }
@@ -668,8 +668,8 @@ Page({
     var ni = r ? (parseInt(r.night, 10) || 0) : 0;
     var nf = parseFloat(db.settings.nightFee) || 0;
     var nh = parseFloat(db.settings.nightHours) || 0;
-    /* 面板要求「一屏放完、不滚动」。正常机型用大号按钮，小屏（SE / 4 寸安卓）
-       换 ds-compact 压一档尺寸——只改 CSS，内容一项不少。
+    /* 整屏页要求「一屏放完、不滚动」。正常机型用大号按钮，小屏（SE / 4 寸安卓）
+       换 dp-compact 压一档尺寸——只改 CSS，内容一项不少。
        不用 @media：那会让 WXSS 编译器和旧版开发者工具互相别扭。 */
     var compact = false;
     try {
