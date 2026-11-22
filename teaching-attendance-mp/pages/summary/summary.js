@@ -297,42 +297,67 @@ Page({
     this.render();
   },
 
-  setWorkdays: function (e) {
-    var v = parseInt(e.detail.value, 10);
-    if (isNaN(v) || v < 0 || v > 31) { this.render(); return; }
-    var p = core.monthP(this.db, this.data.ym);
-    p.workdays = v;
-    core.freezeMonth(this.db, this.data.ym);
-    store.commit();
+  /* 汇总页顶部明确承诺「核对后再改会二次确认」，这里必须真的守住。
+     与记账页一致：本次进入页面内每个月只问一次，避免连续改三个参数问三次。 */
+  _allowEdit: function (ym, go) {
+    if (!this._checkedOk) { this._checkedOk = {}; }
+    var mp = this.db.months[ym] || {};
+    if (!mp.checked || this._checkedOk[ym]) { go.call(this); return; }
+    var that = this;
+    wx.showModal({
+      title: '本月已标记核对',
+      content: ym + ' 已标记核对，仍要修改吗？',
+      confirmText: '继续改',
+      success: function (res) { if (res.confirm) { that._checkedOk[ym] = true; go.call(that); } }
+    });
+  },
+
+  /* 保存失败时 store.commit() 已把共享对象回滚；这里重新渲染并停在原处，
+     不能继续弹「已保存」「已同步」这类成功提示。 */
+  _saveView: function (ok) {
+    if (!ok) { this.render(); return false; }
     this.render();
+    return true;
+  },
+
+  setWorkdays: function (e) {
+    var that = this, v = parseInt(e.detail.value, 10);
+    if (isNaN(v) || v < 0 || v > 31) { this.render(); return; }
+    this._allowEdit(this.data.ym, function () {
+      var p = core.monthP(that.db, that.data.ym);
+      p.workdays = v;
+      core.freezeMonth(that.db, that.data.ym);
+      that._saveView(store.commit());
+    });
   },
 
   setBase: function (e) {
-    var v = parseFloat(e.detail.value);
+    var that = this, v = parseFloat(e.detail.value);
     if (isNaN(v) || v < 0) { this.render(); return; }
-    var p = core.monthP(this.db, this.data.ym);
-    p.base = v;
-    core.freezeMonth(this.db, this.data.ym);
-    store.commit();
-    this.render();
+    this._allowEdit(this.data.ym, function () {
+      var p = core.monthP(that.db, that.data.ym);
+      p.base = v;
+      core.freezeMonth(that.db, that.data.ym);
+      that._saveView(store.commit());
+    });
   },
 
   setRate: function (e) {
-    var v = parseFloat(e.detail.value);
+    var that = this, v = parseFloat(e.detail.value);
     if (isNaN(v) || v < 0) { this.render(); return; }
-    var p = core.monthP(this.db, this.data.ym);
-    p.rate = v;
-    core.freezeMonth(this.db, this.data.ym);
-    store.commit();
-    this.render();
+    this._allowEdit(this.data.ym, function () {
+      var p = core.monthP(that.db, that.data.ym);
+      p.rate = v;
+      core.freezeMonth(that.db, that.data.ym);
+      that._saveView(store.commit());
+    });
   },
 
   toggleChecked: function (e) {
     var p = core.monthP(this.db, this.data.ym);
     p.checked = !!e.detail.value;
     core.freezeMonth(this.db, this.data.ym);
-    store.commit();
-    this.render();
+    if (!this._saveView(store.commit())) { return; }
     wx.showToast({ title: p.checked ? '本月已标记核对' : '已取消核对标记', icon: 'none' });
   },
 
@@ -345,24 +370,28 @@ Page({
   },
 
   useSettingBase: function () {
-    var p = core.monthP(this.db, this.data.ym);
-    delete p.base;
-    store.commit();
-    this.render();
-    wx.showToast({ title: '本月已改用设置里的工资', icon: 'none' });
+    var that = this;
+    this._allowEdit(this.data.ym, function () {
+      var p = core.monthP(that.db, that.data.ym);
+      delete p.base;
+      if (!that._saveView(store.commit())) { return; }
+      wx.showToast({ title: '本月已改用设置里的工资', icon: 'none' });
+    });
   },
 
   resetParams: function () {
-    var p = core.monthP(this.db, this.data.ym);
-    delete p.workdays;
-    delete p.base;
-    delete p.rate;
-    /* monthP 只负责拿到可写的参数对象、不填价格；删完之后再读一次 q.workdays
-       只会是 undefined（toast 里会显示「应上班 undefined 天」）。render() 已经重算过，
-       直接取它写回 data 的结果就行 */
-    store.commit();
-    this.render();
-    wx.showToast({ title: '已回到设置默认值（应上班 ' + this.data.p.workdays + ' 天）', icon: 'none' });
+    var that = this;
+    this._allowEdit(this.data.ym, function () {
+      var p = core.monthP(that.db, that.data.ym);
+      delete p.workdays;
+      delete p.base;
+      delete p.rate;
+      /* monthP 只负责拿到可写的参数对象、不填价格；删完之后再读一次 q.workdays
+         只会是 undefined（toast 里会显示「应上班 undefined 天」）。render() 已经重算过，
+         直接取它写回 data 的结果就行 */
+      if (!that._saveView(store.commit())) { return; }
+      wx.showToast({ title: '已回到设置默认值（应上班 ' + that.data.p.workdays + ' 天）', icon: 'none' });
+    });
   },
 
   /* 复制核对单：和电脑版拼的是同一个函数（core.sumText），两边复制出来一字不差 */

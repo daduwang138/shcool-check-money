@@ -671,19 +671,23 @@ Page({
           les === 0 ? '' : (r ? r.rid : ''));
       });
       that._undo = { msg: that.data.ym, snap: snap, msnap: msnap };
-      store.commit();
+      if (!store.commit()) {
+        that._undo = null;
+        that.render();
+        return false;
+      }
       that.setData({ sel: false, selKeys: [], clearLes: false, allowWk: false });
       that.render();
       that.showUndo('已修改 ' + keys.length + ' 天');
+      return true;
     };
 
     if (cm.length) {
       /* 已核对的确认本次进入页面只问一次，别让补记十几天点十几次 */
-      this._allowEditMonths(cm, function () { run(); if (onDone) { onDone(); } });
+      this._allowEditMonths(cm, function () { if (run() && onDone) { onDone(); } });
       return true;
     }
-    run();
-    if (onDone) { onDone(); }
+    if (run() && onDone) { onDone(); }
     return true;
   },
 
@@ -887,13 +891,19 @@ Page({
     var note = (this._note === undefined ? s.note : this._note) || '';
     this._beginUndo(this._sheetBatch, s.key.slice(0, 7));
     core.setRecord(this.db, s.key, s.am, s.pm, s.lessons, note, undefined, s.rid, s.night);
-    store.commit();
+    if (!store.commit()) {
+      this._undo = null;
+      this.render();
+      return false;
+    }
+    return true;
   },
 
   writeSheet: function () {
     var s = this.data.sheet;
     if (!s || !s.key) { return; }
-    this._commitSheet();
+    /* 保存失败时面板保持打开，用户能看到失败原因并重试 */
+    if (!this._commitSheet()) { return; }
     this.setData({ sheet: null });
     this._note = undefined;
     this._showTab();
@@ -915,7 +925,7 @@ Page({
     }
     var that = this;
     this._allowEdit(s.key.slice(0, 7), function () {
-      that._commitSheet();
+      if (!that._commitSheet()) { return; }
       /* 翻天翻到别的月份，日历跟着翻过去：面板上的日期和背后的格子要对得上，
          不然「已核对」的确认问的是看不见的那个月，撤销也会拍错月份 */
       var kym = k.slice(0, 7);
@@ -939,7 +949,11 @@ Page({
     var go = function () {
       that._beginUndo();
       var r = core.fillLessonsFromCourses(db, ym);
-      store.commit();
+      if (!store.commit()) {
+        that._undo = null;
+        that.render();
+        return;
+      }
       that.render();
       var msg = '填了 ' + r.filled + ' 天';
       if (r.skipped) { msg += '，跳过 ' + r.skipped + ' 天已有记录'; }
@@ -962,25 +976,33 @@ Page({
       return;
     }
     var y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10);
-    var n = core.daysInMonth(ym), cnt = 0;
-    this._beginUndo();
+    var n = core.daysInMonth(ym), keys = [];
     for (var d = 1; d <= n; d++) {
       var k = core.dk(y, m, d), r = core.peek(db, k);
-      if (!r || !r.off) { continue; }
-      if (!core.defaultHalf(db, k, 'am') && !core.defaultHalf(db, k, 'pm')) { continue; }
-      if (!r.am && !r.pm && !r.lessons && !r.note) { delete db.days[k]; }
-      else { r.off = false; r.upd = Date.now(); }
-      cnt++;
+      if (r && r.off && (core.defaultHalf(db, k, 'am') || core.defaultHalf(db, k, 'pm'))) { keys.push(k); }
     }
-    if (!cnt) {
-      this._undo = null;
+    /* 没东西可恢复时别碰 _undo：上一条真实操作的撤销机会不能被这次空操作冲掉 */
+    if (!keys.length) {
       wx.showToast({ title: '本月没有需要恢复的日子', icon: 'none' });
       return;
     }
-    core.freezeMonth(db, ym);
-    store.commit();
-    this.render();
-    this.showUndo('已恢复默认出勤 ' + cnt + ' 天');
+    var that = this;
+    this._allowEdit(ym, function () {
+      that._beginUndo();
+      keys.forEach(function (k) {
+        var r = core.peek(db, k);
+        if (!r.am && !r.pm && !r.lessons && !r.note) { delete db.days[k]; }
+        else { r.off = false; r.upd = Date.now(); }
+      });
+      core.freezeMonth(db, ym);
+      if (!store.commit()) {
+        that._undo = null;
+        that.render();
+        return;
+      }
+      that.render();
+      that.showUndo('已恢复默认出勤 ' + keys.length + ' 天');
+    });
   },
 
   clearMonth: function () {
@@ -1007,7 +1029,11 @@ Page({
           /* 清空之后不该还挂着「已核对」——电脑版也是这么处理的 */
           core.monthP(db, ym).checked = false;
           core.freezeMonth(db, ym);
-          store.commit();
+          if (!store.commit()) {
+            that._undo = null;
+            that.render();
+            return;
+          }
           that.render();
           that.showUndo('已清空 ' + ym);
         }
@@ -1034,7 +1060,11 @@ Page({
     this._beginUndo();                    /* 必须在写入前拍快照，撤销才有意义 */
     var r = core.autoFillLessons(db, ym, core.todayKey());
     if (r.filled <= 0) { this._undo = prevUndo; return false; }
-    store.commit();
+    if (!store.commit()) {
+      this._undo = prevUndo;
+      this.render();
+      return false;
+    }
     this._undo.auto = true;
     this._undo.ym = ym;
     this.showUndo('已按课程表自动记入 ' + r.filled + ' 天课时');
@@ -1098,6 +1128,7 @@ Page({
     /* 撤销自动落账：本月别再自动填回来，想永久关掉去设置页 */
     var autoUndo = !!this._undo.auto;
     var autoYm = this._undo.ym;
+    var prevBlocked = !!(this._autoBlocked && this._autoBlocked[autoYm]);
     if (autoUndo && autoYm) {
       if (!this._autoBlocked) { this._autoBlocked = {}; }
       this._autoBlocked[autoYm] = true;
@@ -1109,7 +1140,12 @@ Page({
     }, this);
     /* 「已核对」与当月冻结参数也是那次操作改掉的，撤销要一起还回去 */
     if (this._undo.msnap) { this.db.months = this._undo.msnap; }
-    store.commit();
+    if (!store.commit()) {
+      /* 没撤销成就别把「本月不再自动填」写进会话状态，保留撤销让用户重试 */
+      if (autoYm) { this._autoBlocked[autoYm] = prevBlocked; }
+      this.render();
+      return;
+    }
     this._undo = null;
     if (this._undoTimer) { clearTimeout(this._undoTimer); }
     this.setData({ undo: null });

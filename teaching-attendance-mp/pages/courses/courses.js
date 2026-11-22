@@ -230,7 +230,7 @@ Page({
         parity: e.parity
       });
     }
-    store.commit();
+    if (!store.commit()) { this.render(); return; }
     this.setData({ editing: null });
     this._name = undefined;
     this.render();
@@ -249,7 +249,7 @@ Page({
       success: function (res) {
         if (!res.confirm) { return; }
         that.db.courses = that.db.courses.filter(function (c) { return c.id !== e.id; });
-        store.commit();
+        if (!store.commit()) { that.render(); return; }
         that.setData({ editing: null });
         that.render();
         wx.showToast({ title: '已删除', icon: 'none' });
@@ -320,7 +320,7 @@ Page({
           startWeek: c.startWeek, endWeek: c.endWeek, parity: c.parity
         });
       });
-      store.commit();
+      if (!store.commit()) { that.render(); return; }
       that._impText = '';
       that.setData({ imp: null });
       that.render();

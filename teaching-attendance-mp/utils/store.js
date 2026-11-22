@@ -31,8 +31,16 @@ function load() {
 /* 唯一的落盘入口：不接受外部 db，提交的永远是当前共享对象。
    页面改完 this.db 调 commit() 即可。早先那个按 upd 时间戳补合并的
    _mergeNewer 补丁是给「调用方可能传旧副本」擦屁股的，现在那种情况不可能发生，已退役。 */
+function restoreObject(target, snapshot) {
+  Object.keys(target).forEach(function (k) { delete target[k]; });
+  Object.assign(target, snapshot);
+}
+
 function commit() {
   var db = _cache || load();
+  /* 只能用「上一次成功落盘的原始数据」回滚：在 commit 里现拍的快照
+     已经包含页面刚做的改动，拿它回滚等于什么都没退。 */
+  var lastGood = _cacheRaw ? JSON.parse(_cacheRaw) : core.blankDB();
   /* 和 load() 一样先规范化（补 lset 等），否则写进去的内容和下次读出来的
      形态不一致，缓存比对每次都失效，又退回「各页面各拿一份副本」 */
   core.normalize(db);
@@ -43,6 +51,7 @@ function commit() {
     _cache = db; _cacheRaw = raw;
     return true;
   } catch (e) {
+    restoreObject(db, lastGood);
     wx.showToast({ title: '本地保存失败，空间可能不足', icon: 'none' });
     return false;
   }
@@ -50,15 +59,26 @@ function commit() {
 
 /* 「用文件覆盖本机」是整库替换：把共享引用换成新库再提交，不读旧 Storage */
 function replace(db) {
+  var oldCache = _cache, oldRaw = _cacheRaw;
   _cache = db; _cacheRaw = '';
-  commit();
+  if (!commit()) {
+    _cache = oldCache; _cacheRaw = oldRaw;
+    return null;
+  }
   return db;
 }
 
+/* 返回是否真的从 Storage 删掉了数据。清不掉就别让页面显示「已清空」——
+   否则下次启动旧账还在，用户还以为已经不需要备份了。 */
 function reset() {
-  _cache = null; _cacheRaw = '';
-  /* 隐私模式 / 存储被禁用时 removeStorageSync 会抛；清不掉就当它已经是空库 */
-  try { wx.removeStorageSync(KEY); } catch (e) { /* 忽略：没有可清理的存储 */ }
+  try {
+    wx.removeStorageSync(KEY);
+    _cache = null; _cacheRaw = '';
+    return true;
+  } catch (e) {
+    wx.showToast({ title: '本机数据删除失败，请检查存储权限或空间', icon: 'none' });
+    return false;
+  }
 }
 
 function platform() {
@@ -115,21 +135,32 @@ function deliver(path, name, text) {
   return Promise.reject(new Error('当前客户端不支持导出文件'));
 }
 
-function exportText(name, text) {
+/* 返回交付方式：只有真正存成文件/发到聊天才算形成备份。
+   剪贴板兜底只是临时手段，不能被记成「已备份」，否则提醒会被错误地压掉 30 天。 */
+function exportTextEx(name, text) {
   return writeTemp(name, text).then(function (path) {
     return deliver(path, name, text);
+  }).then(function (msg) {
+    return { message: msg, mode: 'file' };
   }).catch(function (err) {
     /* 兜底：至少让人能把内容复制走 */
     return new Promise(function (resolve, reject) {
       wx.setClipboardData({
         data: text,
-        success: function () { resolve('已复制到剪贴板（当前客户端不支持存文件），粘贴到记事本另存即可'); },
+        success: function () {
+          resolve({ message: '已复制到剪贴板（当前客户端不支持存文件），粘贴到记事本另存即可', mode: 'clipboard' });
+        },
         fail: function () {
           reject(new Error('导出失败：当前客户端既不能存文件、也无法写入剪贴板。请换客户端导出，或先不要清理本机数据'));
         }
       });
     });
   });
+}
+
+/* 兼容只关心提示文案的调用方（CSV 导出等） */
+function exportText(name, text) {
+  return exportTextEx(name, text).then(function (r) { return r.message; });
 }
 
 function backupName() {
@@ -177,10 +208,10 @@ function backupDays(now) {
 
 function exportBackup(db) {
   var text = JSON.stringify(db, null, 2);
-  return exportText(backupName(), text).then(function (msg) {
-    /* 只有真的交付出去（存盘 / 发到聊天 / 复制到剪贴板）才算备份过 */
-    markBackup();
-    return msg;
+  return exportTextEx(backupName(), text).then(function (r) {
+    /* 剪贴板随时会被覆盖，不算可恢复的备份，也不压掉备份提醒 */
+    if (r.mode === 'file') { markBackup(); }
+    return r.message;
   });
 }
 
@@ -235,9 +266,11 @@ function dayBody(r) {
    两边同一天内容不一致时记进 conflicts，界面上要看得见。 */
 function mergeInto(local, incoming) {
   var s = local.settings || {};
-  var isFresh = core.dayCount(local) === 0 &&
+  /* 不能用 rate>0 判断「空白」：blankDB 默认单价就是 30，新机永远不满足。
+     savedAt 只有真正 commit 过才会写，能区分「刚装的空白库」和「改过参数的库」。 */
+  var isFresh = (Number(local.savedAt) || 0) === 0 &&
+    core.dayCount(local) === 0 &&
     !(parseFloat(s.baseSalary) > 0) &&
-    !(parseFloat(s.rate) > 0) &&
     !(local.courses && local.courses.length) &&
     !(local.term && local.term.start);
   var added = 0, updated = 0, conflicts = 0, future = 0;
@@ -245,7 +278,8 @@ function mergeInto(local, incoming) {
   Object.keys(incoming.days || {}).forEach(function (k) {
     var a = local.days[k], b = incoming.days[k];
     if (!b) { return; }
-    var bu = b.upd || 0, au = (a && a.upd) || 0;
+    /* normalize() 已规范过，这里再兜一层：导入文件被手工改过也不会变成字典序比较 */
+    var bu = Number(b.upd) || 0, au = Number(a && a.upd) || 0;
     if (bu > ceiling) { bu = 0; future++; }
     if (a && dayBody(a) !== dayBody(b)) { conflicts++; }
     if (!a || bu > au) {

@@ -1858,6 +1858,145 @@ lock.clear();
     '全年事项·带上星期与状态');
 }
 
-console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
-if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }
-console.log('页面逻辑全部通过');
+/* ================= 代码审查 1122：小程序端回归 ================= */
+{
+  const stFix = require(path.join(ROOT, 'utils/store.js'));
+
+  /* 1. commit 失败回滚内存，页面不再报成功 */
+  reset();
+  const freshForFail = seedDb();
+  const stDb = stFix.replace(freshForFail);
+  const rawBeforeFail = mem['kqzb_db_v1'];
+  const ownerBeforeFail = stDb.settings.owner;
+  const setSync = global.wx.setStorageSync;
+  global.wx.setStorageSync = function () { throw new Error('storage full'); };
+  stDb.settings.owner = '未落盘的改动';
+  const commitOk = stFix.commit();
+  global.wx.setStorageSync = setSync;
+  ok(commitOk === false, '保存失败·commit 返回 false');
+  ok(stDb.settings.owner === ownerBeforeFail, '保存失败·内存改动已回滚', String(stDb.settings.owner));
+  ok(mem['kqzb_db_v1'] === rawBeforeFail, '保存失败·磁盘内容未被改写');
+  ok(toasts.some(t => /本地保存失败/.test(t)), '保存失败·给出明确提示', toasts.join('/'));
+
+  reset();
+  seedDb();
+  const failCal = makePage('calendar');
+  failCal.onLoad();
+  failCal.openSheet('2026-11-10');
+  const setSync2 = global.wx.setStorageSync;
+  global.wx.setStorageSync = function () { throw new Error('storage full'); };
+  failCal.saveSheet();
+  global.wx.setStorageSync = setSync2;
+  ok(!!failCal.data.sheet, '保存失败·单日面板保持打开可重试');
+  ok(!toasts.some(t => t === '已记下 11 月 10 日'), '保存失败·不再提示已记下', toasts.join('/'));
+
+  /* 2. 清空失败不能再报“已清空” */
+  reset();
+  const clearDb = seedDb();
+  clearDb.days['2026-11-10'] = { am: 'work', pm: '', lessons: 2, note: '', lset: true, upd: 1 };
+  mem['kqzb_db_v1'] = JSON.stringify(clearDb);
+  const failSet = makePage('settings');
+  failSet.onLoad();
+  const removeSync = global.wx.removeStorageSync;
+  global.wx.removeStorageSync = function () { throw new Error('denied'); };
+  failSet.clearAll();
+  global.wx.removeStorageSync = removeSync;
+  ok(!toasts.some(t => t === '已清空'), '清空失败·不再提示已清空', toasts.join('/'));
+  ok(!!current() && Object.keys(current().days).length > 0, '清空失败·本机数据仍在');
+
+  /* 3/4. 已核对月份的汇总页参数修改要二次确认 */
+  reset();
+  seedDb();
+  const checkedYm = core.todayKey().slice(0, 7);
+  const checkedDb = current();
+  checkedDb.months[checkedYm] = { checked: true, workdays: 20, base: 1000, rate: 30 };
+  mem['kqzb_db_v1'] = JSON.stringify(checkedDb);
+  const checkedSum = makePage('summary');
+  checkedSum.onLoad();
+  checkedSum.setData({ ym: checkedYm });
+  checkedSum.render();
+  const modalBefore = modals.length;
+  checkedSum.setBase({ detail: { value: '9000' } });
+  ok(modals.length === modalBefore + 1, '已核对·改本月工资弹出确认', String(modals.length - modalBefore));
+  ok(current().months[checkedYm].base === 9000, '已核对·确认后修改生效');
+  checkedSum.setRate({ detail: { value: '120' } });
+  ok(modals.length === modalBefore + 1, '已核对·同月参数只问一次', String(modals.length - modalBefore));
+  ok(current().months[checkedYm].rate === 120, '已核对·同批修改仍生效');
+
+  /* 5. 非法日期字段不会让整月出勤/课时失效 */
+  const dirty = core.normalize({
+    v: core.SCHEMA_VERSION,
+    settings: { startDate: 'abc', rate: 30 },
+    months: {}, days: {}, term: { start: 'oops', defaultWeeks: 16 },
+    courses: []
+  });
+  ok(dirty.settings.startDate === '' && dirty.term.start === '', '脏日期·normalize 清空非法基准日');
+  const rawBadTerm = {
+    settings: { startDate: '' },
+    term: { start: 'oops' },
+    courses: [{ weekday: 1, lessons: 4, startWeek: 1, endWeek: 16 }]
+  };
+  ok(core.weekOf(rawBadTerm, '2026-11-10') === 0, '脏日期·weekOf 返回 0 而非 NaN');
+  ok(core.lessonsFor(rawBadTerm, '2026-11-10') === 0, '脏日期·不会所有课程天天命中');
+
+  /* 6. upd 字符串时间戳统一成数字，避免字典序比较 */
+  reset();
+  const updDb = seedDb();
+  const updKey = core.todayKey();
+  updDb.days[updKey] = { am: 'work', pm: '', lessons: 0, note: '', lset: true, upd: '90000000000' };
+  const normalizedUpd = core.normalize(updDb);
+  ok(typeof normalizedUpd.days[updKey].upd === 'number', '合并·字符串 upd 被规范成数字',
+    typeof normalizedUpd.days[updKey].upd);
+  const localUpd = core.blankDB();
+  localUpd.days[updKey] = { am: 'inv', pm: '', lessons: 2, note: '本机新记录', lset: true, upd: 1795000000000 };
+  const incomingUpd = core.normalize(JSON.parse(JSON.stringify(localUpd)));
+  incomingUpd.days[updKey].am = 'work';
+  incomingUpd.days[updKey].note = '导入旧记录';
+  incomingUpd.days[updKey].upd = '90000000000';
+  core.normalize(incomingUpd);
+  stFix.mergeInto(localUpd, incomingUpd);
+  ok(localUpd.days[updKey].note === '本机新记录', '合并·不会因字典序让旧记录盖掉新记录',
+    localUpd.days[updKey].note);
+
+  /* 7. 全新空白库合并导入会接管设置与课程表 */
+  reset();
+  const blankLocal = core.blankDB();
+  const incomingAll = seedDb();
+  incomingAll.settings.owner = '导入者';
+  incomingAll.term.start = '2026-09-21';
+  incomingAll.courses.push({ id: 'imported', weekday: 2, weekdays: [2], lessons: 2, startWeek: 1, endWeek: 16 });
+  stFix.mergeInto(blankLocal, incomingAll);
+  ok(blankLocal.settings.owner === '导入者', '合并·空白库接管导入的工资参数', String(blankLocal.settings.owner));
+  ok(blankLocal.term.start === '2026-09-21' && blankLocal.courses.length > 0,
+    '合并·空白库接管导入的课程表');
+
+  /* 8. 无可恢复日子时不冲掉上一条撤销 */
+  reset();
+  seedDb();
+  const restoreCal = makePage('calendar');
+  restoreCal.onLoad();
+  restoreCal._undo = { msg: 'keep-me' };
+  restoreCal.restoreDefault();
+  ok(restoreCal._undo && restoreCal._undo.msg === 'keep-me', '空操作·保留上一条撤销',
+    JSON.stringify(restoreCal._undo));
+}
+
+/* 备份交付判定是异步 Promise，放在最后单独断言 */
+Promise.resolve().then(function () {
+  reset();
+  const stBackup = require(path.join(ROOT, 'utils/store.js'));
+  const origShare = global.wx.shareFileMessage;
+  global.wx.shareFileMessage = function (o) { if (o.fail) { o.fail(new Error('cancel')); } };
+  return stBackup.exportBackup(stBackup.load()).then(function (msg) {
+    global.wx.shareFileMessage = origShare;
+    ok(/剪贴板/.test(msg), '备份·文件失败时仍给出剪贴板兜底文案', msg);
+    ok(stBackup.backupAt() === 0, '备份·复制剪贴板不算已备份，提醒保持开启');
+  }, function (err) {
+    global.wx.shareFileMessage = origShare;
+    ok(false, '备份·剪贴板兜底不应 reject', String(err && err.message));
+  });
+}).then(function () {
+  console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
+  if (bad.length) { console.log('\n失败项：\n- ' + bad.join('\n- ')); process.exit(1); }
+  console.log('页面逻辑全部通过');
+});

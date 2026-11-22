@@ -1213,6 +1213,9 @@ function weekOf(db, key) {
   if (!db.term || !db.term.start) return null;
   var baseMonday = mondayOf(db.term.start);
   var keyMonday = mondayOf(key);
+  /* 脏备份里基准日可能是非法字符串，mondayOf 会得到 NaN；
+     不挡住的话 lessonsFor 会认为「没有一周不满足条件」，所有课程天天命中。 */
+  if (!isFinite(dateNum(baseMonday)) || !isFinite(dateNum(keyMonday))) return 0;
   /* YYYY-MM-DD 的字典序就是时间序 */
   if (keyMonday < baseMonday) return 0;
   return Math.round((dateNum(keyMonday) - dateNum(baseMonday)) / (7 * 86400000)) + 1;
@@ -1392,6 +1395,13 @@ function migrate(db) {
 function normalize(db) {
   var b = blankDB();
   if (!db || typeof db !== 'object') return b;
+  /* 匿名函数：不新增顶层函数，避免双版转发层的覆盖哨兵需要跟着改。
+     只认真实的 YYYY-MM-DD，防止非法基准日让入职判断/教学周全表失效。 */
+  var validDate = function (dateStr) {
+    if (typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) { return false; }
+    var parts = ymd(dateStr), date = new Date(parts[0], parts[1] - 1, parts[2]);
+    return date.getFullYear() === parts[0] && date.getMonth() + 1 === parts[1] && date.getDate() === parts[2];
+  };
   migrate(db);
   db.settings = Object.assign(b.settings, db.settings || {});
   if (!Array.isArray(db.settings.rates) || !db.settings.rates.length) db.settings.rates = b.settings.rates;
@@ -1403,7 +1413,7 @@ function normalize(db) {
       return v === 0.5 ? 0.5 : (v ? 1 : 0);
     });
   }
-  if (typeof db.settings.startDate !== 'string') db.settings.startDate = '';
+  if (!validDate(db.settings.startDate)) db.settings.startDate = '';
   /* 晚修监考的两个价：存成字符串也认，负数归零 */
   db.settings.nightHours = Math.max(0, parseFloat(db.settings.nightHours) || 0);
   db.settings.nightFee = Math.max(0, parseFloat(db.settings.nightFee) || 0);
@@ -1415,8 +1425,12 @@ function normalize(db) {
     var r = db.days[k];
     if (!r || typeof r !== 'object') return;
     if (r.lset == null) r.lset = true;
+    /* 合并备份时按 upd 比新旧；字符串时间戳会让两边都走字典序，
+       旧记录可能盖掉新记录。这里统一规范成有限数字。 */
+    r.upd = Number(r.upd) || 0;
   });
   db.term = Object.assign(b.term, db.term || {});
+  if (!validDate(db.term.start)) db.term.start = '';
   if (!Array.isArray(db.courses)) db.courses = [];
   db.courses = db.courses.map(function (c) {
     var days = courseDays(c);

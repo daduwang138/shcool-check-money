@@ -112,7 +112,7 @@ Page({
     this.db.settings.baseSalary = v;
     /* 当月（自然月）及以后已冻结的工资跟着改，历史月份不动 */
     var changed = core.syncBaseForward(this.db, v);
-    store.commit();
+    if (!store.commit()) { this.render(); return; }
     this.render();
     wx.showToast({ title: changed ? ('当月及以后 ' + changed + ' 个月已同步') : '已保存', icon: 'none' });
   },
@@ -124,7 +124,7 @@ Page({
     if (isNaN(v) || v < 0) { this.render(); return; }
     this.db.settings.rate = v;
     var changed = core.syncRateForward(this.db, v);
-    store.commit();
+    if (!store.commit()) { this.render(); return; }
     this.render();
     wx.showToast({ title: changed ? ('当月及以后 ' + changed + ' 个月已同步') : '已保存', icon: 'none' });
   },
@@ -181,7 +181,7 @@ Page({
     r.price = v;
     /* 附加档位同理：当月及以后已记过账的月份，这个档位的价一起同步 */
     var changed = core.syncTierForward(this.db, r.id, v);
-    store.commit();
+    if (!store.commit()) { this.render(); return; }
     this.render();
     if (changed) {
       wx.showToast({ title: '当月及以后 ' + changed + ' 个月已同步', icon: 'none' });
@@ -219,7 +219,7 @@ Page({
       success: function (res) {
         if (!res.confirm) { return; }
         that.db.settings.rates = (that.db.settings.rates || []).filter(function (x) { return x.id !== id; });
-        store.commit();
+        if (!store.commit()) { that.render(); return; }
         that.render();
         wx.showToast({ title: '已删除', icon: 'none' });
       }
@@ -244,7 +244,7 @@ Page({
 
   pickStart: function (e) {
     this.db.settings.startDate = e.detail.value || '';
-    store.commit();
+    if (!store.commit()) { this.render(); return; }
     this.render();
     wx.showToast({ title: this.db.settings.startDate ? '已设为 ' + this.db.settings.startDate : '已清除', icon: 'none' });
   },
@@ -315,7 +315,7 @@ Page({
         success: function (res) {
           if (res.tapIndex === 0) {
             var r = store.mergeInto(that.db, incoming);
-            store.commit();
+            if (!store.commit()) { that.render(); return; }
             that.render();
             var msg = '已合并：新增 ' + r.added + ' 天，更新 ' + r.updated + ' 天';
             if (r.conflicts) { msg += '，' + r.conflicts + ' 天两边不一致（按修改时间取较新）'; }
@@ -329,7 +329,9 @@ Page({
               confirmColor: '#A33A28',
               success: function (m) {
                 if (!m.confirm) { return; }
-                that.db = store.replace(incoming);
+                var replaced = store.replace(incoming);
+                if (!replaced) { that.render(); return; }
+                that.db = replaced;
                 that.render();
                 wx.showToast({ title: '已覆盖，当前 ' + n + ' 天', icon: 'none' });
               }
@@ -352,7 +354,7 @@ Page({
       confirmColor: '#A33A28',
       success: function (res) {
         if (!res.confirm) { return; }
-        store.reset();
+        if (!store.reset()) { return; }
         that.db = store.load();
         that.render();
         wx.showToast({ title: '已清空', icon: 'none' });
