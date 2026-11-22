@@ -977,6 +977,16 @@ const phy = current().courses.filter(c => c.name === '物理')[0];
 ok(phy && phy.startWeek === 1 && phy.endWeek === (current().term.defaultWeeks || 16),
   '没写周次的课程铺满教学周', phy && (phy.startWeek + '–' + phy.endWeek));
 
+/* 粘贴框一键清空：只清文字，不退出导入页 */
+cr.openImport();
+cr.onImpText({ detail: { value: '周一 语文 3节 1-16周' } });
+ok(cr.data.impText && cr.data.imp.ok === 1, '课表粘贴·输入后有文字和识别结果');
+cr.clearImpText();
+ok(cr.data.impText === '' && cr._impText === '', '课表粘贴·一键清空输入框');
+ok(cr.data.imp && cr.data.imp.textLen === 0 && cr.data.imp.ok === 0,
+  '课表粘贴·一键清空同时清掉识别结果');
+ok(cr.data.imp !== null, '课表粘贴·清空后仍留在导入页');
+
 /* 放假安排页：自己填的休假与补班日 */
 const HY0 = new Date().getFullYear();
 const seedDays = {};
@@ -1084,6 +1094,11 @@ ok(hol.data.custom === false, '清空后不再是自定义状态');
   ok(toasts.some(t => /先粘贴/.test(t)), '空内容给提示');
   hol.closePaste();
   ok(hol.data.showPaste === false && hol.data.pasteText === '', '取消后清空输入');
+
+  hol.openPaste();
+  hol.onPaste({ detail: { value: packet } });
+  hol.clearPaste();
+  ok(hol.data.showPaste === true && hol.data.pasteText === '', '放假粘贴·一键清空后仍留在导入框');
 }
 
 /* 导入合并 */
@@ -1856,6 +1871,25 @@ lock.clear();
     '全年事项·按日期顺序', np.data.yearNotes.map(x => x.note).join('/'));
   ok(np.data.yearNotes[1].weekend === true || np.data.yearNotes[1].meta.indexOf('周') >= 0,
     '全年事项·带上星期与状态');
+}
+
+/* ================= 备注一键清空 ================= */
+{
+  reset();
+  seedDb();
+  const notePage = makePage('calendar');
+  notePage.onLoad();
+  notePage.openSheet('2026-11-15');
+  ok(notePage.data.noteHasValue === false, '备注清空·没内容时不显示按钮');
+  notePage.onNote({ detail: { value: '数学静思啊' } });
+  ok(notePage.data.noteHasValue === true && notePage._note === '数学静思啊',
+    '备注清空·有内容时显示按钮且暂存文字不丢', JSON.stringify([notePage.data.noteHasValue, notePage._note]));
+  notePage.clearNote();
+  ok(notePage.data.noteHasValue === false && notePage.data.sheet.note === '' && notePage._note === '',
+    '备注清空·点一次输入框和暂存值都清掉');
+  notePage.tapTag({ currentTarget: { dataset: { v: '四六级' } } });
+  ok(notePage.data.noteHasValue === true && notePage.data.sheet.note === '四六级' && notePage._note === '四六级',
+    '备注清空·标签重新填备注时按钮恢复');
 }
 
 /* ================= 代码审查 1122：小程序端回归 ================= */

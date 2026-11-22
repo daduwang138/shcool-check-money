@@ -251,8 +251,12 @@
       </view>
 
       <view class="dp-card">
-        <input class="dp-note" value="{{sheet.note}}" placeholder="备注：记一笔，方便日后查找"
-               maxlength="60" bindinput="onNote" />
+        <view class="dp-note-wrap">
+          <input class="dp-note" value="{{sheet.note}}" placeholder="备注：记一笔，方便日后查找"
+                 maxlength="60" bindinput="onNote" />
+          <!-- 有内容才出现；点一下整段清空，不用逐字删 -->
+          <view class="dp-note-x" wx:if="{{noteHasValue}}" catchtap="clearNote">✕</view>
+        </view>
         <!-- 常用与最近写过的标签合并成一片，靠虚线框区分，不再各占一行标题 -->
         <view class="dp-tags">
           <text class="tag {{sheet.note === item ? 'on' : ''}}" wx:for="{{sheet.tags}}" wx:key="*this"

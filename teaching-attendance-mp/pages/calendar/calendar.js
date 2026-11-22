@@ -47,6 +47,7 @@ Page({
     allowWk: false,
     tipsOpen: false,
     backupTip: '',
+    noteHasValue: false,
     ready: false
   },
 
@@ -729,6 +730,7 @@ Page({
     } catch (e) { compact = false; }
     this.setData({
       compact: compact,
+      noteHasValue: !!note,
       /* 档位随设置页变动，每次点开重算一遍，别缓存到页面 data 里 */
       rates: core.ratesOf(db).map(function (r) { return { id: r.id, name: r.name, price: r.price }; }),
       /* 面板里这块只有 230rpx 宽，一行塞不下「时长 + 单价 + 上限」，
@@ -818,7 +820,17 @@ Page({
   },
 
   onNote: function (e) {
-    this._note = e.detail.value;
+    var v = e.detail.value || '';
+    this._note = v;
+    /* 只改按钮显示状态，不回写 sheet.note：
+       每次输入都重设 input 的 value 会让光标跳到开头 */
+    if (this.data.noteHasValue !== !!v) { this.setData({ noteHasValue: !!v }); }
+  },
+
+  /* 输入框里的 ✕：一键清空备注，包括还没同步进 sheet.note 的暂存文字 */
+  clearNote: function () {
+    this._note = '';
+    this.setData({ 'sheet.note': '', noteHasValue: false });
   },
 
   /* 快捷标签：点了直接填进备注。_note 和 sheet.note 要一起改，
@@ -828,7 +840,7 @@ Page({
     var s = this.data.sheet;
     if (!s || !s.key) { return; }
     this._note = v;
-    this.setData({ 'sheet.note': v });
+    this.setData({ 'sheet.note': v, noteHasValue: !!v });
   },
 
   /* 选了哪档课就记在哪天，没选算默认档 */
@@ -838,7 +850,7 @@ Page({
   },
 
   clearSheet: function () {
-    this.setData({ 'sheet.am': '', 'sheet.pm': '', 'sheet.lessons': 0, 'sheet.note': '', 'sheet.rid': 'default', 'sheet.night': 0 });
+    this.setData({ 'sheet.am': '', 'sheet.pm': '', 'sheet.lessons': 0, 'sheet.note': '', 'sheet.rid': 'default', 'sheet.night': 0, noteHasValue: false });
     this._note = '';
   },
 

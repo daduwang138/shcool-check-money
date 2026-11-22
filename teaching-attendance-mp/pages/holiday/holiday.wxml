@@ -57,8 +57,11 @@
   <view class="paste-box" wx:if="{{showPaste}}">
     <text class="paste-t">粘贴电脑版复制的内容</text>
     <text class="paste-sub">电脑版设置页 → 放假安排 → 复制给手机，粘到这里就能整年一次填完，不用逐天选</text>
-    <textarea class="paste-ta" value="{{pasteText}}" bindinput="onPaste" maxlength="4000"
-      placeholder="把电脑上复制的那一串粘在这里" />
+    <view class="paste-ta-wrap">
+      <textarea class="paste-ta" value="{{pasteText}}" bindinput="onPaste" maxlength="4000"
+        placeholder="把电脑上复制的那一串粘在这里" />
+      <view class="ta-x" wx:if="{{pasteText}}" catchtap="clearPaste">✕</view>
+    </view>
     <view class="paste-btns">
       <view class="btn" bindtap="closePaste">取消</view>
       <view class="btn primary" bindtap="doPaste">导入</view>

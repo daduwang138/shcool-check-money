@@ -177,7 +177,12 @@ Page({
     this.setData({ showPaste: false, pasteText: '' });
   },
   onPaste: function (e) {
-    this.setData({ pasteText: e.detail.value });
+    this.setData({ pasteText: e.detail.value || '' });
+  },
+
+  /* 只清空粘贴内容、留在导入框；和「取消」不同，不用重新打开 */
+  clearPaste: function () {
+    this.setData({ pasteText: '' });
   },
   doPaste: function () {
     var that = this;

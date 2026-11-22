@@ -28,6 +28,7 @@ Page({
     preview: '',
     editing: null,
     imp: null,
+    impText: '',
     weekdayChips: chipsOf([1]),
     parityOpts: [
       { v: 'all', label: '每周' },
@@ -260,17 +261,28 @@ Page({
   /* ---------- 从 Excel 粘贴导入 ---------- */
   openImport: function () {
     this._impText = '';
-    this.setData({ imp: { textLen: 0, ok: 0, items: [], badCount: 0, badList: [], more: 0 } });
+    this.setData({ impText: '', imp: { textLen: 0, ok: 0, items: [], badCount: 0, badList: [], more: 0 } });
   },
 
   closeImport: function () {
     this._impText = '';
-    this.setData({ imp: null });
+    this.setData({ impText: '', imp: null });
   },
 
   onImpText: function (e) {
-    this._impText = e.detail.value || '';
+    var v = e.detail.value || '';
+    this._impText = v;
+    this.setData({ impText: v });
     this.previewImport();
+  },
+
+  /* 只清空粘贴内容、留在导入页；和「返回」不同，不用重新进一次 */
+  clearImpText: function () {
+    this._impText = '';
+    this.setData({
+      impText: '',
+      imp: { textLen: 0, ok: 0, items: [], badCount: 0, badList: [], more: 0 }
+    });
   },
 
   previewImport: function () {
