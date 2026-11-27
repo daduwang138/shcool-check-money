@@ -1,6 +1,10 @@
 var core = require('../../utils/core.js');
 var store = require('../../utils/store.js');
 var lock = require('../../utils/lock.js');
+var spec = require('../../utils/spec.js');
+/* 个税本地算不出来，估算到手只能给个大概；这句在月度卡、年度卡、电脑版共用 */
+var NET_TIP = '个税无法在账本里精确计算，估算到手未扣个税；实际到手与这个数可能有约 '
+  + spec.NET_PAY.taxError + ' 元误差。';
 
 Page({
   data: {
@@ -17,6 +21,9 @@ Page({
     ym: '',
     monLabel: '',
     total: '0.00',
+    social: '',
+    netTotal: '',
+    netTip: '',
     rows: [],
     heroSubs: [],
     halfRows: [],
@@ -99,6 +106,9 @@ Page({
     this.setData({
       monLabel: y + ' 年 ' + m + ' 月',
       total: core.fmt(c.total),
+      social: c.social > 0 ? core.fmt(c.social) : '',
+      netTotal: c.social > 0 ? core.fmt(c.net) : '',
+      netTip: c.social > 0 ? NET_TIP : '',
       rows: rows,
       heroSubs: rows.slice(0, 3),
       halfRows: halfRows,
@@ -244,6 +254,11 @@ Page({
       paidMonths: c.paidMonths,
       checkedMonths: c.checkedMonths,
       total: core.fmt(c.total),
+      /* 年度在「应发·总览」补一句全年估算；只扣有记录的月份，与月度口径一致 */
+      social: '', netTotal: '',
+      netTip: tab === 'pay' && c.social > 0
+        ? ('全年五险一金 ¥' + core.fmt(c.social) + ' 已扣；估算到手 ¥' + core.fmt(c.net) + '。' + NET_TIP)
+        : '',
       noteRows: [],
       yearNotes: yearNotes,
       ghostDays: core.fmtShort(c.ghostDays),

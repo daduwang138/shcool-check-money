@@ -61,6 +61,11 @@ var PAY_ITEMS = [
     formula: '晚修次数 × 每次金额', onlyIfNight: true }
 ];
 
+/* 到手估算：五险一金每月固定扣 616，个数税在本地算不出来。
+   页面、核对单、CSV 共用这两个数，别在三处各写一份写歪。
+   没有记录的月份不算扣款，避免空月出现 −616 的负到手。 */
+var NET_PAY = { socialMonthly: 616, taxError: 100 };
+
 /* 数据 schema：版本号 + 日记录业务字段清单。
    DAY_FIELDS 是「比较两天是不是同一条账」的唯一依据（store.js 的 dayBody 由它生成）：
    以后加日记录字段只改这里，不会漏掉导入合并时的冲突判断。
@@ -82,5 +87,6 @@ var DAY_FIELDS = [
 ];
 module.exports = {
   STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS,
+  NET_PAY: NET_PAY,
   SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS
 };

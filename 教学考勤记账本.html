@@ -900,6 +900,10 @@ var PAY_ITEMS=[
     "onlyIfNight": true
   }
 ];
+var NET_PAY={
+  "socialMonthly": 616,
+  "taxError": 100
+};
 var SCHEMA_VERSION=3;
 var DAY_FIELDS=[
   {
@@ -943,6 +947,7 @@ var STATES = spec.STATES;
 var CYCLE = spec.CYCLE;
 var HOLIDAYS = spec.HOLIDAYS;
 var PAY_ITEMS = spec.PAY_ITEMS;
+var NET_PAY = spec.NET_PAY;
 var SCHEMA_VERSION = spec.SCHEMA_VERSION;
 var DAY_FIELDS = spec.DAY_FIELDS;
 /* 迁移表放 core.js 而不是 spec.js：它是函数（行为），spec.js 要被 JSON.stringify
@@ -1362,6 +1367,8 @@ function blankDB() {
       rates: [{ id: 'default', name: '正课', price: 30 }],
       /* 晚修监考：按次计，不算课时也不占出勤半天 */
       nightHours: 2, nightFee: 10,
+      /* 到手估算：每月固定扣的五险一金，默认 616，设置页可改，不按月冻结 */
+      socialMonthly: NET_PAY.socialMonthly,
       enableBase: true, enableLesson: true, enableInv: true, enableOt: true, autoWork: true,
       /* 课程表课时自动落账：默认开，只补当月「今天及以前」且没手填过的日子 */
       autoLessons: true,
@@ -1417,6 +1424,10 @@ function normalize(db) {
   /* 晚修监考的两个价：存成字符串也认，负数归零 */
   db.settings.nightHours = Math.max(0, parseFloat(db.settings.nightHours) || 0);
   db.settings.nightFee = Math.max(0, parseFloat(db.settings.nightFee) || 0);
+  /* 老备份没有五险一金字段时由 blankDB 补成默认 616，不能当成 0 免扣 */
+  var socialRaw = parseFloat(db.settings.socialMonthly);
+  db.settings.socialMonthly = (!isFinite(socialRaw) || socialRaw < 0)
+    ? NET_PAY.socialMonthly : round2(socialRaw);
   /* 老备份没有这个开关时默认开；只有显式关掉才关 */
   db.settings.autoLessons = db.settings.autoLessons !== false;
   if (!db.months || typeof db.months !== 'object') db.months = {};
@@ -1811,6 +1822,13 @@ function computeMonth(db, ym) {
   out.total = round2(PAY_ITEMS.reduce(function (sum, it) {
     return sum + (out[it.key] || 0);
   }, 0));
+  /* 到手估算：五险一金按设置页当前值扣，个税本地算不出来。
+     没记过账的月份不扣，空月不会凭空出现负的估算到手；
+     不按月冻结，改设置后所有月份立刻跟着变。 */
+  var socialEach = parseFloat(db.settings.socialMonthly);
+  if (!isFinite(socialEach) || socialEach < 0) { socialEach = NET_PAY.socialMonthly; }
+  out.social = filledDays > 0 ? round2(socialEach) : 0;
+  out.net = round2(out.total - out.social);
   return out;
 }
 
@@ -1824,7 +1842,7 @@ function computeYear(db, year) {
   var out = {
     year: yr, months: [], paidMonths: 0,
     workdays: 0, actual: 0, lessons: 0, filledDays: 0, ghostDays: 0,
-    basePart: 0, extraPart: 0, lessonFee: 0, nightFee: 0,
+    basePart: 0, extraPart: 0, lessonFee: 0, nightFee: 0, social: 0, net: 0,
     nightCount: 0, nightHours: 0,
     counted: { work: 0, inv: 0, ot: 0, leave: 0 },
     byRate: {}, checkedMonths: 0
@@ -1867,6 +1885,11 @@ function computeYear(db, year) {
   out.total = round2(PAY_ITEMS.reduce(function (sum, it) {
     return sum + (out[it.key] || 0);
   }, 0));
+  /* 全年按有记录的月份数 × 设置里的五险一金，和月度「没记账就不扣」同一口径 */
+  var socialYearEach = parseFloat(db.settings.socialMonthly);
+  if (!isFinite(socialYearEach) || socialYearEach < 0) { socialYearEach = NET_PAY.socialMonthly; }
+  out.social = round2(socialYearEach * out.paidMonths);
+  out.net = round2(out.total - out.social);
   return out;
 }
 
@@ -1898,6 +1921,12 @@ function sumText(c){
     L.push(it.mark+" "+it.label+"："+fmt(c[it.key])+" 元");
   });
   L.push("应发合计："+fmt(c.total)+" 元");
+  if(c.social>0){
+    L.push("————————————————");
+    L.push("五险一金（每月固定）："+fmt(c.social)+" 元");
+    L.push("估算到手："+fmt(c.net)+" 元");
+    L.push("说明：个税无法在账本里精确计算，估算到手未扣个税；实际到手与这个数可能有约 "+NET_PAY.taxError+" 元误差。");
+  }
   return L.join("\n");
 }
 
@@ -1994,7 +2023,10 @@ function buildExportCsv(db, months, incSum, incDay) {
   var nightTxt = db.settings.nightFee > 0
     ? '；晚修监考 ' + fmtShort(db.settings.nightHours) + ' 小时 ' + fmtShort(db.settings.nightFee) + ' 元/次'
     : '';
-  L.push(csvRow(['计薪参数（当前设置）', '基本工资 ' + fmtShort(db.settings.baseSalary) + ' 元/月；课时单价 ' + rateTxt + nightTxt]));
+  var socialCsv = parseFloat(db.settings.socialMonthly);
+  if (!isFinite(socialCsv) || socialCsv < 0) { socialCsv = NET_PAY.socialMonthly; }
+  L.push(csvRow(['计薪参数（当前设置）', '基本工资 ' + fmtShort(db.settings.baseSalary) + ' 元/月；课时单价 ' + rateTxt + nightTxt
+    + '；五险一金 ' + fmtShort(socialCsv) + ' 元/月']));
   /* 上面那行只是「现在设置里填的价」。跨月导出时，记过账的月份用的是当月冻结价，
      两者可能不一样；财务拿这份表对账，得看得见每个月到底按哪个价算出来的。
      开关关掉的项仍列出参数值（那是记录里的值），只是不计入金额。 */
@@ -2009,24 +2041,28 @@ function buildExportCsv(db, months, incSum, incDay) {
     })).concat([fmtShort(np.hours), num2(np.fee)])));
   });
   L.push('');
-  var tot = { actual: 0, les: 0, base: 0, extra: 0, fee: 0, night: 0, nfee: 0, all: 0 };
+  var tot = { actual: 0, les: 0, base: 0, extra: 0, fee: 0, night: 0, nfee: 0, all: 0, social: 0, net: 0 };
   if (incSum) {
     L.push(csvRow(['月度汇总']));
     /* 金额列头从注册表取，加计薪项不会漏列 */
     var pl = PAY_ITEMS.map(function (it) { return it.csv; });
     L.push(csvRow(['月份', '法定工作日', '实际出勤(天)', '上班(半天)', '监考(半天)', '加班(半天)', '请假(半天)',
-      '课时(节)', '折算日薪', pl[0], pl[1], pl[2], '晚修(次)', pl[3], '应发合计', '状态']));
+      '课时(节)', '折算日薪', pl[0], pl[1], pl[2], '晚修(次)', pl[3], '应发合计', '五险一金', '估算到手', '状态']));
+    L.push(csvRow(['说明', '五险一金按设置每月扣 '+num2(socialCsv)+' 元；'
+      +'个税无法在账本里精确计算，估算到手未扣个税；实际到手与这个数可能有约 '+NET_PAY.taxError+' 元误差。']));
     months.forEach(function (ym) {
       var c = computeMonth(db, ym);
       tot.actual += c.actual; tot.les += c.lessons; tot.base += c.basePart;
       tot.extra += c.extraPart; tot.fee += c.lessonFee; tot.night += c.nightCount;
-      tot.nfee += c.nightFee; tot.all += c.total;
+      tot.nfee += c.nightFee; tot.all += c.total; tot.social += c.social; tot.net += c.net;
       L.push(csvRow([ym, c.workdays, fmtShort(c.actual), c.counted.work, c.counted.inv, c.counted.ot,
         c.counted.leave, c.lessons, num2(c.dailyRate), num2(c.basePart), num2(c.extraPart),
-        num2(c.lessonFee), c.nightCount, num2(c.nightFee), num2(c.total), c.checked ? '已核对' : '未核对']));
+        num2(c.lessonFee), c.nightCount, num2(c.nightFee), num2(c.total),
+        num2(c.social), num2(c.net), c.checked ? '已核对' : '未核对']));
     });
     L.push(csvRow(['合计', months.length + ' 个月', fmtShort(tot.actual), '', '', '', '', tot.les, '',
-      num2(tot.base), num2(tot.extra), num2(tot.fee), tot.night, num2(tot.nfee), num2(tot.all), '']));
+      num2(tot.base), num2(tot.extra), num2(tot.fee), tot.night, num2(tot.nfee), num2(tot.all),
+      num2(tot.social), num2(tot.net), '']));
     L.push('');
   }
   if (incDay) {
@@ -2131,7 +2167,7 @@ return {
   buildExportCsv: buildExportCsv
 };
 
-})({STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS, SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS});
+})({STATES: STATES, CYCLE: CYCLE, HOLIDAYS: HOLIDAYS, PAY_ITEMS: PAY_ITEMS, NET_PAY: NET_PAY, SCHEMA_VERSION: SCHEMA_VERSION, DAY_FIELDS: DAY_FIELDS});
 /* >>> CORE:END <<< */
 function $(id){return document.getElementById(id);}
 function pad(n){return Core.pad(n);}
@@ -3524,6 +3560,8 @@ var SUM_MODE="month";
 var SUM_YEAR=0;
 var SUM_TAB="pay";
 var SUM_TABS=[["pay","应发·总览"],["att","出勤"],["les","课时"],["nig","晚修"]];
+/* 个税本地算不出来，两版都只给估算到手，并把误差写在同一处 */
+var NET_TIP='个税无法在账本里精确计算，估算到手未扣个税；实际到手与这个数可能有约 '+NET_PAY.taxError+' 元误差。';
 /* 年度视图：逐月 computeMonth 再累加，和月度同一套口径。
    四标签共用一份 computeYear，只取不同字段展示（应发是总览，其余是构成下钻）。
    标签切换是纯 UI，不重算、不写库；参数卡不显示（工资/单价只对单月有意义）。 */
@@ -3581,6 +3619,10 @@ function renderSumYear(){
     +'<div class="sum-cards">'+cards.map(function(card){
       return '<div class="sum-card"><span class="k">'+esc(card[0])+'</span><span class="v">'+esc(card[1])+'</span></div>';
     }).join('')+'</div></div>';
+  /* 年度应发总览补一句全年估算：只按有记录的月份扣五险一金 */
+  if(tab==="pay"&&c.social>0){
+    html+='<div class="card"><p class="hint">全年五险一金 ¥'+fmt(c.social)+' 已扣；估算到手 ¥'+fmt(c.net)+'。'+esc(NET_TIP)+'</p></div>';
+  }
 
   var vals=months.map(pick), max=Math.max.apply(null,vals.concat([0]));
   var hasData=vals.some(function(x){return x>0;});
@@ -3684,6 +3726,15 @@ function renderSum(){
   html+='</tbody></table>';
   html+='</div></div>';
   html+='</div>';
+
+  /* 到手估算独立于应发：五险一金固定扣 616，个税只能说明误差 */
+  if(c.social>0){
+    html+='<div class="card"><h2>到手估算</h2><table><tbody>'
+      +'<tr><td>应发合计</td><td class="num">¥'+fmt(c.total)+'</td></tr>'
+      +'<tr><td>五险一金（每月固定）</td><td class="num">−¥'+fmt(c.social)+'</td></tr>'
+      +'<tr class="total"><td>估算到手</td><td class="num" style="font-size:16px">¥'+fmt(c.net)+'</td></tr>'
+      +'</tbody></table><p class="hint">'+esc(NET_TIP)+'</p></div>';
+  }
 
   html+='<div class="card">';
   html+='<h2>计算过程</h2>';
@@ -4141,6 +4192,14 @@ function renderSet(){
   h+='<div class="fields">';
   h+='<div class="field"><div><label>基本工资默认值（元/月）</label><div class="desc">用于按出勤天数折算；改这里会同步当月（自然月）及以后已记账的月份，更早的月份保持原值；要单独改某个月去汇总页「本月参数」</div></div><input type="number" id="setBase" min="0" step="0.01" value="'+(s.baseSalary||0)+'"'+(s.enableBase?'':' disabled')+'></div>';
   h+='<div class="field"><div><label>课时单价（元/节）</label><div class="desc">正课这类默认单价；晚自习、代课等另加档位；已记账的月份按当时冻的价，改价会同步当月及以后</div></div><input type="number" id="setRate" min="0" step="0.01" value="'+(s.rate||0)+'"'+(s.enableLesson?'':' disabled')+'></div>';
+  /* 到手估算的固定扣除项：和课时价不同，它不按月冻结，改完所有月份立刻重算 */
+  h+=[
+    '<div class="field"><div><label>五险一金（元/月）</label>',
+    '<div class="desc">估算到手时每月扣这一笔，默认 616；改这里所有月份立即按新值重算，不按月冻结；个税仍无法在本地精确计算</div></div>',
+    '<input type="number" id="setSocial" min="0" step="0.01" value="',
+    (s.socialMonthly==null?NET_PAY.socialMonthly:s.socialMonthly),
+    '"></div>'
+  ].join('');
   h+='</div>';
   /* ---------- 多档课时单价 ---------- */
   var extraRates=(s.rates||[]).filter(function(r){return r&&r.id&&r.id!=="default";});
@@ -4248,7 +4307,7 @@ function renderSet(){
   h+='<p class="muted">默认出勤的判定顺序：入职起算日之前 → 一律不算；法定工作日 → 整天上班；常规周里设为上班的星期 → 按设置；法定节假日 → 一律休，常规周也越不过它。</p>';
   h+='<p class="muted">课程表按「周几 + 每次节数 + 起止周」记录。第 1 教学周周一填准，周次才不会错；整周放假不顺延，照常算一周。填课时时会自动跳过法定节假日（国庆、春节、中秋等），不会把课算到放假日上。</p>';
   h+='<p class="muted">法定工作日内置 '+Object.keys(HOLIDAYS).sort().join("、")+' 年（'+Object.keys(HOLIDAYS).sort().map(function(y){return HOLIDAYS[y].note;}).join("；")+'），其他年份默认按周一至周五估算。每年 11 月前后国务院公布次年安排，在「放假安排」里点「联网获取」就能拉下来核对入库，不用改代码；小程序不能联网，用那里生成的粘贴码带过去。也可以照学校校历自己填，填了优先于内置。</p>';
-  h+='<p class="muted">计算规则：实际出勤 =（上班+监考+加班 的半天数）÷ 2；折算日薪 = 基本工资 ÷ 当月法定工作日；应发 = ①日薪×min(实际,应上) + ②日薪×超出天数 + ③各档课时分别乘单价再相加（只有一档时就等于课时×单价） + ④晚修次数×每次金额（一晚最多 2 次，金额在设置里改；时长只写进核对单、不按小时乘钱）。</p>';
+  h+='<p class="muted">计算规则：实际出勤 =（上班+监考+加班 半天数）÷ 2；折算日薪 = 基本工资 ÷ 法定工作日；应发 = ①日薪×min(实际,应上) + ②日薪×超出天数 + ③各档课时×对应单价 + ④晚修次数×每次金额（时长只写核对单）。到手估算 = 应发 − 设置里的五险一金（默认 616，改完全部月份立即重算）；个税算不出，误差约 100 元。</p>';
   h+='<p class="muted">「按月导出」在汇总页和设置页都能进：可选本月、近三个月、今年或任意月份区间，导出的 CSV 里先是月度汇总（一个月一行，可直接对比），再是每日明细，Excel / WPS 双击就能开。设过数据目录的话，文件会直接写进那个目录，不用再去下载文件夹里翻。</p>';
   h+='<p class="muted">数据到底在哪：按年份分文件夹、按月分文件存在你选的文件夹里 —— <code>2026/考勤数据_2026-10.json</code>、<code>2027/考勤数据_2027-01.json</code>，外加根目录的 <code>考勤数据_设置.json</code> 存工资参数与课程表；没设目录时暂存在浏览器存储区。带月份的文件都是缩进排版的多行明文：<code>days</code> 下面每个日期一块，<code>am</code> / <code>pm</code> 是上下午状态，<code>lessons</code> 是当天节数，<code>note</code> 是备注。记事本能打开、能直接复制；一个学年结束，把那一年的文件夹整个拷进网盘或 U 盘就是一份完整归档。</p>';
   h+='</div>';
@@ -4333,6 +4392,15 @@ function renderSet(){
   if(nf)nf.addEventListener("change",function(){
     var v=parseFloat(this.value);DB.settings.nightFee=isNaN(v)?0:Math.max(0,v);
     persist().then(function(){toast("已保存");if(!$("view-sum").hidden)renderSum();});
+  });
+  var sm=$("setSocial");
+  if(sm)sm.addEventListener("change",function(){
+    var v=parseFloat(this.value);
+    DB.settings.socialMonthly=isNaN(v)?NET_PAY.socialMonthly:Math.round(Math.max(0,v)*100)/100;
+    persist().then(function(){
+      toast((!isNaN(v)&&v>=0)?"已保存":"已恢复默认 616");
+      if(!$("view-sum").hidden)renderSum();
+    });
   });
   $("setStart").addEventListener("change",function(){
     var v=this.value||"";

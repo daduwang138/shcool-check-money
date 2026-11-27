@@ -136,6 +136,32 @@ const mpSum = fs.readFileSync(path.join(PAGES, 'summary', 'summary.wxml'), 'utf8
     bad.push(p[0] + '参数卡没写「改完点一下别处才生效」');
   }
 });
+/* 到手估算哨兵：五险一金固定 616，个税算不出来必须写清误差。
+   少一处说明，用户就会把估算到手当成精确工资。 */
+[['电脑版', htmlSrc], ['小程序版', mpSum]].forEach(function (p) {
+  if (p[1].indexOf('估算到手') < 0 || p[1].indexOf('五险一金（每月固定）') < 0) {
+    bad.push(p[0] + '汇总页缺「五险一金固定扣除 / 估算到手」');
+  }
+  if (p[1].indexOf('误差') < 0 || p[1].indexOf('个税') < 0) {
+    bad.push(p[0] + '汇总页没写清「个税无法计算、估算有误差」');
+  }
+});
+const netCoreSrc = fs.readFileSync(path.join(PAGES, '..', 'utils', 'core.js'), 'utf8');
+if (netCoreSrc.indexOf('NET_PAY.socialMonthly') < 0 || netCoreSrc.indexOf('NET_PAY.taxError') < 0) {
+  bad.push('内核没从 spec.js 取五险一金 / 误差常量，三处文案会写歪');
+}
+if (netCoreSrc.indexOf("'五险一金', '估算到手'") < 0) {
+  bad.push('CSV 月度汇总缺五险一金 / 估算到手列');
+}
+/* 五险一金必须能改：两版设置页都要有输入框，内核要读设置而不是写死常量 */
+if (netCoreSrc.indexOf('db.settings.socialMonthly') < 0) {
+  bad.push('内核没按设置里的 socialMonthly 扣五险一金');
+}
+const mpSettings = fs.readFileSync(path.join(PAGES, 'settings', 'settings.wxml'), 'utf8');
+if (mpSettings.indexOf('setSocialMonthly') < 0 || htmlSrc.indexOf('id="setSocial"') < 0) {
+  bad.push('设置页缺五险一金输入框（小程序 bindblur / 电脑版 id="setSocial"）');
+}
+
 /* 两处都叫「基本工资」却显示不同数字，是用户反复困惑的根源。
    标签必须显式区分「默认值」与「本月取值」，差异解释也要两版都在。 */
 [['电脑版', htmlSrc], ['小程序版', mpSet]].forEach(function (p) {

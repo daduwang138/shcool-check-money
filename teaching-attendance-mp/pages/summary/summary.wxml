@@ -46,6 +46,27 @@
       <text class="yc-v">{{item.v}}</text>
     </view>
   </view>
+  <view class="card" wx:if="{{mode === 'year' && netTip}}">
+    <text class="param-hint">{{netTip}}</text>
+  </view>
+
+  <!-- 到手估算：五险一金每月固定扣，个税算不出来，旁边说清误差，别当成精确数 -->
+  <view class="card" wx:if="{{mode === 'month' && social}}">
+    <text class="card-title">到手估算</text>
+    <view class="row">
+      <text class="row-label">应发合计</text>
+      <text class="row-value">¥{{total}}</text>
+    </view>
+    <view class="row">
+      <text class="row-label">五险一金（每月固定）</text>
+      <text class="row-value">−¥{{social}}</text>
+    </view>
+    <view class="row">
+      <text class="row-label">估算到手</text>
+      <text class="row-value net-value">¥{{netTotal}}</text>
+    </view>
+    <text class="param-hint">{{netTip}}</text>
+  </view>
 
   <block wx:if="{{mode === 'month'}}">
     <view class="halves-card">

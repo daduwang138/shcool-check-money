@@ -3,7 +3,7 @@ var lock = require('./utils/lock.js');
 App({
   globalData: {
     appName: '考勤记账本-个人版',
-    version: '1.2.3'
+    version: '1.2.4'
   },
   onLaunch: function () {
     var first = wx.getStorageSync('kqzb_first_open');

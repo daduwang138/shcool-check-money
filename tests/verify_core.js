@@ -254,6 +254,29 @@ if (csvH !== csvC) {
   }
 }
 
+/* 4.5 五险一金：设置页可改，默认 616；不按月冻结，两版同口径 */
+{
+  eq('五险一金·老备份缺字段补默认 616', core.normalize({}).settings.socialMonthly, 616);
+  const db = core.normalize({ settings: { baseSalary: 8000, socialMonthly: 700 } });
+  core.setRecord(db, '2026-11-03', 'work', 'work', 1, '');
+  const cc = core.computeMonth(db, '2026-11');
+  eq('五险一金·设置值生效', cc.social, 700);
+  eq('五险一金·估算到手按设置值算', cc.net, core.round2(cc.total - 700));
+  eq('五险一金·核对单写设置值',
+    core.sumText(cc).indexOf('五险一金（每月固定）：700.00 元') >= 0, true);
+  const csv = core.buildExportCsv(db, ['2026-11'], true, false);
+  eq('五险一金·CSV 参数行写设置值', csv.indexOf('五险一金 700 元/月') >= 0, true);
+  eq('五险一金·CSV 说明行写设置值', csv.indexOf('五险一金按设置每月扣 700.00 元') >= 0, true);
+  ctx.DB = JSON.parse(JSON.stringify(db));
+  eq('五险一金·两版月度结果一致', ctx.computeMonth('2026-11'), cc);
+  eq('五险一金·两版 CSV 一致', stripTime(ctx.buildExportCsv(['2026-11'], true, false)), stripTime(csv));
+  db.settings.socialMonthly = 888;
+  const yc = core.computeYear(db, 2026);
+  eq('五险一金·年度按有记录月份数×设置值', yc.social, 888);
+  ctx.DB = JSON.parse(JSON.stringify(db));
+  eq('五险一金·两版年度一致', ctx.computeYear(2026), yc);
+}
+
 /* 5. 工具函数 */
 eq('addMonths', ['2025-12', '2026-02', '2026-12'], [core.addMonths('2026-01', -1), core.addMonths('2026-01', 1), core.addMonths('2026-11', 1)]);
 eq('monthsBetween', ['2026-11', '2026-12', '2027-01'], core.monthsBetween('2026-11', '2027-01'));

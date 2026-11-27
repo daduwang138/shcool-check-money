@@ -7,6 +7,7 @@ var STATES = spec.STATES;
 var CYCLE = spec.CYCLE;
 var HOLIDAYS = spec.HOLIDAYS;
 var PAY_ITEMS = spec.PAY_ITEMS;
+var NET_PAY = spec.NET_PAY;
 var SCHEMA_VERSION = spec.SCHEMA_VERSION;
 var DAY_FIELDS = spec.DAY_FIELDS;
 /* 迁移表放 core.js 而不是 spec.js：它是函数（行为），spec.js 要被 JSON.stringify
@@ -426,6 +427,8 @@ function blankDB() {
       rates: [{ id: 'default', name: '正课', price: 30 }],
       /* 晚修监考：按次计，不算课时也不占出勤半天 */
       nightHours: 2, nightFee: 10,
+      /* 到手估算：每月固定扣的五险一金，默认 616，设置页可改，不按月冻结 */
+      socialMonthly: NET_PAY.socialMonthly,
       enableBase: true, enableLesson: true, enableInv: true, enableOt: true, autoWork: true,
       /* 课程表课时自动落账：默认开，只补当月「今天及以前」且没手填过的日子 */
       autoLessons: true,
@@ -481,6 +484,10 @@ function normalize(db) {
   /* 晚修监考的两个价：存成字符串也认，负数归零 */
   db.settings.nightHours = Math.max(0, parseFloat(db.settings.nightHours) || 0);
   db.settings.nightFee = Math.max(0, parseFloat(db.settings.nightFee) || 0);
+  /* 老备份没有五险一金字段时由 blankDB 补成默认 616，不能当成 0 免扣 */
+  var socialRaw = parseFloat(db.settings.socialMonthly);
+  db.settings.socialMonthly = (!isFinite(socialRaw) || socialRaw < 0)
+    ? NET_PAY.socialMonthly : round2(socialRaw);
   /* 老备份没有这个开关时默认开；只有显式关掉才关 */
   db.settings.autoLessons = db.settings.autoLessons !== false;
   if (!db.months || typeof db.months !== 'object') db.months = {};
@@ -875,6 +882,13 @@ function computeMonth(db, ym) {
   out.total = round2(PAY_ITEMS.reduce(function (sum, it) {
     return sum + (out[it.key] || 0);
   }, 0));
+  /* 到手估算：五险一金按设置页当前值扣，个税本地算不出来。
+     没记过账的月份不扣，空月不会凭空出现负的估算到手；
+     不按月冻结，改设置后所有月份立刻跟着变。 */
+  var socialEach = parseFloat(db.settings.socialMonthly);
+  if (!isFinite(socialEach) || socialEach < 0) { socialEach = NET_PAY.socialMonthly; }
+  out.social = filledDays > 0 ? round2(socialEach) : 0;
+  out.net = round2(out.total - out.social);
   return out;
 }
 
@@ -888,7 +902,7 @@ function computeYear(db, year) {
   var out = {
     year: yr, months: [], paidMonths: 0,
     workdays: 0, actual: 0, lessons: 0, filledDays: 0, ghostDays: 0,
-    basePart: 0, extraPart: 0, lessonFee: 0, nightFee: 0,
+    basePart: 0, extraPart: 0, lessonFee: 0, nightFee: 0, social: 0, net: 0,
     nightCount: 0, nightHours: 0,
     counted: { work: 0, inv: 0, ot: 0, leave: 0 },
     byRate: {}, checkedMonths: 0
@@ -931,6 +945,11 @@ function computeYear(db, year) {
   out.total = round2(PAY_ITEMS.reduce(function (sum, it) {
     return sum + (out[it.key] || 0);
   }, 0));
+  /* 全年按有记录的月份数 × 设置里的五险一金，和月度「没记账就不扣」同一口径 */
+  var socialYearEach = parseFloat(db.settings.socialMonthly);
+  if (!isFinite(socialYearEach) || socialYearEach < 0) { socialYearEach = NET_PAY.socialMonthly; }
+  out.social = round2(socialYearEach * out.paidMonths);
+  out.net = round2(out.total - out.social);
   return out;
 }
 
@@ -962,6 +981,12 @@ function sumText(c){
     L.push(it.mark+" "+it.label+"："+fmt(c[it.key])+" 元");
   });
   L.push("应发合计："+fmt(c.total)+" 元");
+  if(c.social>0){
+    L.push("————————————————");
+    L.push("五险一金（每月固定）："+fmt(c.social)+" 元");
+    L.push("估算到手："+fmt(c.net)+" 元");
+    L.push("说明：个税无法在账本里精确计算，估算到手未扣个税；实际到手与这个数可能有约 "+NET_PAY.taxError+" 元误差。");
+  }
   return L.join("\n");
 }
 
@@ -1058,7 +1083,10 @@ function buildExportCsv(db, months, incSum, incDay) {
   var nightTxt = db.settings.nightFee > 0
     ? '；晚修监考 ' + fmtShort(db.settings.nightHours) + ' 小时 ' + fmtShort(db.settings.nightFee) + ' 元/次'
     : '';
-  L.push(csvRow(['计薪参数（当前设置）', '基本工资 ' + fmtShort(db.settings.baseSalary) + ' 元/月；课时单价 ' + rateTxt + nightTxt]));
+  var socialCsv = parseFloat(db.settings.socialMonthly);
+  if (!isFinite(socialCsv) || socialCsv < 0) { socialCsv = NET_PAY.socialMonthly; }
+  L.push(csvRow(['计薪参数（当前设置）', '基本工资 ' + fmtShort(db.settings.baseSalary) + ' 元/月；课时单价 ' + rateTxt + nightTxt
+    + '；五险一金 ' + fmtShort(socialCsv) + ' 元/月']));
   /* 上面那行只是「现在设置里填的价」。跨月导出时，记过账的月份用的是当月冻结价，
      两者可能不一样；财务拿这份表对账，得看得见每个月到底按哪个价算出来的。
      开关关掉的项仍列出参数值（那是记录里的值），只是不计入金额。 */
@@ -1073,24 +1101,28 @@ function buildExportCsv(db, months, incSum, incDay) {
     })).concat([fmtShort(np.hours), num2(np.fee)])));
   });
   L.push('');
-  var tot = { actual: 0, les: 0, base: 0, extra: 0, fee: 0, night: 0, nfee: 0, all: 0 };
+  var tot = { actual: 0, les: 0, base: 0, extra: 0, fee: 0, night: 0, nfee: 0, all: 0, social: 0, net: 0 };
   if (incSum) {
     L.push(csvRow(['月度汇总']));
     /* 金额列头从注册表取，加计薪项不会漏列 */
     var pl = PAY_ITEMS.map(function (it) { return it.csv; });
     L.push(csvRow(['月份', '法定工作日', '实际出勤(天)', '上班(半天)', '监考(半天)', '加班(半天)', '请假(半天)',
-      '课时(节)', '折算日薪', pl[0], pl[1], pl[2], '晚修(次)', pl[3], '应发合计', '状态']));
+      '课时(节)', '折算日薪', pl[0], pl[1], pl[2], '晚修(次)', pl[3], '应发合计', '五险一金', '估算到手', '状态']));
+    L.push(csvRow(['说明', '五险一金按设置每月扣 '+num2(socialCsv)+' 元；'
+      +'个税无法在账本里精确计算，估算到手未扣个税；实际到手与这个数可能有约 '+NET_PAY.taxError+' 元误差。']));
     months.forEach(function (ym) {
       var c = computeMonth(db, ym);
       tot.actual += c.actual; tot.les += c.lessons; tot.base += c.basePart;
       tot.extra += c.extraPart; tot.fee += c.lessonFee; tot.night += c.nightCount;
-      tot.nfee += c.nightFee; tot.all += c.total;
+      tot.nfee += c.nightFee; tot.all += c.total; tot.social += c.social; tot.net += c.net;
       L.push(csvRow([ym, c.workdays, fmtShort(c.actual), c.counted.work, c.counted.inv, c.counted.ot,
         c.counted.leave, c.lessons, num2(c.dailyRate), num2(c.basePart), num2(c.extraPart),
-        num2(c.lessonFee), c.nightCount, num2(c.nightFee), num2(c.total), c.checked ? '已核对' : '未核对']));
+        num2(c.lessonFee), c.nightCount, num2(c.nightFee), num2(c.total),
+        num2(c.social), num2(c.net), c.checked ? '已核对' : '未核对']));
     });
     L.push(csvRow(['合计', months.length + ' 个月', fmtShort(tot.actual), '', '', '', '', tot.les, '',
-      num2(tot.base), num2(tot.extra), num2(tot.fee), tot.night, num2(tot.nfee), num2(tot.all), '']));
+      num2(tot.base), num2(tot.extra), num2(tot.fee), tot.night, num2(tot.nfee), num2(tot.all),
+      num2(tot.social), num2(tot.net), '']));
     L.push('');
   }
   if (incDay) {

@@ -655,6 +655,24 @@ ok(Math.abs(c1.dailyRate - 400) < 1e-9, '日薪随之重算', c1.dailyRate);
 sum.resetParams();
 ok(core.computeMonth(core.normalize(current()), sum.data.ym).workdays !== 20, '恢复默认参数生效');
 
+/* 到手估算：五险一金每月固定 616，个税算不出来只能写误差说明 */
+reset();
+seedDb({ days: { '2026-11-03': { am: 'work', pm: 'work', lessons: 2, note: '', upd: 1 } } });
+const sumNet = makePage('summary');
+sumNet.onLoad();
+const cNet = core.computeMonth(core.normalize(current()), sumNet.data.ym);
+ok(sumNet.data.social === core.fmt(616), '月度扣五险一金 616', sumNet.data.social);
+ok(sumNet.data.netTotal === core.fmt(cNet.total - 616), '估算到手 = 应发 − 616', sumNet.data.netTotal);
+ok(sumNet.data.netTip.indexOf('100 元误差') >= 0, '到手估算带个税误差说明', sumNet.data.netTip);
+sumNet.setData({ ym: '2025-01' });
+sumNet.render();
+ok(sumNet.data.social === '' && sumNet.data.netTotal === '', '没记账的月份不显示扣除与估算');
+sumNet.setData({ ym: '2026-11' });
+sumNet.render();
+sumNet.setMode({ currentTarget: { dataset: { mode: 'year' } } });
+ok(sumNet.data.netTip.indexOf('全年五险一金 ¥616.00 已扣') >= 0,
+  '年度应发总览给出全年估算', sumNet.data.netTip);
+
 /* 课时分档后，计算过程要列出每档；只有一档时不该多这一行 */
 reset();
 seedDb();
@@ -716,6 +734,8 @@ sumC.copySum();
 ok(clips.length === 1 &&
   clips[0] === core.sumText(core.computeMonth(core.normalize(current()), sumC.data.ym)),
   '复制核对单与内核文本逐字一致');
+ok(clips[0].indexOf('五险一金（每月固定）：616.00 元') >= 0
+  && clips[0].indexOf('约 100 元误差') >= 0, '核对单带固定扣除与误差说明');
 
 const origExportCsv = stF.exportCsv;
 let gotMonths = null;
@@ -883,6 +903,23 @@ ok(current().settings.nightFee === 15 && set.data.nightFee === '15', '可改每�
 set.setNightHours({ detail: { value: '-1' } });
 set.setNightFee({ detail: { value: 'abc' } });
 ok(current().settings.nightHours === 3 && current().settings.nightFee === 15, '负数与乱填不改原值');
+
+/* 五险一金：默认 616，可改，改完汇总页立刻按新值算（不按月冻结） */
+ok(set.data.socialMonthly === '616', '设置页带出五险一金默认 616', set.data.socialMonthly);
+set.setSocialMonthly({ detail: { value: '700' } });
+ok(current().settings.socialMonthly === 700 && set.data.socialMonthly === '700',
+  '五险一金可改并回显', set.data.socialMonthly);
+set.setSocialMonthly({ detail: { value: '-1' } });
+set.setSocialMonthly({ detail: { value: 'abc' } });
+ok(current().settings.socialMonthly === 700, '五险一金负数与乱填不改原值',
+  String(current().settings.socialMonthly));
+const sumSocial = makePage('summary');
+sumSocial.onLoad();
+ok(sumSocial.data.social === core.fmt(700), '汇总页按设置值扣五险一金', sumSocial.data.social);
+set.db.settings.socialMonthly = 800;
+require(path.join(ROOT, 'utils/store.js')).commit();
+sumSocial.render();
+ok(sumSocial.data.social === core.fmt(800), '改设置后已打开月份立刻重算', sumSocial.data.social);
 
 /* 课程表页 */
 reset();

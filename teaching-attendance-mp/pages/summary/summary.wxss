@@ -187,6 +187,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 到手估算卡：把最终数字从一排普通行里拎出来，但别做成第二个 hero 抢应发的位置 */
+.net-value {
+  color: #1B5E9B;
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
 .hero-sub {
   display: flex;
   flex-wrap: wrap;

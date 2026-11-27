@@ -1,6 +1,7 @@
 var core = require('../../utils/core.js');
 var store = require('../../utils/store.js');
 var lock = require('../../utils/lock.js');
+var spec = require('../../utils/spec.js');
 
 var WEEK_LABEL = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -31,6 +32,7 @@ Page({
     rates: [],
     nightHours: '',
     nightFee: '',
+    socialMonthly: '',
     enableBase: true,
     enableLesson: true,
     enableInv: true,
@@ -77,6 +79,7 @@ Page({
         .map(function (r) { return { id: r.id, name: r.name || '档位', price: String(r.price || 0) }; }),
       nightHours: String(s.nightHours || 0),
       nightFee: String(s.nightFee || 0),
+      socialMonthly: String(s.socialMonthly == null ? spec.NET_PAY.socialMonthly : s.socialMonthly),
       enableBase: !!s.enableBase,
       enableLesson: !!s.enableLesson,
       enableInv: !!s.enableInv,
@@ -145,6 +148,15 @@ Page({
     if (isNaN(v) || v < 0) { this.render(); return; }
     this.db.settings.nightFee = v;
     store.commit();
+    this.render();
+  },
+
+  /* 五险一金是估算到手的固定扣除项：不按月冻结，改完所有月份立即按新值重算 */
+  setSocialMonthly: function (e) {
+    var v = parseFloat(e.detail.value);
+    if (isNaN(v) || v < 0) { this.render(); return; }
+    this.db.settings.socialMonthly = core.round2(v);
+    if (!store.commit()) { this.render(); return; }
     this.render();
   },
 

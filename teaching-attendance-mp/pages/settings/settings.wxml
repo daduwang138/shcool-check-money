@@ -65,6 +65,14 @@
 
     <view class="row">
       <view class="col">
+        <text class="row-label">五险一金（元/月）</text>
+        <text class="sub">估算到手时每月扣这一笔，默认 616；改这里所有月份立即按新值重算，不按月冻结。个税仍无法在本地精确计算。</text>
+      </view>
+      <input class="num-in" type="digit" value="{{socialMonthly}}" bindblur="setSocialMonthly" />
+    </view>
+
+    <view class="row">
+      <view class="col">
         <text class="row-label">监考计入出勤</text>
         <text class="sub">半天监考折 0.5 天，与上班同价</text>
       </view>
