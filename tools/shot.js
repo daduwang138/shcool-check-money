@@ -31,7 +31,7 @@ const SHOTS = [
   { name: 'sheet', path: 'pages/calendar/calendar', tapDay: '19' },
   /* 放假安排 / 课程表 / 口令都不在 tabBar 上，只能从设置页那一行点进去 */
   { name: 'courses', path: 'pages/settings/settings', viaText: '课程表' },
-  { name: 'year', path: 'pages/settings/settings', viaText: '年历总览' },
+  { name: 'year', path: 'pages/settings/settings', viaText: '教学日历' },
   { name: 'holiday', path: 'pages/settings/settings', viaText: '放假安排' },
   { name: 'pass', path: 'pages/settings/settings', viaText: '修改口令' },
   { name: 'pc', pc: true, width: 1440, height: 1020, scale: 1 },

@@ -10,7 +10,7 @@
     <view class="row">
       <view class="col">
         <text class="row-label">基本工资默认值（元/月）</text>
-        <text class="sub">按法定工作日折算成日薪；改这里会同步当月（自然月）及以后已记账的月份，更早的月份保持原值；当月实际用的值在汇总页「本月参数」</text>
+        <text class="sub">按出勤折算；改后同步当月（自然月）及以后</text>
       </view>
       <switch checked="{{enableBase}}" data-key="enableBase" bindchange="toggle" color="#1B5E9B" />
     </view>
@@ -23,7 +23,7 @@
     <view class="row">
       <view class="col">
         <text class="row-label">课时费（元/节）</text>
-        <text class="sub">按当月实际课时计；改单价会同步当月及以后已记账的月份</text>
+        <text class="sub">按课时计；改价同步当月及以后</text>
       </view>
       <switch checked="{{enableLesson}}" data-key="enableLesson" bindchange="toggle" color="#1B5E9B" />
     </view>
@@ -40,14 +40,14 @@
       <view class="rate-x" data-id="{{item.id}}" bindtap="delRate">✕</view>
     </view>
     <view class="row">
-      <text class="sub rate-hint">晚自习、代课单价不一样就加一档；记账时选了哪档按哪档算，改价同样同步当月及以后</text>
+      <text class="sub rate-hint">不同课单价不同就加档</text>
       <view class="btn sm" bindtap="addRate">＋ 加档</view>
     </view>
 
     <view class="row">
       <view class="col">
         <text class="row-label">晚修监考</text>
-        <text class="sub">每次 2 小时 10 元，一晚最多 2 次；不算课时也不占出勤半天，不按小时乘钱</text>
+        <text class="sub">按次计，不占出勤</text>
       </view>
     </view>
     <view class="row">
@@ -60,13 +60,13 @@
     </view>
 
     <view class="row">
-      <text class="sub rate-hint">学校口径变了才改这两项，平时不用动；时长只写进核对单，金额才参与算钱。金额填 0 就不显示晚修录入（学校不发这笔钱时用）；已记过的日子仍能打开清零，已记账的月份仍按原价。白天照常记出勤，晚上这场只点 1 次；同一场别再勾「加班」半天，会重复算钱。</text>
+      <text class="sub rate-hint">填 0 就关闭晚修录入；时长只进核对单，同一场别再勾加班</text>
     </view>
 
     <view class="row">
       <view class="col">
         <text class="row-label">五险一金（元/月）</text>
-        <text class="sub">估算到手时每月扣这一笔，默认 616；改这里所有月份立即按新值重算，不按月冻结。个税仍无法在本地精确计算。</text>
+        <text class="sub">默认 616；改完全部月份重算</text>
       </view>
       <input class="num-in" type="digit" value="{{socialMonthly}}" bindblur="setSocialMonthly" />
     </view>
@@ -74,7 +74,7 @@
     <view class="row">
       <view class="col">
         <text class="row-label">监考计入出勤</text>
-        <text class="sub">半天监考折 0.5 天，与上班同价</text>
+        <text class="sub">折 0.5 天，与上班同价</text>
       </view>
       <switch checked="{{enableInv}}" data-key="enableInv" bindchange="toggle" color="#1B5E9B" />
     </view>
@@ -82,7 +82,7 @@
     <view class="row">
       <view class="col">
         <text class="row-label">加班计入出勤</text>
-        <text class="sub">含休息日加班，不限应上班天数上限</text>
+        <text class="sub">含休息日，不封顶</text>
       </view>
       <switch checked="{{enableOt}}" data-key="enableOt" bindchange="toggle" color="#1B5E9B" />
     </view>
@@ -94,7 +94,7 @@
     <view class="row">
       <view class="col">
         <text class="row-label">法定工作日默认算上班</text>
-        <text class="sub">打开后，没填的日子自动按上班计，10 月只需补监考和课时</text>
+        <text class="sub">没填的日子按上班</text>
       </view>
       <switch checked="{{autoWork}}" data-key="autoWork" bindchange="toggle" color="#1B5E9B" />
     </view>
@@ -102,14 +102,14 @@
     <view class="row">
       <view class="col">
         <text class="row-label">按课程表自动记课时</text>
-        <text class="sub">本月已过去、有课又没填过的日子自动记上；未来不预填，已核对的月份不动。自动填完 10 秒可撤销，撤销后本月不再自动填；关掉开关后已记的账不删。</text>
+        <text class="sub">未来不预填；已核对不动；10 秒可撤销，撤销后不再自动填</text>
       </view>
       <switch checked="{{autoLessons}}" data-key="autoLessons" bindchange="toggle" color="#1B5E9B" />
     </view>
 
     <view class="week-block">
       <text class="row-label">常规一周</text>
-      <text class="sub">法定节假日与调休优先，这里只在普通日子生效。点格子切换：班 → 半 → 休</text>
+      <text class="sub">点格子：班 → 半 → 休；节假日与调休优先</text>
       <view class="week">
         <view class="wd {{item.on ? 'on' : (item.half ? 'half' : '')}}" wx:for="{{weekPattern}}" wx:key="i"
               data-i="{{item.i}}" bindtap="cycleWeek">
@@ -132,8 +132,8 @@
 
     <view class="row" bindtap="gotoYear">
       <view class="col">
-        <text class="row-label">年历总览</text>
-        <text class="sub">全年 12 个月 · 周数 · 法定休假与调休补班</text>
+        <text class="row-label">教学日历</text>
+        <text class="sub">12 个月 · 周数 · 放假调休</text>
       </view>
       <text class="arrow">›</text>
     </view>
@@ -157,12 +157,13 @@
     </view>
   </view>
 
-  <view class="card">
+  <!-- 口令锁默认不占位置；已经开启过的仍显示，避免找不到关闭入口 -->
+  <view class="card" wx:if="{{lockOn}}">
     <text class="card-title">口令锁</text>
     <view class="row">
       <view class="col">
         <text class="row-label">打开时验证口令</text>
-        <text class="sub">{{lockOn ? '已开启：冷启动和切后台超过 5 分钟都要重输' : '未开启：拿到手机的人能直接看到记录'}}</text>
+        <text class="sub">{{lockOn ? '已开启 · 切后台 5 分钟重输' : '未开启'}}</text>
       </view>
       <switch checked="{{lockOn}}" bindchange="toggleLock" color="#1B5E9B" />
     </view>
@@ -171,7 +172,7 @@
       <text class="arrow">›</text>
     </view>
     <view class="data-tips">
-      <text>口令只在本机校验，忘记无法找回。记录本身仍是明文存在微信里，这道锁挡的是随手翻看；真正的加密靠手机自己的锁屏。</text>
+      <text>本机校验，忘记无法找回；数据明文，靠手机锁屏保护。</text>
     </view>
   </view>
 
@@ -186,7 +187,7 @@
       <text class="row-value">本机微信存储</text>
     </view>
     <view class="data-tips">
-      <text>小程序的数据存在这台设备上，不上传服务器。换设备或换人用，靠下面的导出 / 导入搬一次；电脑端也可以直接用 HTML 版，两边 JSON 格式相同。</text>
+      <text>只存本机，不上传；换设备靠导出 / 导入 JSON。</text>
     </view>
     <view class="data-actions">
       <view class="btn primary" bindtap="exportBackup">导出备份 JSON</view>
@@ -196,6 +197,6 @@
   </view>
 
   <view class="tips">
-    <text>导出的 JSON 可以发给「文件传输助手」，在电脑上打开、或用 HTML 版导入。手机端导出会生成文件并转为发送给聊天；电脑端会直接弹出保存位置。</text>
+    <text>导出的 JSON 可用文件传输助手传到电脑，HTML 版可直接导入。</text>
   </view>
 </view>

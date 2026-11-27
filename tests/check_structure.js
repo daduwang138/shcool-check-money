@@ -161,6 +161,20 @@ const mpSettings = fs.readFileSync(path.join(PAGES, 'settings', 'settings.wxml')
 if (mpSettings.indexOf('setSocialMonthly') < 0 || htmlSrc.indexOf('id="setSocial"') < 0) {
   bad.push('设置页缺五险一金输入框（小程序 bindblur / 电脑版 id="setSocial"）');
 }
+/* 入口名称统一成「教学日历」；旧名「年历总览」不该再出现在用户可见按钮里 */
+const mpCal = fs.readFileSync(path.join(PAGES, 'calendar', 'calendar.wxml'), 'utf8');
+if (mpCal.indexOf('>教学日历<') < 0 || mpSettings.indexOf('>教学日历<') < 0
+  || htmlSrc.indexOf('id="calYear" class="btn sm">教学日历<') < 0) {
+  bad.push('教学日历入口没统一改名');
+}
+if (mpCal.indexOf('年历总览') >= 0 || mpSettings.indexOf('年历总览') >= 0
+  || htmlSrc.indexOf('>年历总览<') >= 0) {
+  bad.push('还有用户可见的「年历总览」旧名');
+}
+/* 口令锁未开启时不占设置页位置；开启过的仍要留关闭入口 */
+if (mpSettings.indexOf('wx:if="{{lockOn}}"') < 0 || htmlSrc.indexOf('if(META.pass){') < 0) {
+  bad.push('口令锁卡片没有按「已开启才显示」隐藏');
+}
 
 /* 两处都叫「基本工资」却显示不同数字，是用户反复困惑的根源。
    标签必须显式区分「默认值」与「本月取值」，差异解释也要两版都在。 */
